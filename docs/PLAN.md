@@ -682,8 +682,24 @@ Finance Service → Kafka: finance.transaction.created
 
 ### Правило тестирования (Phase 2+)
 
-> Начиная с Phase 2, каждый завершённый feature issue должен иметь соответствующий issue в milestone **Testing** до того как считается "done".
-> Инструмент: **Postman** — коллекция в `docs/postman/`. Swagger используется только как справочник эндпоинтов.
+Начиная с Phase 2, каждый завершённый feature issue должен иметь:
+
+1. **Интеграционные тесты** — `apps/<service>/test/*.integration.spec.ts` покрывают happy path, граничные случаи и Kafka assertions.
+2. **Issue в milestone Testing** с Postman-чеклистом для ручного E2E.
+
+**Технический стек:**
+- Авто-тесты: `jest` + `supertest` + `@household/testing` (фабрика приложения, cleaner БД, mock Kafka)
+- Ручное тестирование: Postman — коллекция в `docs/postman/`
+- Swagger — только справочник эндпоинтов во время разработки
+
+**Запуск:**
+```bash
+# Требует: docker compose up -d  (postgres + redis, БД household_test создаётся автоматически)
+pnpm --filter @household/finance-service test:integration   # один сервис
+pnpm test:integration                                       # все сервисы
+```
+
+**Образец** (паттерн для всех Phase 2+ сервисов): `apps/finance-service/test/`
 
 ---
 

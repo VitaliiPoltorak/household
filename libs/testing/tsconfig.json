@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "baseUrl": "../../",
+    "paths": {
+      "@household/common": ["libs/common/src"],
+      "@household/contracts": ["libs/contracts/src"],
+      "@household/database": ["libs/database/src"],
+      "@household/kafka": ["libs/kafka/src"]
+    }
+  },
+  "include": ["src/**/*"]
+}

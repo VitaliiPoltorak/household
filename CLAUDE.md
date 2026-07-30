@@ -114,18 +114,51 @@ All services return:
 
 One PostgreSQL instance with **schema-per-service** (not separate databases). Each service manages its own schema and runs its own TypeORM migrations.
 
-## Testing policy
+## Testing policy (Phase 2+)
 
-Starting from Phase 2, every completed feature issue must have a corresponding issue in the **Testing** GitHub milestone before it is considered done. Testing issues contain step-by-step Postman instructions.
+Every completed feature must have both before the issue is closed:
+1. **Automated integration tests** — `apps/<service>/test/*.integration.spec.ts`
+2. **Manual testing issue** in the GitHub Testing milestone with Postman checklist
 
-**Tool: Postman** — collection at `docs/postman/household.postman_collection.json`, environment at `docs/postman/household.postman_environment.json`.
+### Integration tests
 
-When finishing an issue:
-1. Check existing testing issues in the Testing milestone — if none covers the feature, create one.
-2. Run the relevant Postman requests and verify all test assertions pass.
-3. Close the testing issue only after manual verification.
+**Stack:** `jest` + `supertest` + shared `@household/testing` lib.
 
-Swagger (`/docs` on each service) is for quick endpoint reference during development, not for integration testing.
+**Pattern** — copy from `apps/finance-service/test/`:
+```typescript
+import { createTestApp, cleanDatabase, resetKafkaMocks, mockKafkaProducer } from '@household/testing';
+import request from 'supertest';
+
+beforeAll(() => createTestApp(AppModule));   // boots real NestJS, mocks Kafka
+beforeEach(() => { cleanDatabase(app); resetKafkaMocks(); });
+afterAll(() => app.close());
+```
+
+**Run:**
+```bash
+docker compose up -d                                           # postgres + redis required
+pnpm --filter @household/<service> test:integration            # single service
+pnpm test:integration                                          # all services
+```
+
+**Test database:** `household_test` — created automatically by `ensureSchema()` on first run. Never use the dev database for tests.
+
+**What to cover per feature:**
+- Happy path (201/200 with correct body)
+- householdId isolation (another household can't see/modify)
+- Kafka assertions: `expect(mockKafkaProducer.emit).toHaveBeenCalledWith(...)`
+- Key validation errors (400 for bad input, 401 for missing headers, 404 for not found)
+
+**Each service needs:**
+- `jest.integration.config.js` (copy from finance-service, change displayName)
+- `tsconfig.test.json` (copy from finance-service, add `@household/testing` path)
+- `"test:integration"` script in `package.json`
+
+### Manual testing
+
+**Tool: Postman** — `docs/postman/household.postman_collection.json` + `household.postman_environment.json`.
+
+Swagger at `/docs` per service is for endpoint reference during development only.
 
 ## Current implementation status
 
