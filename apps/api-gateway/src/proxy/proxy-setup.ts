@@ -63,6 +63,12 @@ const ROUTES: ProxyRoute[] = [
     rewrites: { '^': '/recurring-payments' },
   },
   {
+    prefix: '/api/v1/reports',
+    envKey: 'FINANCE_SERVICE_URL',
+    defaultUrl: 'http://localhost:3003',
+    rewrites: { '^': '/reports' },
+  },
+  {
     prefix: '/api/v1/stores',
     envKey: 'SHOPPING_SERVICE_URL',
     defaultUrl: 'http://localhost:3004',

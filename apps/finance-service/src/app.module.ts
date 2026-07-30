@@ -8,6 +8,7 @@ import { TransactionsModule } from './transactions/transactions.module';
 import { CategoriesModule } from './categories/categories.module';
 import { IncomeSourcesModule } from './income-sources/income-sources.module';
 import { RecurringPaymentsModule } from './recurring-payments/recurring-payments.module';
+import { ReportsModule } from './reports/reports.module';
 import { Account } from './accounts/entities/account.entity';
 import { Transaction } from './transactions/entities/transaction.entity';
 import { Category } from './categories/entities/category.entity';
@@ -41,6 +42,7 @@ import { RecurringPayment } from './recurring-payments/entities/recurring-paymen
     CategoriesModule,
     IncomeSourcesModule,
     RecurringPaymentsModule,
+    ReportsModule,
   ],
 })
 export class AppModule {}
