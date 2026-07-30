@@ -22,7 +22,7 @@ services:
       - redis_data:/data
 
   kafka:
-    image: bitnami/kafka:latest
+    image: bitnami/kafka:3.9
     container_name: household-kafka
     restart: unless-stopped
     ports:
