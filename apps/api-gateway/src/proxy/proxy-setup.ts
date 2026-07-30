@@ -10,72 +10,75 @@ interface ProxyRoute {
   rewrites: Record<string, string>;
 }
 
+// Express strips the mount prefix before passing req.url to middleware.
+// So app.use('/api/v1/auth', proxy) means the proxy sees '/google', not '/api/v1/auth/google'.
+// pathRewrite must prepend the service-level prefix to the already-stripped path.
 const ROUTES: ProxyRoute[] = [
   {
     prefix: '/api/v1/auth',
     envKey: 'AUTH_SERVICE_URL',
     defaultUrl: 'http://localhost:3001',
-    rewrites: { '^/api/v1/auth': '/auth' },
+    rewrites: { '^': '/auth' },
   },
   {
     prefix: '/api/v1/households',
     envKey: 'HOUSEHOLD_SERVICE_URL',
     defaultUrl: 'http://localhost:3002',
-    rewrites: { '^/api/v1/households': '/households' },
+    rewrites: { '^': '/households' },
   },
   {
     prefix: '/api/v1/invites',
     envKey: 'HOUSEHOLD_SERVICE_URL',
     defaultUrl: 'http://localhost:3002',
-    rewrites: { '^/api/v1/invites': '/invites' },
+    rewrites: { '^': '/invites' },
   },
   {
     prefix: '/api/v1/accounts',
     envKey: 'FINANCE_SERVICE_URL',
     defaultUrl: 'http://localhost:3003',
-    rewrites: { '^/api/v1/accounts': '/accounts' },
+    rewrites: { '^': '/accounts' },
   },
   {
     prefix: '/api/v1/transactions',
     envKey: 'FINANCE_SERVICE_URL',
     defaultUrl: 'http://localhost:3003',
-    rewrites: { '^/api/v1/transactions': '/transactions' },
+    rewrites: { '^': '/transactions' },
   },
   {
     prefix: '/api/v1/categories',
     envKey: 'FINANCE_SERVICE_URL',
     defaultUrl: 'http://localhost:3003',
-    rewrites: { '^/api/v1/categories': '/categories' },
+    rewrites: { '^': '/categories' },
   },
   {
     prefix: '/api/v1/income-sources',
     envKey: 'FINANCE_SERVICE_URL',
     defaultUrl: 'http://localhost:3003',
-    rewrites: { '^/api/v1/income-sources': '/income-sources' },
+    rewrites: { '^': '/income-sources' },
   },
   {
     prefix: '/api/v1/recurring-payments',
     envKey: 'FINANCE_SERVICE_URL',
     defaultUrl: 'http://localhost:3003',
-    rewrites: { '^/api/v1/recurring-payments': '/recurring-payments' },
+    rewrites: { '^': '/recurring-payments' },
   },
   {
     prefix: '/api/v1/stores',
     envKey: 'SHOPPING_SERVICE_URL',
     defaultUrl: 'http://localhost:3004',
-    rewrites: { '^/api/v1/stores': '/stores' },
+    rewrites: { '^': '/stores' },
   },
   {
     prefix: '/api/v1/products',
     envKey: 'SHOPPING_SERVICE_URL',
     defaultUrl: 'http://localhost:3004',
-    rewrites: { '^/api/v1/products': '/products' },
+    rewrites: { '^': '/products' },
   },
   {
     prefix: '/api/v1/shopping-lists',
     envKey: 'SHOPPING_SERVICE_URL',
     defaultUrl: 'http://localhost:3004',
-    rewrites: { '^/api/v1/shopping-lists': '/shopping-lists' },
+    rewrites: { '^': '/shopping-lists' },
   },
 ];
 
