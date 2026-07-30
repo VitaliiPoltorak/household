@@ -5,6 +5,7 @@ import { KafkaModule } from '@household/kafka';
 import { ensureSchema } from '@household/database';
 import { RedisModule } from './redis/redis.module';
 import { HouseholdsModule } from './households/households.module';
+import { EventsModule } from './events/events.module';
 import { Household } from './households/entities/household.entity';
 import { HouseholdMember } from './households/entities/household-member.entity';
 import { HouseholdInvite } from './households/entities/household-invite.entity';
@@ -33,6 +34,7 @@ import { HouseholdInvite } from './households/entities/household-invite.entity';
     KafkaModule.forRootAsync('household-service'),
     RedisModule,
     HouseholdsModule,
+    EventsModule,
   ],
 })
 export class AppModule {}
