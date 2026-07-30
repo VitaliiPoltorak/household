@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { KafkaModule } from '@household/kafka';
+import { ensureSchema } from '@household/database';
 import { AccountsModule } from './accounts/accounts.module';
 import { TransactionsModule } from './transactions/transactions.module';
 import { CategoriesModule } from './categories/categories.module';
@@ -19,17 +20,20 @@ import { RecurringPayment } from './recurring-payments/entities/recurring-paymen
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: (config: ConfigService) => ({
-        type: 'postgres' as const,
-        host: config.get<string>('POSTGRES_HOST', 'localhost'),
-        port: config.get<number>('POSTGRES_PORT', 5432),
-        username: config.get<string>('POSTGRES_USER', 'household'),
-        password: config.get<string>('POSTGRES_PASSWORD', 'household_secret'),
-        database: config.get<string>('POSTGRES_DB', 'household'),
-        schema: 'finance',
-        entities: [Account, Transaction, Category, IncomeSource, RecurringPayment],
-        synchronize: config.get('NODE_ENV') === 'development',
-      }),
+      useFactory: async (config: ConfigService) => {
+        await ensureSchema('finance');
+        return {
+          type: 'postgres' as const,
+          host: config.get<string>('POSTGRES_HOST', 'localhost'),
+          port: config.get<number>('POSTGRES_PORT', 5432),
+          username: config.get<string>('POSTGRES_USER', 'household'),
+          password: config.get<string>('POSTGRES_PASSWORD', 'household_secret'),
+          database: config.get<string>('POSTGRES_DB', 'household'),
+          schema: 'finance',
+          entities: [Account, Transaction, Category, IncomeSource, RecurringPayment],
+          synchronize: config.get('NODE_ENV') === 'development',
+        };
+      },
     }),
     KafkaModule.forRootAsync('finance-service'),
     AccountsModule,
