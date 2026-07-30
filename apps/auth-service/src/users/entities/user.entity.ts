@@ -10,7 +10,7 @@ export class User extends BaseEntity {
   @Column({ name: 'display_name' })
   displayName: string;
 
-  @Column({ name: 'avatar_url', nullable: true })
+  @Column({ name: 'avatar_url', type: 'varchar', nullable: true })
   avatarUrl: string | null;
 
   @Column({ default: 'en' })

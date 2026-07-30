@@ -25,24 +25,24 @@ export class Transaction extends BaseEntity {
   @Column({ length: 3, default: 'UAH' })
   currency: string;
 
-  @Column({ name: 'category_id', nullable: true })
+  @Column({ name: 'category_id', type: 'varchar', nullable: true })
   categoryId: string | null;
 
-  @Column({ name: 'income_source_id', nullable: true })
+  @Column({ name: 'income_source_id', type: 'varchar', nullable: true })
   incomeSourceId: string | null;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   description: string | null;
 
   @Column({ type: 'date' })
   date: string;
 
-  @Column({ name: 'external_id', nullable: true })
+  @Column({ name: 'external_id', type: 'varchar', nullable: true })
   externalId: string | null;
 
   @Column({ name: 'created_by' })
   createdBy: string;
 
-  @Column({ name: 'transfer_pair_id', nullable: true })
+  @Column({ name: 'transfer_pair_id', type: 'varchar', nullable: true })
   transferPairId: string | null;
 }

@@ -26,7 +26,7 @@ export class Account extends BaseEntity {
   @Column({ type: 'decimal', precision: 15, scale: 2, default: 0 })
   balance: number;
 
-  @Column({ name: 'external_id', nullable: true })
+  @Column({ name: 'external_id', type: 'varchar', nullable: true })
   externalId: string | null;
 
   @Column({ name: 'is_archived', default: false })

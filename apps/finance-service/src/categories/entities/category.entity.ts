@@ -17,9 +17,9 @@ export class Category extends BaseEntity {
   @Column({ type: 'enum', enum: CategoryType })
   type: CategoryType;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   icon: string | null;
 
-  @Column({ name: 'parent_id', nullable: true })
+  @Column({ name: 'parent_id', type: 'varchar', nullable: true })
   parentId: string | null;
 }

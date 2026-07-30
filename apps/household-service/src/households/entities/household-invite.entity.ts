@@ -20,7 +20,7 @@ export class HouseholdInvite extends BaseEntity {
   @Column({ name: 'expires_at' })
   expiresAt: Date;
 
-  @Column({ name: 'accepted_at', nullable: true })
+  @Column({ name: 'accepted_at', type: 'timestamp', nullable: true })
   acceptedAt: Date | null;
 
   @ManyToOne(() => Household, (h) => h.invites, { onDelete: 'CASCADE' })

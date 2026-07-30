@@ -21,7 +21,7 @@ export class RecurringPayment extends BaseEntity {
   @Column({ length: 3, default: 'UAH' })
   currency: string;
 
-  @Column({ name: 'category_id', nullable: true })
+  @Column({ name: 'category_id', type: 'varchar', nullable: true })
   categoryId: string | null;
 
   @Column({ type: 'enum', enum: PaymentFrequency })
@@ -30,6 +30,6 @@ export class RecurringPayment extends BaseEntity {
   @Column({ name: 'next_due_date', type: 'date' })
   nextDueDate: string;
 
-  @Column({ name: 'account_id', nullable: true })
+  @Column({ name: 'account_id', type: 'varchar', nullable: true })
   accountId: string | null;
 }
