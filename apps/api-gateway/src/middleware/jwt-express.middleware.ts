@@ -1,7 +1,15 @@
 import { Request, Response, NextFunction } from 'express';
 import * as jwt from 'jsonwebtoken';
 
-const PUBLIC_PATHS = ['/api/v1/health', '/api/docs', '/api/v1/auth'];
+const PUBLIC_PATHS = [
+  '/api/v1/health',
+  '/api/docs',
+  '/api/v1/auth/google',
+  '/api/v1/auth/apple',
+  '/api/v1/auth/facebook',
+  '/api/v1/auth/refresh',
+  '/api/v1/auth/logout',
+];
 
 export function createJwtMiddleware(secret: string) {
   return (req: Request, res: Response, next: NextFunction) => {
