@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { KafkaModule } from '@household/kafka';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { SessionsModule } from './sessions/sessions.module';
@@ -28,6 +29,7 @@ import { AuthProvider } from './users/entities/auth-provider.entity';
         synchronize: config.get('NODE_ENV') === 'development',
       }),
     }),
+    KafkaModule.forRootAsync('auth-service'),
     SessionsModule,
     UsersModule,
     AuthModule,

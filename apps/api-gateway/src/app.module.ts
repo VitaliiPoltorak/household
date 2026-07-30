@@ -3,7 +3,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_FILTER, APP_GUARD } from '@nestjs/core';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { HealthModule } from './health/health.module';
-import { HttpExceptionFilter } from './filters/http-exception.filter';
+import { HttpExceptionFilter } from '@household/common';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { ThrottlerBehindProxyGuard } from './guards/throttler-behind-proxy.guard';
 import { RequestLoggerMiddleware } from './middleware/request-logger.middleware';

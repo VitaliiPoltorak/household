@@ -1,20 +1,19 @@
-import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import { Injectable, OnModuleInit, OnModuleDestroy, Logger, Inject } from '@nestjs/common';
 import { Kafka, Producer } from 'kafkajs';
-import { randomUUID } from 'crypto';
+import { createEnvelope, EventMeta, kafkaTopic } from '@household/contracts';
+import { KAFKA_MODULE_OPTIONS } from './kafka.constants';
+import { KafkaModuleOptions } from './interfaces/kafka-options.interface';
 
 @Injectable()
 export class KafkaProducerService implements OnModuleInit, OnModuleDestroy {
-  private producer: Producer;
   private readonly logger = new Logger(KafkaProducerService.name);
+  private readonly producer: Producer;
   private connected = false;
 
-  constructor(private readonly config: ConfigService) {
+  constructor(@Inject(KAFKA_MODULE_OPTIONS) private readonly options: KafkaModuleOptions) {
     const kafka = new Kafka({
-      clientId: 'auth-service',
-      brokers: config
-        .get<string>('KAFKA_BROKERS', 'localhost:9092')
-        .split(','),
+      clientId: options.clientId,
+      brokers: options.brokers,
     });
     this.producer = kafka.producer();
   }
@@ -32,36 +31,32 @@ export class KafkaProducerService implements OnModuleInit, OnModuleDestroy {
   }
 
   async onModuleDestroy() {
-    if (this.connected) {
-      await this.producer.disconnect();
-    }
+    if (this.connected) await this.producer.disconnect();
   }
 
-  async emit(eventType: string, payload: Record<string, unknown>): Promise<void> {
+  async emit<T extends Record<string, unknown>>(
+    eventType: string,
+    payload: T,
+    meta?: EventMeta,
+  ): Promise<void> {
     if (!this.connected) {
-      this.logger.warn(`Kafka not connected, skipping event: ${eventType}`);
+      this.logger.warn(`Kafka not connected, skipping: ${eventType}`);
       return;
     }
 
-    const envelope = {
-      eventId: randomUUID(),
-      eventType,
-      userId: payload.userId as string | undefined,
-      payload,
-      createdAt: new Date().toISOString(),
-    };
+    const envelope = createEnvelope(eventType, payload, meta);
 
     try {
       await this.producer.send({
-        topic: eventType.replace(/\./g, '-'),
+        topic: kafkaTopic(eventType),
         messages: [
           {
-            key: (payload.userId as string) || randomUUID(),
+            key: meta?.userId ?? envelope.eventId,
             value: JSON.stringify(envelope),
           },
         ],
       });
-      this.logger.log(`Event emitted: ${eventType}`);
+      this.logger.debug(`Emitted: ${eventType}`);
     } catch (err) {
       this.logger.error(`Failed to emit ${eventType}: ${(err as Error).message}`);
     }

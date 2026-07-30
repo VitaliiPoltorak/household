@@ -4,7 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'crypto';
 import { UsersService, OAuthProfile } from '../users/users.service';
 import { SessionsService } from '../sessions/sessions.service';
-import { KafkaProducerService } from '../kafka/kafka-producer.service';
+import { KafkaProducerService } from '@household/kafka';
 import { User } from '../users/entities/user.entity';
 
 export interface TokenPair {

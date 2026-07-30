@@ -22,29 +22,32 @@ export class HttpExceptionFilter implements ExceptionFilter {
         ? exception.getStatus()
         : HttpStatus.INTERNAL_SERVER_ERROR;
 
-    const message =
-      exception instanceof HttpException
-        ? exception.getResponse()
-        : 'Internal server error';
+    const raw =
+      exception instanceof HttpException ? exception.getResponse() : null;
 
-    const errorResponse = {
-      statusCode: status,
-      message: typeof message === 'string' ? message : (message as Record<string, unknown>).message || message,
-      error:
-        exception instanceof HttpException
-          ? HttpException.createBody('', '', status).error || 'Error'
-          : 'Internal Server Error',
-      timestamp: new Date().toISOString(),
-      path: request.url,
-    };
+    const message =
+      typeof raw === 'string'
+        ? raw
+        : (raw as Record<string, unknown> | null)?.message ?? 'Internal server error';
+
+    const error =
+      exception instanceof HttpException
+        ? (HttpStatus[status] ?? 'Error').replace(/_/g, ' ')
+        : 'Internal Server Error';
 
     if (status >= 500) {
       this.logger.error(
-        `${request.method} ${request.url} ${status}`,
-        exception instanceof Error ? exception.stack : undefined,
+        `${request.method} ${request.url} → ${status}`,
+        exception instanceof Error ? exception.stack : String(exception),
       );
     }
 
-    response.status(status).json(errorResponse);
+    response.status(status).json({
+      statusCode: status,
+      message,
+      error,
+      timestamp: new Date().toISOString(),
+      path: request.url,
+    });
   }
 }

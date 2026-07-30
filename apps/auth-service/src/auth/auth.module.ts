@@ -7,8 +7,6 @@ import { UsersModule } from '../users/users.module';
 import { GoogleStrategy } from './strategies/google.strategy';
 import { AppleStrategy } from './strategies/apple.strategy';
 import { FacebookStrategy } from './strategies/facebook.strategy';
-import { KafkaProducerService } from '../kafka/kafka-producer.service';
-
 @Module({
   imports: [
     UsersModule,
@@ -25,12 +23,6 @@ import { KafkaProducerService } from '../kafka/kafka-producer.service';
     }),
   ],
   controllers: [AuthController],
-  providers: [
-    AuthService,
-    GoogleStrategy,
-    AppleStrategy,
-    FacebookStrategy,
-    KafkaProducerService,
-  ],
+  providers: [AuthService, GoogleStrategy, AppleStrategy, FacebookStrategy],
 })
 export class AuthModule {}

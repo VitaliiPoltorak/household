@@ -1,17 +1,9 @@
-import {
-  Entity,
-  PrimaryGeneratedColumn,
-  Column,
-  CreateDateColumn,
-  OneToMany,
-} from 'typeorm';
+import { Entity, Column, OneToMany } from 'typeorm';
+import { BaseEntity } from '@household/database';
 import { AuthProvider } from './auth-provider.entity';
 
 @Entity({ name: 'users', schema: 'auth' })
-export class User {
-  @PrimaryGeneratedColumn('uuid')
-  id: string;
-
+export class User extends BaseEntity {
   @Column({ unique: true })
   email: string;
 
@@ -23,9 +15,6 @@ export class User {
 
   @Column({ default: 'en' })
   locale: string;
-
-  @CreateDateColumn({ name: 'created_at' })
-  createdAt: Date;
 
   @OneToMany(() => AuthProvider, (ap) => ap.user, { cascade: true })
   authProviders: AuthProvider[];
