@@ -118,7 +118,7 @@ JWT_REFRESH_EXPIRES_DAYS=30
 # ── Auth Service ──────────────────────────────────────────────────────────────
 AUTH_SERVICE_PORT=3001
 
-# Google OAuth — https://console.cloud.google.com → Credentials → OAuth 2.0
+# Google OAuth (see "Google OAuth setup" section below for full instructions)
 GOOGLE_CLIENT_ID=                    # required for Google login
 
 # Apple Sign In — https://developer.apple.com → Certificates, IDs & Profiles
@@ -171,8 +171,37 @@ Integration tests use **Postman**. The collection covers full request flows with
 1. File → Import → select both JSON files
 2. Select **Household — Local** environment (top-right dropdown)
 3. Start infrastructure and services (steps above)
-4. Get a Google ID token → paste into `googleIdToken` env var → run **Auth / Login with Google**
-5. Run the collection — all env vars (`accessToken`, `householdId`, `accountId`, etc.) populate automatically
+4. Set up Google OAuth and get an ID token (see section below)
+5. Paste the token into `googleIdToken` env var → run **Auth / Login with Google**
+6. Run the collection — all env vars (`accessToken`, `householdId`, `accountId`, etc.) populate automatically
+
+## Google OAuth setup
+
+Required once to get a `GOOGLE_CLIENT_ID` and test tokens locally.
+
+**1. Create OAuth credentials**
+
+- Open [console.cloud.google.com](https://console.cloud.google.com) → APIs & Services → Credentials
+- Create Credentials → **OAuth 2.0 Client ID**
+- Application type: **Web application**
+- Authorized redirect URIs — add **both**:
+  ```
+  https://developers.google.com/oauthplayground
+  http://localhost:3000
+  ```
+- Copy the **Client ID** → paste into `.env` as `GOOGLE_CLIENT_ID`
+
+**2. Get an ID token for Postman testing**
+
+- Open [developers.google.com/oauthplayground](https://developers.google.com/oauthplayground)
+- Click ⚙️ → check **"Use your own OAuth credentials"** → enter your Client ID + Client Secret
+- In the scope box select or type: `openid email profile`
+- Click **Authorize APIs** → sign in with your Google account
+- Click **Exchange authorization code for tokens**
+- Copy the `id_token` value from the response
+- Paste into Postman environment variable `googleIdToken`
+
+> The `id_token` expires in ~1 hour. Repeat step 2 when it expires.
 
 > **How to get a Google ID token for testing:**
 > Open [Google OAuth Playground](https://developers.google.com/oauthplayground), select scope `openid email profile`, authorize with your Google account, exchange code for tokens, copy the `id_token` value.
