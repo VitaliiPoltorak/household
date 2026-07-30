@@ -114,6 +114,26 @@ All services return:
 
 One PostgreSQL instance with **schema-per-service** (not separate databases). Each service manages its own schema and runs its own TypeORM migrations.
 
+## Testing policy
+
+Starting from Phase 2, every completed feature issue must have a corresponding issue in the **Testing** GitHub milestone before it is considered done. Testing issues contain step-by-step Postman instructions.
+
+**Tool: Postman** — collection at `docs/postman/household.postman_collection.json`, environment at `docs/postman/household.postman_environment.json`.
+
+When finishing an issue:
+1. Check existing testing issues in the Testing milestone — if none covers the feature, create one.
+2. Run the relevant Postman requests and verify all test assertions pass.
+3. Close the testing issue only after manual verification.
+
+Swagger (`/docs` on each service) is for quick endpoint reference during development, not for integration testing.
+
 ## Current implementation status
 
-Phase 0/1 in progress. Only `api-gateway` and `auth-service` are scaffolded. All other services and `libs/*` are empty directories pending implementation. Development order per the plan: `auth-service → household-service → finance-service → api-gateway wiring → shopping-service`.
+Phase 0 and Phase 1 complete. Implemented:
+- `libs/common`, `libs/contracts`, `libs/database`, `libs/kafka` — shared libs
+- `api-gateway` — JWT proxy, rate limiting, Swagger
+- `auth-service` — Google/Apple/Facebook OAuth, JWT, Redis sessions
+- `household-service` — CRUD households, members (owner/admin/member/viewer roles), Redis-backed invites
+- `finance-service` — accounts with balance tracking, transactions (income/expense/transfer/adjustment), categories, income sources, recurring payments
+
+Next: Phase 2 — shopping-service, Kafka consumers between services, realtime-gateway (Socket.IO).

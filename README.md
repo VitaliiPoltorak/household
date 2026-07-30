@@ -159,6 +159,26 @@ pnpm --filter @household/auth-service migration:generate -- -n InitAuth
 pnpm --filter @household/auth-service migration:run
 ```
 
+## Testing
+
+Integration tests use **Postman**. The collection covers full request flows with automatic token extraction and environment variable chaining (login → set `accessToken` → use in all subsequent requests).
+
+**Files:**
+- `docs/postman/household.postman_collection.json` — request collection
+- `docs/postman/household.postman_environment.json` — local environment
+
+**Import into Postman:**
+1. File → Import → select both JSON files
+2. Select **Household — Local** environment (top-right dropdown)
+3. Start infrastructure and services (steps above)
+4. Get a Google ID token → paste into `googleIdToken` env var → run **Auth / Login with Google**
+5. Run the collection — all env vars (`accessToken`, `householdId`, `accountId`, etc.) populate automatically
+
+> **How to get a Google ID token for testing:**
+> Open [Google OAuth Playground](https://developers.google.com/oauthplayground), select scope `openid email profile`, authorize with your Google account, exchange code for tokens, copy the `id_token` value.
+
+Each completed feature has a manual testing checklist in the [Testing milestone](https://github.com/VitaliiPoltorak/household/milestone/8) on GitHub. Swagger (`/docs` on each service) is available for quick endpoint reference during development.
+
 ## Architecture overview
 
 Clients (web / mobile) communicate only with the API Gateway over HTTPS/REST and WebSocket (Socket.IO, Phase 2). The Gateway validates JWT, extracts `userId` from the token, reads `X-Household-Id` from the request header, and proxies both as `X-User-Id` / `X-Household-Id` headers to downstream services. Services trust these headers and do not re-validate the JWT.

@@ -1,0 +1,569 @@
+{
+  "info": {
+    "name": "Household API",
+    "description": "Family finance & shopping management.\n\n## Setup\n1. Import this collection and `household.postman_environment.json`\n2. Select the **Household — Local** environment\n3. Start infrastructure: `docker compose up -d`\n4. Start services: `pnpm dev`\n5. Get a Google ID token (see `googleIdToken` env var description) and run **Auth / Login with Google** — all other tokens are set automatically\n\n## Auth flow\nEvery request uses the `{{accessToken}}` Bearer token (set automatically on login). If you get 401, re-run the Login request.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }]
+  },
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Login with Google",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const r = pm.response.json();",
+                  "pm.environment.set('accessToken', r.accessToken);",
+                  "pm.environment.set('refreshToken', r.refreshToken);",
+                  "pm.environment.set('sessionId', r.sessionId);",
+                  "pm.test('Login successful', () => pm.response.to.have.status(201));",
+                  "pm.test('Has accessToken', () => pm.expect(r.accessToken).to.be.a('string'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "url": "{{baseUrl}}/auth/google",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"idToken\": \"{{googleIdToken}}\",\n  \"deviceInfo\": \"Postman\"\n}"
+            },
+            "description": "Exchange a Google ID token for Household JWT tokens.\n\nHow to get a Google ID token:\n1. Go to https://developers.google.com/oauthplayground\n2. Select scope: openid email profile\n3. Authorize, exchange code → copy `id_token`\n4. Set `googleIdToken` env var and run this request"
+          }
+        },
+        {
+          "name": "Refresh token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const r = pm.response.json();",
+                  "pm.environment.set('accessToken', r.accessToken);",
+                  "pm.test('Refresh successful', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "url": "{{baseUrl}}/auth/refresh",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sessionId\": \"{{sessionId}}\",\n  \"refreshToken\": \"{{refreshToken}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Get my profile",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const r = pm.response.json();",
+                  "pm.test('Has email', () => pm.expect(r.email).to.be.a('string'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/auth/me"
+          }
+        },
+        {
+          "name": "Update profile",
+          "request": {
+            "method": "PATCH",
+            "url": "{{baseUrl}}/auth/me",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"displayName\": \"Test User\",\n  \"locale\": \"uk\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/auth/logout",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sessionId\": \"{{sessionId}}\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Households",
+      "item": [
+        {
+          "name": "Create household",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "const r = pm.response.json();",
+                  "pm.environment.set('householdId', r.id);",
+                  "pm.test('Has id', () => pm.expect(r.id).to.be.a('string'));",
+                  "pm.test('Has slug', () => pm.expect(r.slug).to.be.a('string'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/households",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"My Family\"\n}"
+            },
+            "description": "Creates a household. The creator automatically becomes the OWNER. Sets {{householdId}} for subsequent requests."
+          }
+        },
+        {
+          "name": "List my households",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Is array', () => pm.expect(pm.response.json()).to.be.an('array'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/households"
+          }
+        },
+        {
+          "name": "Get household",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/households/{{householdId}}",
+            "header": [{ "key": "X-Household-Id", "value": "{{householdId}}" }]
+          }
+        },
+        {
+          "name": "Update household name",
+          "request": {
+            "method": "PATCH",
+            "url": "{{baseUrl}}/households/{{householdId}}",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-Household-Id", "value": "{{householdId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Our Home\"\n}"
+            }
+          }
+        },
+        {
+          "name": "List members",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const members = pm.response.json();",
+                  "pm.test('Has at least 1 member (owner)', () => pm.expect(members.length).to.be.gte(1));",
+                  "pm.test('First member is owner', () => pm.expect(members[0].role).to.equal('owner'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/households/{{householdId}}/members",
+            "header": [{ "key": "X-Household-Id", "value": "{{householdId}}" }]
+          }
+        },
+        {
+          "name": "Create invite",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "const r = pm.response.json();",
+                  "pm.environment.set('inviteToken', r.token);",
+                  "pm.test('Has token', () => pm.expect(r.token).to.be.a('string'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/households/{{householdId}}/invites",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-Household-Id", "value": "{{householdId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"partner@example.com\",\n  \"role\": \"member\"\n}"
+            },
+            "description": "Creates an invite. Sets {{inviteToken}} for the accept request."
+          }
+        },
+        {
+          "name": "List active invites",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/households/{{householdId}}/invites",
+            "header": [{ "key": "X-Household-Id", "value": "{{householdId}}" }]
+          }
+        },
+        {
+          "name": "Accept invite (as another user)",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/invites/{{inviteToken}}/accept",
+            "description": "Call this with a different user's accessToken to accept the invite. Login as a second user first and update {{accessToken}}, then run this."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Finance — Accounts",
+      "item": [
+        {
+          "name": "Create account (bank)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "const r = pm.response.json();",
+                  "pm.environment.set('accountId', r.id);",
+                  "pm.test('Balance is 0', () => pm.expect(Number(r.balance)).to.equal(0));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/accounts",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-Household-Id", "value": "{{householdId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Mono Card\",\n  \"type\": \"bank\",\n  \"currency\": \"UAH\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Create account (cash)",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/accounts",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-Household-Id", "value": "{{householdId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Cash Wallet\",\n  \"type\": \"cash\",\n  \"currency\": \"UAH\"\n}"
+            }
+          }
+        },
+        {
+          "name": "List accounts",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Is array', () => pm.expect(pm.response.json()).to.be.an('array'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/accounts",
+            "header": [{ "key": "X-Household-Id", "value": "{{householdId}}" }]
+          }
+        },
+        {
+          "name": "Get summary (total balance)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const r = pm.response.json();",
+                  "pm.test('Has totalBalance', () => pm.expect(r.totalBalance).to.be.a('number'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/accounts/summary",
+            "header": [{ "key": "X-Household-Id", "value": "{{householdId}}" }]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Finance — Transactions",
+      "item": [
+        {
+          "name": "Add income (+5000)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "const r = pm.response.json();",
+                  "pm.environment.set('transactionId', r.id);",
+                  "pm.test('Type is income', () => pm.expect(r.type).to.equal('income'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/transactions",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-Household-Id", "value": "{{householdId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"accountId\": \"{{accountId}}\",\n  \"type\": \"income\",\n  \"amount\": 5000,\n  \"currency\": \"UAH\",\n  \"description\": \"Salary\",\n  \"date\": \"2026-07-30\"\n}"
+            },
+            "description": "After this request, check GET /accounts/summary — totalBalance should increase by 5000."
+          }
+        },
+        {
+          "name": "Add expense (-150)",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/transactions",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-Household-Id", "value": "{{householdId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"accountId\": \"{{accountId}}\",\n  \"type\": \"expense\",\n  \"amount\": 150,\n  \"currency\": \"UAH\",\n  \"description\": \"Groceries\",\n  \"date\": \"2026-07-30\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Transfer between accounts",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/transactions/transfer",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-Household-Id", "value": "{{householdId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fromAccountId\": \"{{accountId}}\",\n  \"toAccountId\": \"REPLACE_WITH_SECOND_ACCOUNT_ID\",\n  \"amount\": 500,\n  \"currency\": \"UAH\",\n  \"description\": \"Transfer to cash\",\n  \"date\": \"2026-07-30\"\n}"
+            },
+            "description": "Creates two linked transactions. fromAccount balance decreases, toAccount balance increases. Both have the same transferPairId."
+          }
+        },
+        {
+          "name": "List transactions",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/transactions?from=2026-07-01&to=2026-07-31",
+              "query": [
+                { "key": "from", "value": "2026-07-01" },
+                { "key": "to", "value": "2026-07-31" },
+                { "key": "type", "value": "income", "disabled": true },
+                { "key": "accountId", "value": "{{accountId}}", "disabled": true }
+              ]
+            },
+            "header": [{ "key": "X-Household-Id", "value": "{{householdId}}" }]
+          }
+        },
+        {
+          "name": "Update transaction",
+          "request": {
+            "method": "PATCH",
+            "url": "{{baseUrl}}/transactions/{{transactionId}}",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-Household-Id", "value": "{{householdId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"July salary\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Delete transaction (reverses balance)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 204', () => pm.response.to.have.status(204));",
+                  "// After this, check GET /accounts/summary — balance should revert"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/transactions/{{transactionId}}",
+            "header": [{ "key": "X-Household-Id", "value": "{{householdId}}" }]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Finance — Categories",
+      "item": [
+        {
+          "name": "Create expense category",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "pm.environment.set('categoryId', pm.response.json().id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/categories",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-Household-Id", "value": "{{householdId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Food\",\n  \"type\": \"expense\",\n  \"icon\": \"🛒\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Create sub-category",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/categories",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-Household-Id", "value": "{{householdId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Restaurants\",\n  \"type\": \"expense\",\n  \"parentId\": \"{{categoryId}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "List categories (expense)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/categories?type=expense",
+              "query": [{ "key": "type", "value": "expense" }]
+            },
+            "header": [{ "key": "X-Household-Id", "value": "{{householdId}}" }]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Finance — Recurring Payments",
+      "item": [
+        {
+          "name": "Create recurring payment",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "pm.environment.set('recurringId', pm.response.json().id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/recurring-payments",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-Household-Id", "value": "{{householdId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Netflix\",\n  \"amount\": 189,\n  \"currency\": \"UAH\",\n  \"frequency\": \"monthly\",\n  \"nextDueDate\": \"2026-08-01\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Get upcoming (next 30 days)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Netflix appears in upcoming', () => {",
+                  "  const items = pm.response.json();",
+                  "  pm.expect(items.some(i => i.name === 'Netflix')).to.be.true;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/recurring-payments/upcoming?days=30",
+              "query": [{ "key": "days", "value": "30" }]
+            },
+            "header": [{ "key": "X-Household-Id", "value": "{{householdId}}" }]
+          }
+        }
+      ]
+    }
+  ]
+}

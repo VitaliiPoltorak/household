@@ -680,7 +680,14 @@ Finance Service → Kafka: finance.transaction.created
 
 ---
 
-### Phase 2 — Shopping + Kafka maturity (2–3 недели)
+### Правило тестирования (Phase 2+)
+
+> Начиная с Phase 2, каждый завершённый feature issue должен иметь соответствующий issue в milestone **Testing** до того как считается "done".
+> Инструмент: **Postman** — коллекция в `docs/postman/`. Swagger используется только как справочник эндпоинтов.
+
+---
+
+### Phase 2 — Shopping + Real-time (2–3 недели)
 
 ```
 □ Shopping Service
