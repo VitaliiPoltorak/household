@@ -9,7 +9,8 @@
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main",
     "lint": "eslint \"{src,test}/**/*.ts\"",
-    "test": "jest"
+    "test": "jest",
+    "test:unit": "jest --config jest.unit.config.js"
   },
   "dependencies": {
     "@nestjs/common": "^10.0.0",
