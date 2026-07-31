@@ -16,9 +16,10 @@ pnpm format        # Prettier format
 pnpm --filter @household/api-gateway dev
 pnpm --filter @household/auth-service dev
 
-# TypeORM migrations (auth-service; other services will follow the same pattern)
+# TypeORM migrations (same pattern for all services)
 pnpm --filter @household/auth-service migration:generate -- -n MigrationName
 pnpm --filter @household/auth-service migration:run
+# Replace auth-service with: household-service, finance-service, shopping-service, integration-service
 
 # Infrastructure
 docker compose up -d        # Start postgres, redis, kafka, kafka-ui, adminer
@@ -113,6 +114,12 @@ All services return:
 ### Database
 
 One PostgreSQL instance with **schema-per-service** (not separate databases). Each service manages its own schema and runs its own TypeORM migrations.
+
+**Current state (dev):** `synchronize: true` — TypeORM auto-creates/alters tables on startup. Schema is created via `ensureSchema()` before TypeORM initializes.
+
+**Phase 3 plan:** Generate initial migrations for each service once schemas stabilise. Switch from `synchronize` to `migrations: run`. This is safe in development and required for production.
+
+**Phase 6 plan:** `synchronize: false` in all services. `migration:run` executes as part of the Docker entrypoint before the service starts.
 
 ## Testing policy (Phase 2+)
 

@@ -719,7 +719,7 @@ pnpm test:integration                                       # все серви�
 
 ---
 
-### Phase 3 — Integrations (2 недели)
+### Phase 3 — Integrations + Migrations (2–3 недели)
 
 ```
 □ Integration Service
@@ -729,6 +729,17 @@ pnpm test:integration                                       # все серви�
     □ Kafka: integration.monobank.*
 
 □ Apple + Facebook OAuth (для App Store)
+
+□ TypeORM migrations (схема стабилизировалась после Phase 2)
+    □ Сгенерировать initial migration для каждого сервиса:
+        pnpm --filter @household/auth-service migration:generate -- -n InitAuth
+        pnpm --filter @household/household-service migration:generate -- -n InitHousehold
+        pnpm --filter @household/finance-service migration:generate -- -n InitFinance
+        pnpm --filter @household/shopping-service migration:generate -- -n InitShopping
+        pnpm --filter @household/integration-service migration:generate -- -n InitIntegration
+    □ Проверить что migrations: run создаёт схему корректно на чистой БД
+    □ Отключить synchronize: true в development (заменить на migrations: run в ensureSchema)
+    □ Добавить migration:run в docker-compose healthcheck или startup script
 ```
 
 ---
@@ -778,9 +789,29 @@ pnpm test:integration                                       # все серви�
 □ Notification Service (email + push)
 □ Recurring payment cron + reminders
 □ CI/CD (GitHub Actions)
+    □ lint + test:integration + build на каждый PR
+    □ migration:run как часть deploy pipeline
+
+□ Миграции в production
+    □ synchronize: false во всех сервисах (убрать из кода, не только env)
+    □ migration:run запускается до старта каждого сервиса (CMD в Dockerfile)
+    □ Убедиться что rollback-стратегия понятна (down migrations)
+
 □ Деплой backend (Railway / Fly.io / VPS + Docker)
 □ Деплой web (Vercel / Cloudflare Pages — статика)
-□ Мониторинг (Sentry, базовые метрики)
+
+□ Мониторинг — Sentry
+    □ @sentry/nestjs в каждом NestJS сервисе
+        □ SentryModule.forRoot({ dsn, environment, release })
+        □ SentryInterceptor для захвата unhandled exceptions
+        □ Трассировка входящих HTTP запросов (tracesSampleRate)
+    □ @sentry/react в web-приложении
+        □ Sentry.init() в main.tsx
+        □ ErrorBoundary компонент для React-дерева
+    □ @sentry/react-native в mobile
+        □ Sentry.init() в App.tsx
+        □ Native crash reporting
+
 □ App Store submission
 ```
 
