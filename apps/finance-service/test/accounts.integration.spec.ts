@@ -82,7 +82,7 @@ describe('Accounts (integration)', () => {
 
       const res = await request(app.getHttpServer())
         .get('/accounts')
-        .set('X-Household-Id', H)
+        .set('X-User-Id', U).set('X-Household-Id', H)
         .expect(200);
 
       expect(res.body).toHaveLength(1);
@@ -94,7 +94,7 @@ describe('Accounts (integration)', () => {
     it('returns zero totalBalance for empty household', async () => {
       const res = await request(app.getHttpServer())
         .get('/accounts/summary')
-        .set('X-Household-Id', H)
+        .set('X-User-Id', U).set('X-Household-Id', H)
         .expect(200);
 
       expect(res.body.totalBalance).toBe(0);
@@ -111,12 +111,12 @@ describe('Accounts (integration)', () => {
 
       await request(app.getHttpServer())
         .delete(`/accounts/${created.body.id}`)
-        .set('X-Household-Id', H)
+        .set('X-User-Id', U).set('X-Household-Id', H)
         .expect(204);
 
       const list = await request(app.getHttpServer())
         .get('/accounts')
-        .set('X-Household-Id', H)
+        .set('X-User-Id', U).set('X-Household-Id', H)
         .expect(200);
 
       expect(list.body).toHaveLength(0); // not returned because isArchived=true

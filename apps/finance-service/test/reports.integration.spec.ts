@@ -160,11 +160,13 @@ describe('Reports (integration)', () => {
 
     it('excludes archived accounts', async () => {
       await post(app, '/transactions', { accountId, type: 'income', amount: 2000, currency: 'UAH', date: '2026-07-01' });
-      await request(app.getHttpServer()).delete(`/accounts/${accountId}`).set('X-Household-Id', H);
+      await request(app.getHttpServer())
+        .delete(`/accounts/${accountId}`)
+        .set('X-User-Id', U).set('X-Household-Id', H);
 
       const res = await request(app.getHttpServer())
         .get('/reports/net-worth')
-        .set('X-Household-Id', H)
+        .set('X-User-Id', U).set('X-Household-Id', H)
         .expect(200);
 
       expect(res.body.accounts).toHaveLength(0);

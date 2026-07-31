@@ -21,7 +21,7 @@ async function createAccount(
 async function getBalance(app: INestApplication, accountId: string): Promise<number> {
   const res = await request(app.getHttpServer())
     .get(`/accounts/${accountId}`)
-    .set('X-Household-Id', H);
+    .set('X-User-Id', U).set('X-Household-Id', H);
   return Number(res.body.balance);
 }
 
@@ -108,7 +108,7 @@ describe('Transactions (integration)', () => {
 
       const summary = await request(app.getHttpServer())
         .get('/accounts/summary')
-        .set('X-Household-Id', H);
+        .set('X-User-Id', U).set('X-Household-Id', H);
       expect(summary.body.totalBalance).toBe(2000);
     });
   });
@@ -123,7 +123,7 @@ describe('Transactions (integration)', () => {
 
       await request(app.getHttpServer())
         .delete(`/transactions/${tx.body.id}`)
-        .set('X-Household-Id', H)
+        .set('X-User-Id', U).set('X-Household-Id', H)
         .expect(204);
 
       expect(await getBalance(app, accountId)).toBe(0);
@@ -142,7 +142,7 @@ describe('Transactions (integration)', () => {
 
       await request(app.getHttpServer())
         .delete(`/transactions/${expense.body.id}`)
-        .set('X-Household-Id', H)
+        .set('X-User-Id', U).set('X-Household-Id', H)
         .expect(204);
 
       expect(await getBalance(app, accountId)).toBe(1000);
@@ -167,7 +167,7 @@ describe('Transactions (integration)', () => {
 
       const res = await request(app.getHttpServer())
         .get('/transactions?type=income')
-        .set('X-Household-Id', H)
+        .set('X-User-Id', U).set('X-Household-Id', H)
         .expect(200);
 
       expect(res.body).toHaveLength(2);
@@ -187,7 +187,7 @@ describe('Transactions (integration)', () => {
 
       const res = await request(app.getHttpServer())
         .get('/transactions?from=2026-07-01&to=2026-07-31')
-        .set('X-Household-Id', H)
+        .set('X-User-Id', U).set('X-Household-Id', H)
         .expect(200);
 
       expect(res.body).toHaveLength(1);
