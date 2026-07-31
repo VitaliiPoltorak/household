@@ -27,71 +27,77 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
   constructor(private readonly presence: PresenceService) {}
 
   async handleConnection(client: Socket): Promise<void> {
-    const userId = client.data.userId as string;
+    const userId = client.data.userId as string | undefined;
     if (!userId) {
+      client.emit('error', { message: 'Unauthorized' });
       client.disconnect();
       return;
     }
-
-    this.presence.trackConnect(userId, client.id);
+    // Store household IDs joined by this socket for reliable disconnect cleanup
+    client.data.householdIds = new Set<string>();
     this.logger.debug(`Connected: ${userId} (${client.id})`);
   }
 
   async handleDisconnect(client: Socket): Promise<void> {
-    const userId = client.data.userId as string;
+    const userId = client.data.userId as string | undefined;
     if (!userId) return;
 
-    const isLastConnection = this.presence.trackDisconnect(userId, client.id);
+    // disconnectSocket returns households where user has no more sockets
+    const offlineInHouseholds = this.presence.disconnectSocket(userId, client.id);
 
-    if (isLastConnection) {
-      // Broadcast offline to all rooms this socket was in
-      const rooms = Array.from(client.rooms).filter((r) => r.startsWith('household:'));
-      for (const room of rooms) {
-        const householdId = room.replace('household:', '');
-        await this.presence.setOffline(householdId, userId);
-        const event: PresenceUpdateEvent = {
-          userId,
-          status: 'offline',
-          displayName: client.data.displayName ?? userId,
-        };
-        this.server.to(room).emit(ServerEvents.PRESENCE_UPDATE, event);
-      }
+    for (const householdId of offlineInHouseholds) {
+      await this.presence.setOffline(householdId, userId);
+      const event: PresenceUpdateEvent = {
+        userId,
+        status: 'offline',
+        displayName: (client.data.displayName as string | undefined) ?? userId,
+      };
+      this.server.to(`household:${householdId}`).emit(ServerEvents.PRESENCE_UPDATE, event);
     }
 
-    this.logger.debug(`Disconnected: ${userId} (${client.id})`);
+    this.logger.debug(
+      `Disconnected: ${userId} (${client.id})` +
+        (offlineInHouseholds.length ? ` — offline in: ${offlineInHouseholds.join(', ')}` : ''),
+    );
   }
 
   @SubscribeMessage(ClientEvents.ROOM_JOIN)
   async handleRoomJoin(
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: { roomName: string; displayName?: string },
-  ) {
+  ): Promise<void> {
     const userId = client.data.userId as string;
     await client.join(payload.roomName);
 
-    if (payload.roomName.startsWith('household:')) {
-      const householdId = payload.roomName.replace('household:', '');
+    if (!payload.roomName.startsWith('household:')) return;
 
-      // Store display name for presence events
-      if (payload.displayName) {
-        client.data.displayName = payload.displayName;
-      }
+    const householdId = payload.roomName.replace('household:', '');
 
-      // Register presence
+    if (payload.displayName) {
+      client.data.displayName = payload.displayName;
+    }
+
+    const isFirstSocket = this.presence.joinHousehold(userId, householdId, client.id);
+    (client.data.householdIds as Set<string>).add(householdId);
+
+    if (isFirstSocket) {
+      // First device joining this household — register in Redis
       await this.presence.setOnline(householdId, {
         userId,
-        displayName: (payload.displayName ?? client.data.displayName ?? userId) as string,
+        displayName: (client.data.displayName as string | undefined) ?? userId,
       });
+    }
 
-      // Send snapshot to the joining client
-      const users = await this.presence.getSnapshot(householdId);
-      client.emit(ServerEvents.PRESENCE_SNAPSHOT, { users });
+    // Send current snapshot to the joining socket
+    const users = await this.presence.getSnapshot(householdId);
+    client.emit(ServerEvents.PRESENCE_SNAPSHOT, { users });
 
-      // Broadcast join to others in the room
+    // Broadcast to others only when user appears for the first time in this household
+    if (isFirstSocket) {
       const event: PresenceUpdateEvent = {
         userId,
         status: 'online',
-        displayName: (client.data.displayName ?? userId) as string,
+        displayName: (client.data.displayName as string | undefined) ?? userId,
       };
       client.to(payload.roomName).emit(ServerEvents.PRESENCE_UPDATE, event);
     }
@@ -101,23 +107,25 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
   async handleRoomLeave(
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: { roomName: string },
-  ) {
+  ): Promise<void> {
     await client.leave(payload.roomName);
 
-    if (payload.roomName.startsWith('household:')) {
-      const householdId = payload.roomName.replace('household:', '');
-      const userId = client.data.userId as string;
-      const isLastConnection = this.presence.trackDisconnect(userId, client.id);
+    if (!payload.roomName.startsWith('household:')) return;
 
-      if (isLastConnection) {
-        await this.presence.setOffline(householdId, userId);
-        const event: PresenceUpdateEvent = {
-          userId,
-          status: 'offline',
-          displayName: (client.data.displayName ?? userId) as string,
-        };
-        this.server.to(payload.roomName).emit(ServerEvents.PRESENCE_UPDATE, event);
-      }
+    const householdId = payload.roomName.replace('household:', '');
+    const userId = client.data.userId as string;
+
+    const isLastSocket = this.presence.leaveHousehold(userId, householdId, client.id);
+    (client.data.householdIds as Set<string>).delete(householdId);
+
+    if (isLastSocket) {
+      await this.presence.setOffline(householdId, userId);
+      const event: PresenceUpdateEvent = {
+        userId,
+        status: 'offline',
+        displayName: (client.data.displayName as string | undefined) ?? userId,
+      };
+      this.server.to(payload.roomName).emit(ServerEvents.PRESENCE_UPDATE, event);
     }
   }
 
@@ -125,46 +133,41 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
   async handleHeartbeat(
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: { householdId: string },
-  ) {
-    const userId = client.data.userId as string;
-    await this.presence.heartbeat(payload.householdId, userId);
+  ): Promise<void> {
+    await this.presence.heartbeat(payload.householdId, client.data.userId as string);
   }
 
   @SubscribeMessage(ClientEvents.EDITING_START)
   async handleEditingStart(
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: EditingPayload,
-  ) {
+  ): Promise<void> {
     const userId = client.data.userId as string;
     await this.presence.setEditing(payload.householdId, userId, payload.entity, payload.entityId);
 
     const event: PresenceUpdateEvent = {
       userId,
       status: 'online',
-      displayName: (client.data.displayName ?? userId) as string,
+      displayName: (client.data.displayName as string | undefined) ?? userId,
       editingEntity: payload.entity,
       editingId: payload.entityId,
     };
-    this.server
-      .to(`household:${payload.householdId}`)
-      .emit(ServerEvents.PRESENCE_UPDATE, event);
+    this.server.to(`household:${payload.householdId}`).emit(ServerEvents.PRESENCE_UPDATE, event);
   }
 
   @SubscribeMessage(ClientEvents.EDITING_STOP)
   async handleEditingStop(
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: EditingPayload,
-  ) {
+  ): Promise<void> {
     const userId = client.data.userId as string;
     await this.presence.clearEditing(payload.householdId, userId);
 
     const event: PresenceUpdateEvent = {
       userId,
       status: 'online',
-      displayName: (client.data.displayName ?? userId) as string,
+      displayName: (client.data.displayName as string | undefined) ?? userId,
     };
-    this.server
-      .to(`household:${payload.householdId}`)
-      .emit(ServerEvents.PRESENCE_UPDATE, event);
+    this.server.to(`household:${payload.householdId}`).emit(ServerEvents.PRESENCE_UPDATE, event);
   }
 }

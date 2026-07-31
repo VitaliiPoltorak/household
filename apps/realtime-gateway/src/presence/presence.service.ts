@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Redis from 'ioredis';
 import { PresenceUser } from '@household/contracts';
@@ -7,10 +7,12 @@ const PRESENCE_TTL = 90; // seconds
 
 @Injectable()
 export class PresenceService {
-  private readonly logger = new Logger(PresenceService.name);
   private readonly redis: Redis;
-  // userId → Set of socketIds (in-process, per instance)
-  private readonly connections = new Map<string, Set<string>>();
+
+  // userId → Map<householdId, Set<socketId>>
+  // Tracks which sockets are in which household rooms (in-process, per instance).
+  // For true multi-instance support this would need Redis, but single-instance is fine for now.
+  private readonly householdSockets = new Map<string, Map<string, Set<string>>>();
 
   constructor(config: ConfigService) {
     this.redis = new Redis({
@@ -20,22 +22,56 @@ export class PresenceService {
     });
   }
 
-  trackConnect(userId: string, socketId: string): void {
-    if (!this.connections.has(userId)) {
-      this.connections.set(userId, new Set());
+  // Called when a socket joins a household room.
+  // Returns true if this is the FIRST socket for this user in this household.
+  joinHousehold(userId: string, householdId: string, socketId: string): boolean {
+    if (!this.householdSockets.has(userId)) {
+      this.householdSockets.set(userId, new Map());
     }
-    this.connections.get(userId)!.add(socketId);
+    const byHousehold = this.householdSockets.get(userId)!;
+    if (!byHousehold.has(householdId)) {
+      byHousehold.set(householdId, new Set());
+    }
+    const first = byHousehold.get(householdId)!.size === 0;
+    byHousehold.get(householdId)!.add(socketId);
+    return first;
   }
 
-  trackDisconnect(userId: string, socketId: string): boolean {
-    const sockets = this.connections.get(userId);
-    sockets?.delete(socketId);
-    if (!sockets?.size) {
-      this.connections.delete(userId);
-      return true; // last connection → user is offline
+  // Called when a socket leaves a household room (explicit leave or disconnect).
+  // Returns true if this was the LAST socket for this user in this household.
+  leaveHousehold(userId: string, householdId: string, socketId: string): boolean {
+    const byHousehold = this.householdSockets.get(userId);
+    if (!byHousehold) return true;
+    const sockets = byHousehold.get(householdId);
+    if (!sockets) return true;
+    sockets.delete(socketId);
+    if (sockets.size === 0) {
+      byHousehold.delete(householdId);
+      if (byHousehold.size === 0) this.householdSockets.delete(userId);
+      return true;
     }
     return false;
   }
+
+  // Called on full socket disconnect. Returns the set of householdIds where
+  // the user became offline (no remaining sockets in those households).
+  disconnectSocket(userId: string, socketId: string): string[] {
+    const byHousehold = this.householdSockets.get(userId);
+    if (!byHousehold) return [];
+
+    const offlineIn: string[] = [];
+    for (const [householdId, sockets] of byHousehold) {
+      sockets.delete(socketId);
+      if (sockets.size === 0) {
+        byHousehold.delete(householdId);
+        offlineIn.push(householdId);
+      }
+    }
+    if (byHousehold.size === 0) this.householdSockets.delete(userId);
+    return offlineIn;
+  }
+
+  // --- Redis presence ---
 
   async setOnline(householdId: string, user: PresenceUser): Promise<void> {
     const key = `presence:${householdId}`;
@@ -49,18 +85,16 @@ export class PresenceService {
 
   async heartbeat(householdId: string, userId: string): Promise<void> {
     const key = `presence:${householdId}`;
-    const raw = await this.redis.hget(key, userId);
-    if (raw) {
-      await this.redis.expire(key, PRESENCE_TTL);
-    }
+    const exists = await this.redis.hexists(key, userId);
+    if (exists) await this.redis.expire(key, PRESENCE_TTL);
   }
 
   async setEditing(householdId: string, userId: string, entity: string, entityId: string): Promise<void> {
     const key = `presence:${householdId}`;
     const raw = await this.redis.hget(key, userId);
     if (!raw) return;
-    const user = JSON.parse(raw) as PresenceUser;
-    await this.redis.hset(key, userId, JSON.stringify({ ...user, editingEntity: entity, editingId: entityId }));
+    const stored = JSON.parse(raw) as Record<string, unknown>;
+    await this.redis.hset(key, userId, JSON.stringify({ ...stored, editingEntity: entity, editingId: entityId }));
     await this.redis.expire(key, PRESENCE_TTL);
   }
 
@@ -68,9 +102,10 @@ export class PresenceService {
     const key = `presence:${householdId}`;
     const raw = await this.redis.hget(key, userId);
     if (!raw) return;
-    const user = JSON.parse(raw) as PresenceUser;
-    const { editingEntity: _, editingId: __, ...rest } = user as PresenceUser & { editingEntity?: string; editingId?: string };
-    await this.redis.hset(key, userId, JSON.stringify(rest));
+    const stored = JSON.parse(raw) as Record<string, unknown>;
+    delete stored['editingEntity'];
+    delete stored['editingId'];
+    await this.redis.hset(key, userId, JSON.stringify(stored));
     await this.redis.expire(key, PRESENCE_TTL);
   }
 
