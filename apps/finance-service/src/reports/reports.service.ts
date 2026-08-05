@@ -98,11 +98,19 @@ export class ReportsService {
       where: { householdId, isArchived: false },
     });
 
-    const byCurrency = accounts.reduce<Record<string, number>>((acc, a) => {
-      acc[a.currency] = (acc[a.currency] ?? 0) + Number(a.balance);
-      return acc;
-    }, {});
+    // Aggregate per currency in SQL so DECIMAL precision is preserved through
+    // the sum, instead of N repeated JS float additions per row.
+    const rows = await this.accountRepo
+      .createQueryBuilder('a')
+      .select('a.currency', 'currency')
+      .addSelect('COALESCE(SUM(a.balance), 0)', 'total')
+      .where('a.household_id = :hid AND a.is_archived = false', { hid: householdId })
+      .groupBy('a.currency')
+      .getRawMany<{ currency: string; total: string }>();
 
+    const byCurrency = Object.fromEntries(rows.map((r) => [r.currency, Number(r.total)]));
+    // NOTE: summing across currencies is arithmetically meaningless — kept for
+    // API compatibility. Cross-currency conversion happens on the client.
     const totalBalance = Object.values(byCurrency).reduce((s, v) => s + v, 0);
 
     return {

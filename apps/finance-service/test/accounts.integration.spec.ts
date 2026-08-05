@@ -100,6 +100,29 @@ describe('Accounts (integration)', () => {
       expect(res.body.totalBalance).toBe(0);
       expect(res.body.accounts).toEqual([]);
     });
+
+    it('sums account balances with DECIMAL precision (no float drift)', async () => {
+      // 0.10 + 0.20 + 0.10 in JS float = 0.4000000000000001. In SQL DECIMAL it's 0.40.
+      const values = [0.10, 0.20, 0.10];
+      for (let i = 0; i < values.length; i++) {
+        const acc = await request(app.getHttpServer())
+          .post('/accounts')
+          .set('X-User-Id', U).set('X-Household-Id', H)
+          .send({ name: `Acc${i}`, type: 'bank', currency: 'UAH' });
+        await request(app.getHttpServer())
+          .post('/transactions')
+          .set('X-User-Id', U).set('X-Household-Id', H)
+          .send({ accountId: acc.body.id, type: 'income', amount: values[i], currency: 'UAH', date: '2026-07-30' });
+      }
+
+      const summary = await request(app.getHttpServer())
+        .get('/accounts/summary')
+        .set('X-User-Id', U).set('X-Household-Id', H)
+        .expect(200);
+
+      expect(summary.body.totalBalance).toBe(0.4);
+      expect(summary.body.accounts).toHaveLength(3);
+    });
   });
 
   describe('DELETE /accounts/:id', () => {
