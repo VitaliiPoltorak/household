@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { EntityManager, Repository } from 'typeorm';
 import { KafkaProducerService } from '@household/kafka';
 import { Account } from './entities/account.entity';
 import { CreateAccountDto, UpdateAccountDto } from './dto/account.dto';
@@ -42,11 +42,12 @@ export class AccountsService {
     await this.repo.update(id, { isArchived: true });
   }
 
-  async adjustBalance(id: string, delta: number): Promise<void> {
+  async adjustBalance(id: string, delta: number, manager?: EntityManager): Promise<void> {
+    const repo = manager ? manager.getRepository(Account) : this.repo;
     if (delta > 0) {
-      await this.repo.increment({ id }, 'balance', delta);
+      await repo.increment({ id }, 'balance', delta);
     } else if (delta < 0) {
-      await this.repo.decrement({ id }, 'balance', Math.abs(delta));
+      await repo.decrement({ id }, 'balance', Math.abs(delta));
     }
   }
 
