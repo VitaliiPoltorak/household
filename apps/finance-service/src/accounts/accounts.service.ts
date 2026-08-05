@@ -53,7 +53,15 @@ export class AccountsService {
 
   async getSummary(householdId: string): Promise<{ totalBalance: number; accounts: Account[] }> {
     const accounts = await this.findAll(householdId);
-    const totalBalance = accounts.reduce((sum, a) => sum + Number(a.balance), 0);
+    // SUM in SQL keeps DECIMAL precision through aggregation. The pg driver
+    // returns numeric as a string; a single parseFloat at the JS boundary is
+    // far more accurate than N repeated JS float additions.
+    const raw = await this.repo
+      .createQueryBuilder('a')
+      .select('COALESCE(SUM(a.balance), 0)', 'total')
+      .where('a.household_id = :hid AND a.is_archived = false', { hid: householdId })
+      .getRawOne<{ total: string }>();
+    const totalBalance = Number(raw?.total ?? '0');
     return { totalBalance, accounts };
   }
 }
