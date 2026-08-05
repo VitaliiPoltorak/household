@@ -65,7 +65,12 @@
       "crypto": "Cripto",
       "investment": "Inversión",
       "deposit": "Depósito"
-    }
+    },
+    "editTitle": "Editar cuenta",
+    "displayIn": "Mostrar en",
+    "estimatedTotal": "Total estimado",
+    "ratesBy": "Tasas: PrivatBank",
+    "loading": "Cargando…"
   },
   "transactions": {
     "title": "Transacciones",

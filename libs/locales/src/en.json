@@ -65,7 +65,12 @@
       "crypto": "Crypto",
       "investment": "Investment",
       "deposit": "Deposit"
-    }
+    },
+    "editTitle": "Edit account",
+    "displayIn": "Display in",
+    "estimatedTotal": "Estimated total",
+    "ratesBy": "Rates: PrivatBank",
+    "loading": "Loading…"
   },
   "transactions": {
     "title": "Transactions",

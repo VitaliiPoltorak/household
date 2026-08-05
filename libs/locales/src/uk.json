@@ -65,7 +65,12 @@
       "crypto": "Крипто",
       "investment": "Інвестиції",
       "deposit": "Депозит"
-    }
+    },
+    "editTitle": "Редагувати рахунок",
+    "displayIn": "Показати в",
+    "estimatedTotal": "Приблизний підсумок",
+    "ratesBy": "Курс: ПриватБанк",
+    "loading": "Завантаження…"
   },
   "transactions": {
     "title": "Транзакції",

@@ -65,7 +65,12 @@
       "crypto": "Krypto",
       "investment": "Investition",
       "deposit": "Einlage"
-    }
+    },
+    "editTitle": "Konto bearbeiten",
+    "displayIn": "Anzeigen in",
+    "estimatedTotal": "Geschätzter Gesamtbetrag",
+    "ratesBy": "Kurse: PrivatBank",
+    "loading": "Wird geladen…"
   },
   "transactions": {
     "title": "Transaktionen",
