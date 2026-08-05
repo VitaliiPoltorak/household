@@ -8,6 +8,7 @@ import { Modal } from '../components/ui/Modal';
 import { Button } from '../components/ui/Button';
 import { Input, Select } from '../components/ui/Input';
 import { Badge } from '../components/ui/Badge';
+import { EditingBadge } from '../components/presence/EditingBadge';
 
 const TX_TYPES = ['income', 'expense', 'transfer', 'adjustment'] as const;
 
@@ -168,7 +169,7 @@ function TxRow({
           <span className="text-sm text-gray-700 truncate">{tx.description ?? accountName}</span>
           {categoryName && <span className="text-xs text-gray-400">· {categoryName}</span>}
         </div>
-        <p className="text-xs text-gray-400 mt-0.5">{tx.date} · {accountName}</p>
+        <p className="text-xs text-gray-400 mt-0.5">{tx.date} · {accountName}</p>\n        <EditingBadge entity="transaction" entityId={tx.id} />
       </div>
       <span className={`font-semibold whitespace-nowrap ${isIncome ? 'text-green-600' : isExpense ? 'text-red-600' : 'text-gray-700'}`}>
         {isExpense ? '−' : isIncome ? '+' : ''}{fmt(Number(tx.amount), tx.currency)}

@@ -4,6 +4,7 @@ import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import { AuthProvider } from './contexts/AuthContext';
 import { HouseholdProvider } from './contexts/HouseholdContext';
+import { SocketProvider } from './contexts/SocketContext';
 import { router } from './router';
 
 const queryClient = new QueryClient({
@@ -20,7 +21,9 @@ export function App() {
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
           <HouseholdProvider>
-            <RouterProvider router={router} />
+            <SocketProvider>
+              <RouterProvider router={router} />
+            </SocketProvider>
           </HouseholdProvider>
         </AuthProvider>
         <ReactQueryDevtools initialIsOpen={false} />

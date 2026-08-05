@@ -3,6 +3,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { authApi } from '../../api/auth';
 import { useNavigate } from 'react-router-dom';
 import { supportedLngs, type SupportedLng } from '@household/locales';
+import { OnlineUsers } from '../presence/OnlineUsers';
 
 const FLAG: Record<SupportedLng, string> = { en: '🇬🇧', uk: '🇺🇦', de: '🇩🇪', es: '🇪🇸' };
 
@@ -24,6 +25,9 @@ export function Header() {
 
   return (
     <header className="flex h-14 items-center justify-end gap-3 border-b border-gray-200 bg-white px-6">
+      {/* Online users */}
+      <OnlineUsers />
+      <div className="h-4 w-px bg-gray-200" />
       {/* Language switcher */}
       <div className="flex items-center gap-1">
         {supportedLngs.map((lng) => (
