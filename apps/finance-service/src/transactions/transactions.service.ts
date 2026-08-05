@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { randomUUID } from 'crypto';
@@ -38,6 +38,17 @@ export class TransactionsService {
     userId: string,
     dto: CreateTransferDto,
   ): Promise<[Transaction, Transaction]> {
+    if (dto.fromAccountId === dto.toAccountId) {
+      throw new BadRequestException('Source and destination accounts must differ');
+    }
+
+    // Verifies both accounts exist AND belong to the caller's household.
+    // Throws NotFoundException otherwise — prevents cross-household transfers.
+    await Promise.all([
+      this.accountsService.findOne(dto.fromAccountId, householdId),
+      this.accountsService.findOne(dto.toAccountId, householdId),
+    ]);
+
     const transferPairId = randomUUID();
 
     const debit = await this.repo.save(
