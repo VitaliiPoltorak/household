@@ -98,7 +98,11 @@
       "transfer": "Transfer",
       "adjustment": "Adjustment"
     },
-    "transferring": "Transferring…"
+    "transferring": "Transferring…",
+    "selectType": "Select type…",
+    "editTitle": "Edit transaction",
+    "fromDate": "From date",
+    "toDate": "To date"
   },
   "categories": {
     "title": "Categories",

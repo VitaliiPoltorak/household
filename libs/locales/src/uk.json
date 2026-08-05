@@ -98,7 +98,11 @@
       "transfer": "Переказ",
       "adjustment": "Корекція"
     },
-    "transferring": "Переказуємо…"
+    "transferring": "Переказуємо…",
+    "selectType": "Оберіть тип…",
+    "editTitle": "Редагувати транзакцію",
+    "fromDate": "Від дати",
+    "toDate": "До дати"
   },
   "categories": {
     "title": "Категорії",

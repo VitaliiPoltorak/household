@@ -98,7 +98,11 @@
       "transfer": "Überweisung",
       "adjustment": "Anpassung"
     },
-    "transferring": "Wird überwiesen…"
+    "transferring": "Wird überwiesen…",
+    "selectType": "Typ auswählen…",
+    "editTitle": "Transaktion bearbeiten",
+    "fromDate": "Von Datum",
+    "toDate": "Bis Datum"
   },
   "categories": {
     "title": "Kategorien",

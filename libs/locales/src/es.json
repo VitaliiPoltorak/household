@@ -98,7 +98,11 @@
       "transfer": "Transferencia",
       "adjustment": "Ajuste"
     },
-    "transferring": "Transfiriendo…"
+    "transferring": "Transfiriendo…",
+    "selectType": "Selecciona tipo…",
+    "editTitle": "Editar transacción",
+    "fromDate": "Desde fecha",
+    "toDate": "Hasta fecha"
   },
   "categories": {
     "title": "Categorías",
