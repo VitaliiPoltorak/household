@@ -72,7 +72,17 @@
     "estimatedTotal": "Geschätzter Gesamtbetrag",
     "ratesBy": "Kurse: PrivatBank",
     "loading": "Wird geladen…",
-    "quickTx": "Schnelltransaktion"
+    "quickTx": "Schnelltransaktion",
+    "adjustBalance": "Saldo anpassen",
+    "adjust": {
+      "current": "Aktueller Saldo",
+      "newBalance": "Neuer Saldo",
+      "delta": "Änderung",
+      "descriptionPlaceholder": "z. B. Bargeldzählung",
+      "hint": "Erstellt eine Ausgleichsbuchung, damit die Saldenhistorie konsistent bleibt.",
+      "invalidNumber": "Bitte gültige Zahl eingeben.",
+      "noChange": "Neuer Saldo entspricht dem aktuellen."
+    }
   },
   "transactions": {
     "title": "Transaktionen",

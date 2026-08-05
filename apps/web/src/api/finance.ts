@@ -21,6 +21,12 @@ export const financeApi = {
   archiveAccount: (id: string, hid: string) =>
     api.delete(`/accounts/${id}`, cfg(hid)),
 
+  adjustBalance: (
+    id: string,
+    hid: string,
+    data: { newBalance: number; description?: string; date?: string },
+  ) => api.post<Transaction>(`/accounts/${id}/adjust-balance`, data, cfg(hid)),
+
   // Transactions
   getTransactions: (hid: string, params?: { type?: string; accountId?: string; from?: string; to?: string }) =>
     api.get<Transaction[]>('/transactions', { ...cfg(hid), params }),

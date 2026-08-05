@@ -122,4 +122,88 @@ describe('Accounts (integration)', () => {
       expect(list.body).toHaveLength(0); // not returned because isArchived=true
     });
   });
+
+  describe('POST /accounts/:id/adjust-balance', () => {
+    const seedAccountWithBalance = async (start: number) => {
+      const account = await request(app.getHttpServer())
+        .post('/accounts')
+        .set('X-User-Id', U).set('X-Household-Id', H)
+        .send({ name: 'Cash', type: 'cash' });
+
+      if (start !== 0) {
+        await request(app.getHttpServer())
+          .post('/transactions')
+          .set('X-User-Id', U).set('X-Household-Id', H)
+          .send({
+            accountId: account.body.id,
+            type: 'income',
+            amount: start,
+            date: '2026-08-01',
+          });
+      }
+      return account.body.id;
+    };
+
+    it('increases balance and creates positive ADJUSTMENT transaction', async () => {
+      const id = await seedAccountWithBalance(10000);
+      resetKafkaMocks();
+
+      const res = await request(app.getHttpServer())
+        .post(`/accounts/${id}/adjust-balance`)
+        .set('X-User-Id', U).set('X-Household-Id', H)
+        .send({ newBalance: 11000, description: 'Found cash' })
+        .expect(201);
+
+      expect(res.body.type).toBe('adjustment');
+      expect(Number(res.body.amount)).toBe(1000);
+
+      const account = await request(app.getHttpServer())
+        .get(`/accounts/${id}`)
+        .set('X-User-Id', U).set('X-Household-Id', H);
+      expect(Number(account.body.balance)).toBe(11000);
+
+      expect(mockKafkaProducer.emit).toHaveBeenCalledWith(
+        'finance.transaction.created',
+        expect.objectContaining({ householdId: H }),
+        expect.objectContaining({ userId: U, householdId: H }),
+      );
+    });
+
+    it('decreases balance and creates negative ADJUSTMENT transaction', async () => {
+      const id = await seedAccountWithBalance(10000);
+
+      const res = await request(app.getHttpServer())
+        .post(`/accounts/${id}/adjust-balance`)
+        .set('X-User-Id', U).set('X-Household-Id', H)
+        .send({ newBalance: 9000 })
+        .expect(201);
+
+      expect(Number(res.body.amount)).toBe(-1000);
+
+      const account = await request(app.getHttpServer())
+        .get(`/accounts/${id}`)
+        .set('X-User-Id', U).set('X-Household-Id', H);
+      expect(Number(account.body.balance)).toBe(9000);
+    });
+
+    it('rejects when newBalance equals current balance', async () => {
+      const id = await seedAccountWithBalance(10000);
+
+      await request(app.getHttpServer())
+        .post(`/accounts/${id}/adjust-balance`)
+        .set('X-User-Id', U).set('X-Household-Id', H)
+        .send({ newBalance: 10000 })
+        .expect(400);
+    });
+
+    it('rejects cross-household access', async () => {
+      const id = await seedAccountWithBalance(500);
+
+      await request(app.getHttpServer())
+        .post(`/accounts/${id}/adjust-balance`)
+        .set('X-User-Id', U).set('X-Household-Id', 'other-household')
+        .send({ newBalance: 1000 })
+        .expect(404);
+    });
+  });
 });

@@ -15,7 +15,10 @@ module.exports = {
   transform: {
     '^.+\\.tsx?$': ['ts-jest', { tsconfig: '<rootDir>/tsconfig.test.json', diagnostics: false }],
   },
-  setupFiles: ['<rootDir>/../../node_modules/reflect-metadata/Reflect.js'],
+  setupFiles: [
+    '<rootDir>/../../libs/testing/jest.env.js',
+    '<rootDir>/../../node_modules/reflect-metadata/Reflect.js',
+  ],
   testTimeout: 30000,
   verbose: true,
 };
