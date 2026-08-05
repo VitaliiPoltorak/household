@@ -1,57 +1,72 @@
-import { apiClient } from './client';
+import { api } from './client';
 import type {
   Account, AccountSummary, Transaction, Category, RecurringPayment,
   MonthlyReport, NetWorthReport,
 } from '../types/api';
 
-const cfg = (householdId: string) => ({ headers: { 'X-Household-Id': householdId } });
+const cfg = (hid: string) => ({ headers: { 'X-Household-Id': hid } });
 
 export const financeApi = {
   // Accounts
-  getAccounts: (hid: string) =>
-    apiClient.get<Account[]>('/accounts', cfg(hid)).then((r) => r.data),
-  getSummary: (hid: string) =>
-    apiClient.get<AccountSummary>('/accounts/summary', cfg(hid)).then((r) => r.data),
+  getAccounts: (hid: string) => api.get<Account[]>('/accounts', cfg(hid)),
+
+  getSummary: (hid: string) => api.get<AccountSummary>('/accounts/summary', cfg(hid)),
+
   createAccount: (hid: string, data: { name: string; type: string; currency?: string }) =>
-    apiClient.post<Account>('/accounts', data, cfg(hid)).then((r) => r.data),
+    api.post<Account>('/accounts', data, cfg(hid)),
+
   updateAccount: (id: string, hid: string, data: object) =>
-    apiClient.patch<Account>(`/accounts/${id}`, data, cfg(hid)).then((r) => r.data),
+    api.patch<Account>(`/accounts/${id}`, data, cfg(hid)),
+
   archiveAccount: (id: string, hid: string) =>
-    apiClient.delete(`/accounts/${id}`, cfg(hid)),
+    api.delete(`/accounts/${id}`, cfg(hid)),
 
   // Transactions
   getTransactions: (hid: string, params?: { type?: string; accountId?: string; from?: string; to?: string }) =>
-    apiClient.get<Transaction[]>('/transactions', { ...cfg(hid), params }).then((r) => r.data),
+    api.get<Transaction[]>('/transactions', { ...cfg(hid), params }),
+
   createTransaction: (hid: string, data: object) =>
-    apiClient.post<Transaction>('/transactions', data, cfg(hid)).then((r) => r.data),
+    api.post<Transaction>('/transactions', data, cfg(hid)),
+
   createTransfer: (hid: string, data: object) =>
-    apiClient.post<[Transaction, Transaction]>('/transactions/transfer', data, cfg(hid)).then((r) => r.data),
+    api.post<[Transaction, Transaction]>('/transactions/transfer', data, cfg(hid)),
+
   updateTransaction: (id: string, hid: string, data: object) =>
-    apiClient.patch<Transaction>(`/transactions/${id}`, data, cfg(hid)).then((r) => r.data),
+    api.patch<Transaction>(`/transactions/${id}`, data, cfg(hid)),
+
   deleteTransaction: (id: string, hid: string) =>
-    apiClient.delete(`/transactions/${id}`, cfg(hid)),
+    api.delete(`/transactions/${id}`, cfg(hid)),
 
   // Categories
   getCategories: (hid: string, type?: 'income' | 'expense') =>
-    apiClient.get<Category[]>('/categories', { ...cfg(hid), params: type ? { type } : {} }).then((r) => r.data),
+    api.get<Category[]>('/categories', { ...cfg(hid), params: type ? { type } : undefined }),
+
   createCategory: (hid: string, data: object) =>
-    apiClient.post<Category>('/categories', data, cfg(hid)).then((r) => r.data),
+    api.post<Category>('/categories', data, cfg(hid)),
+
   deleteCategory: (id: string, hid: string) =>
-    apiClient.delete(`/categories/${id}`, cfg(hid)),
+    api.delete(`/categories/${id}`, cfg(hid)),
 
   // Recurring payments
   getRecurringPayments: (hid: string) =>
-    apiClient.get<RecurringPayment[]>('/recurring-payments', cfg(hid)).then((r) => r.data),
+    api.get<RecurringPayment[]>('/recurring-payments', cfg(hid)),
+
   getUpcoming: (hid: string, days = 30) =>
-    apiClient.get<RecurringPayment[]>('/recurring-payments/upcoming', { ...cfg(hid), params: { days } }).then((r) => r.data),
+    api.get<RecurringPayment[]>('/recurring-payments/upcoming', {
+      ...cfg(hid),
+      params: { days },
+    }),
+
   createRecurringPayment: (hid: string, data: object) =>
-    apiClient.post<RecurringPayment>('/recurring-payments', data, cfg(hid)).then((r) => r.data),
+    api.post<RecurringPayment>('/recurring-payments', data, cfg(hid)),
+
   deleteRecurringPayment: (id: string, hid: string) =>
-    apiClient.delete(`/recurring-payments/${id}`, cfg(hid)),
+    api.delete(`/recurring-payments/${id}`, cfg(hid)),
 
   // Reports
   getMonthlyReport: (hid: string, year: number, month: number) =>
-    apiClient.get<MonthlyReport>('/reports/monthly', { ...cfg(hid), params: { year, month } }).then((r) => r.data),
+    api.get<MonthlyReport>('/reports/monthly', { ...cfg(hid), params: { year, month } }),
+
   getNetWorth: (hid: string) =>
-    apiClient.get<NetWorthReport>('/reports/net-worth', cfg(hid)).then((r) => r.data),
+    api.get<NetWorthReport>('/reports/net-worth', cfg(hid)),
 };
