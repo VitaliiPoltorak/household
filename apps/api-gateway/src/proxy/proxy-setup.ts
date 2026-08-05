@@ -2,6 +2,7 @@ import { INestApplication, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createProxyMiddleware } from 'http-proxy-middleware';
 import { ServerResponse } from 'http';
+import { computeSignature, SIGNATURE_HEADER, TIMESTAMP_HEADER } from '@household/common';
 
 interface ProxyRoute {
   prefix: string;
@@ -91,6 +92,13 @@ const ROUTES: ProxyRoute[] = [
 export function setupProxies(app: INestApplication) {
   const config = app.get(ConfigService);
   const logger = new Logger('Proxy');
+  const signingSecret = config.get<string>('GATEWAY_SIGNING_SECRET');
+
+  if (!signingSecret) {
+    logger.warn(
+      'GATEWAY_SIGNING_SECRET is not set — proxied requests will NOT be signed. Services will accept them only if they also run without the secret. Do not do this in production.',
+    );
+  }
 
   for (const route of ROUTES) {
     const target = config.get<string>(route.envKey, route.defaultUrl);
@@ -105,14 +113,25 @@ export function setupProxies(app: INestApplication) {
         proxyTimeout: 10_000,
         on: {
           proxyReq: (proxyReq, req: any) => {
-            if (req.user?.sub) {
-              proxyReq.setHeader('X-User-Id', req.user.sub);
-            }
-            if (req.user?.email) {
-              proxyReq.setHeader('X-User-Email', req.user.email);
-            }
-            if (req.householdId) {
-              proxyReq.setHeader('X-Household-Id', req.householdId);
+            const userId = req.user?.sub as string | undefined;
+            const email = req.user?.email as string | undefined;
+            const householdId = req.householdId as string | undefined;
+
+            if (userId) proxyReq.setHeader('X-User-Id', userId);
+            if (email) proxyReq.setHeader('X-User-Email', email);
+            if (householdId) proxyReq.setHeader('X-Household-Id', householdId);
+
+            // Sign only if we're actually setting trust headers. Public routes
+            // (e.g. /auth/google) go through without any of them and stay unsigned.
+            if (signingSecret && (userId || email || householdId)) {
+              const timestamp = Date.now().toString();
+              const signature = computeSignature(
+                { userId, email, householdId },
+                timestamp,
+                signingSecret,
+              );
+              proxyReq.setHeader(SIGNATURE_HEADER, signature);
+              proxyReq.setHeader(TIMESTAMP_HEADER, timestamp);
             }
           },
           error: (err, _req, res) => {
