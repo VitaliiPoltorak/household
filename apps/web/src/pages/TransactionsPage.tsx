@@ -211,7 +211,6 @@ function CreateTxModal({
         description: description || undefined,
         date,
         categoryId: categoryId || undefined,
-        createdBy: user?.id,
       });
       onCreated();
     } finally { setSaving(false); }
