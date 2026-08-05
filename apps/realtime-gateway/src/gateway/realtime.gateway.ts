@@ -10,6 +10,7 @@ import {
 import { Logger } from '@nestjs/common';
 import { Server, Socket } from 'socket.io';
 import { PresenceService } from '../presence/presence.service';
+import { MembershipService } from '../membership/membership.service';
 import {
   ClientEvents,
   ServerEvents,
@@ -24,7 +25,10 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
 
   private readonly logger = new Logger(RealtimeGateway.name);
 
-  constructor(private readonly presence: PresenceService) {}
+  constructor(
+    private readonly presence: PresenceService,
+    private readonly membership: MembershipService,
+  ) {}
 
   async handleConnection(client: Socket): Promise<void> {
     const userId = client.data.userId as string | undefined;
@@ -67,6 +71,16 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
     @MessageBody() payload: { roomName: string; displayName?: string },
   ): Promise<void> {
     const userId = client.data.userId as string;
+
+    if (payload.roomName.startsWith('household:')) {
+      const householdId = payload.roomName.replace('household:', '');
+      if (!(await this.membership.isMember(userId, householdId))) {
+        this.logger.warn(`User ${userId} denied join for household ${householdId}`);
+        client.emit('error', { message: 'Not a member of this household' });
+        return;
+      }
+    }
+
     await client.join(payload.roomName);
 
     if (!payload.roomName.startsWith('household:')) return;
@@ -134,7 +148,9 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: { householdId: string },
   ): Promise<void> {
-    await this.presence.heartbeat(payload.householdId, client.data.userId as string);
+    const userId = client.data.userId as string;
+    if (!(await this.membership.isMember(userId, payload.householdId))) return;
+    await this.presence.heartbeat(payload.householdId, userId);
   }
 
   @SubscribeMessage(ClientEvents.EDITING_START)
@@ -143,6 +159,8 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
     @MessageBody() payload: EditingPayload,
   ): Promise<void> {
     const userId = client.data.userId as string;
+    if (!(await this.membership.isMember(userId, payload.householdId))) return;
+
     await this.presence.setEditing(payload.householdId, userId, payload.entity, payload.entityId);
 
     const event: PresenceUpdateEvent = {
@@ -161,6 +179,8 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
     @MessageBody() payload: EditingPayload,
   ): Promise<void> {
     const userId = client.data.userId as string;
+    if (!(await this.membership.isMember(userId, payload.householdId))) return;
+
     await this.presence.clearEditing(payload.householdId, userId);
 
     const event: PresenceUpdateEvent = {
