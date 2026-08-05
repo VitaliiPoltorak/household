@@ -1,0 +1,143 @@
+{
+  "common": {
+    "save": "Guardar",
+    "cancel": "Cancelar",
+    "delete": "Eliminar",
+    "create": "Crear",
+    "add": "Agregar",
+    "edit": "Editar",
+    "close": "Cerrar",
+    "loading": "Cargando…",
+    "error": "Algo salió mal",
+    "confirm": "Confirmar",
+    "search": "Buscar",
+    "none": "Ninguno",
+    "archive": "Archivar",
+    "back": "Volver",
+    "optional": "opcional"
+  },
+  "lang": {
+    "en": "English",
+    "uk": "Українська",
+    "de": "Deutsch",
+    "es": "Español"
+  },
+  "nav": {
+    "dashboard": "Inicio",
+    "accounts": "Cuentas",
+    "transactions": "Transacciones",
+    "shopping": "Compras",
+    "household": "Hogar"
+  },
+  "auth": {
+    "title": "Household",
+    "subtitle": "Finanzas familiares y compras",
+    "signInWithGoogle": "Iniciar sesión con Google",
+    "loginError": "Error al iniciar sesión. Inténtalo de nuevo.",
+    "logout": "Cerrar sesión"
+  },
+  "dashboard": {
+    "totalBalance": "Balance total",
+    "incomeThisMonth": "Ingresos este mes",
+    "expensesThisMonth": "Gastos este mes",
+    "accounts": "Cuentas",
+    "upcomingPayments": "Próximos pagos (30 días)",
+    "noHousehold": "Aún no tienes un hogar.",
+    "createFirst": "Crear tu primer hogar",
+    "newHome": "+ Nuevo hogar"
+  },
+  "accounts": {
+    "title": "Cuentas",
+    "total": "Total",
+    "new": "+ Nueva cuenta",
+    "empty": "Aún no hay cuentas.",
+    "addFirst": "Agregar primera cuenta",
+    "name": "Nombre",
+    "namePlaceholder": "ej. Tarjeta Banco",
+    "type": "Tipo",
+    "currency": "Moneda",
+    "newTitle": "Nueva cuenta",
+    "types": {
+      "cash": "Efectivo",
+      "bank": "Banco",
+      "crypto": "Cripto",
+      "investment": "Inversión",
+      "deposit": "Depósito"
+    }
+  },
+  "transactions": {
+    "title": "Transacciones",
+    "new": "+ Nueva",
+    "transfer": "⇄ Transferir",
+    "empty": "No se encontraron transacciones.",
+    "allTypes": "Todos los tipos",
+    "allAccounts": "Todas las cuentas",
+    "clearFilters": "Limpiar",
+    "type": "Tipo",
+    "account": "Cuenta",
+    "amount": "Monto",
+    "amountPlaceholder": "0.00",
+    "date": "Fecha",
+    "description": "Descripción",
+    "category": "Categoría",
+    "noCategory": "— ninguna —",
+    "newTitle": "Nueva transacción",
+    "transferTitle": "Transferencia entre cuentas",
+    "from": "De",
+    "to": "A",
+    "types": {
+      "income": "Ingreso",
+      "expense": "Gasto",
+      "transfer": "Transferencia",
+      "adjustment": "Ajuste"
+    }
+  },
+  "categories": {
+    "title": "Categorías",
+    "new": "+ Nueva categoría",
+    "empty": "Aún no hay categorías.",
+    "name": "Nombre",
+    "type": "Tipo",
+    "income": "Ingreso",
+    "expense": "Gasto"
+  },
+  "shopping": {
+    "title": "Compras",
+    "newList": "+ Nueva lista",
+    "emptyLists": "Aún no hay listas de compras.",
+    "active": "Activas",
+    "completed": "Completadas",
+    "archived": "Archivadas",
+    "complete": "Completar lista",
+    "addItem": "Agregar artículo",
+    "itemName": "Nombre del artículo",
+    "quantity": "Cantidad",
+    "purchased": "Comprado",
+    "listName": "Nombre de la lista",
+    "newListTitle": "Nueva lista de compras",
+    "store": "Tienda"
+  },
+  "household": {
+    "title": "Hogar",
+    "newHome": "Nuevo hogar",
+    "createTitle": "Crear nuevo hogar",
+    "namePlaceholder": "Nombre del hogar…",
+    "members": "Miembros",
+    "invites": "Invitaciones",
+    "inviteByEmail": "Invitar por email",
+    "email": "Correo electrónico",
+    "role": "Rol",
+    "invite": "Invitar",
+    "revokeInvite": "Revocar",
+    "roles": {
+      "owner": "Propietario",
+      "admin": "Administrador",
+      "member": "Miembro",
+      "viewer": "Lector"
+    },
+    "settings": "Configuración",
+    "rename": "Renombrar",
+    "danger": "Zona peligrosa",
+    "deleteHome": "Eliminar hogar"
+  }
+}

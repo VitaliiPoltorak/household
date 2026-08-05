@@ -1,0 +1,143 @@
+{
+  "common": {
+    "save": "Speichern",
+    "cancel": "Abbrechen",
+    "delete": "Löschen",
+    "create": "Erstellen",
+    "add": "Hinzufügen",
+    "edit": "Bearbeiten",
+    "close": "Schließen",
+    "loading": "Wird geladen…",
+    "error": "Etwas ist schiefgelaufen",
+    "confirm": "Bestätigen",
+    "search": "Suchen",
+    "none": "Keine",
+    "archive": "Archivieren",
+    "back": "Zurück",
+    "optional": "optional"
+  },
+  "lang": {
+    "en": "English",
+    "uk": "Українська",
+    "de": "Deutsch",
+    "es": "Español"
+  },
+  "nav": {
+    "dashboard": "Übersicht",
+    "accounts": "Konten",
+    "transactions": "Transaktionen",
+    "shopping": "Einkaufen",
+    "household": "Haushalt"
+  },
+  "auth": {
+    "title": "Household",
+    "subtitle": "Familienfinanzen & Einkaufen",
+    "signInWithGoogle": "Mit Google anmelden",
+    "loginError": "Anmeldung fehlgeschlagen. Bitte erneut versuchen.",
+    "logout": "Abmelden"
+  },
+  "dashboard": {
+    "totalBalance": "Gesamtguthaben",
+    "incomeThisMonth": "Einnahmen diesen Monat",
+    "expensesThisMonth": "Ausgaben diesen Monat",
+    "accounts": "Konten",
+    "upcomingPayments": "Anstehende Zahlungen (30 Tage)",
+    "noHousehold": "Sie haben noch keinen Haushalt.",
+    "createFirst": "Ersten Haushalt erstellen",
+    "newHome": "+ Neuer Haushalt"
+  },
+  "accounts": {
+    "title": "Konten",
+    "total": "Gesamt",
+    "new": "+ Neues Konto",
+    "empty": "Noch keine Konten.",
+    "addFirst": "Erstes Konto hinzufügen",
+    "name": "Name",
+    "namePlaceholder": "z.B. Girokonto",
+    "type": "Typ",
+    "currency": "Währung",
+    "newTitle": "Neues Konto",
+    "types": {
+      "cash": "Bargeld",
+      "bank": "Bank",
+      "crypto": "Krypto",
+      "investment": "Investition",
+      "deposit": "Einlage"
+    }
+  },
+  "transactions": {
+    "title": "Transaktionen",
+    "new": "+ Neu",
+    "transfer": "⇄ Überweisung",
+    "empty": "Keine Transaktionen gefunden.",
+    "allTypes": "Alle Typen",
+    "allAccounts": "Alle Konten",
+    "clearFilters": "Zurücksetzen",
+    "type": "Typ",
+    "account": "Konto",
+    "amount": "Betrag",
+    "amountPlaceholder": "0.00",
+    "date": "Datum",
+    "description": "Beschreibung",
+    "category": "Kategorie",
+    "noCategory": "— keine —",
+    "newTitle": "Neue Transaktion",
+    "transferTitle": "Überweisung zwischen Konten",
+    "from": "Von",
+    "to": "Nach",
+    "types": {
+      "income": "Einnahme",
+      "expense": "Ausgabe",
+      "transfer": "Überweisung",
+      "adjustment": "Anpassung"
+    }
+  },
+  "categories": {
+    "title": "Kategorien",
+    "new": "+ Neue Kategorie",
+    "empty": "Noch keine Kategorien.",
+    "name": "Name",
+    "type": "Typ",
+    "income": "Einnahme",
+    "expense": "Ausgabe"
+  },
+  "shopping": {
+    "title": "Einkaufen",
+    "newList": "+ Neue Liste",
+    "emptyLists": "Noch keine Einkaufslisten.",
+    "active": "Aktiv",
+    "completed": "Abgeschlossen",
+    "archived": "Archiviert",
+    "complete": "Liste abschließen",
+    "addItem": "Artikel hinzufügen",
+    "itemName": "Artikelname",
+    "quantity": "Menge",
+    "purchased": "Gekauft",
+    "listName": "Listenname",
+    "newListTitle": "Neue Einkaufsliste",
+    "store": "Geschäft"
+  },
+  "household": {
+    "title": "Haushalt",
+    "newHome": "Neuer Haushalt",
+    "createTitle": "Neuen Haushalt erstellen",
+    "namePlaceholder": "Name des Haushalts…",
+    "members": "Mitglieder",
+    "invites": "Einladungen",
+    "inviteByEmail": "Per E-Mail einladen",
+    "email": "E-Mail-Adresse",
+    "role": "Rolle",
+    "invite": "Einladen",
+    "revokeInvite": "Widerrufen",
+    "roles": {
+      "owner": "Eigentümer",
+      "admin": "Admin",
+      "member": "Mitglied",
+      "viewer": "Betrachter"
+    },
+    "settings": "Einstellungen",
+    "rename": "Umbenennen",
+    "danger": "Gefahrenzone",
+    "deleteHome": "Haushalt löschen"
+  }
+}

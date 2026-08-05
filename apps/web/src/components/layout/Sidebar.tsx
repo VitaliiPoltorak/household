@@ -1,17 +1,19 @@
 import { NavLink } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import clsx from 'clsx';
 import { useHousehold } from '../../contexts/HouseholdContext';
 
-const NAV = [
-  { to: '/dashboard', label: '🏠 Dashboard' },
-  { to: '/accounts', label: '💳 Accounts' },
-  { to: '/transactions', label: '↕️ Transactions' },
-  { to: '/shopping', label: '🛒 Shopping' },
-  { to: '/household', label: '👥 Household' },
-];
-
 export function Sidebar() {
+  const { t } = useTranslation();
   const { households, activeHousehold, setActiveHousehold } = useHousehold();
+
+  const NAV = [
+    { to: '/dashboard', label: t('nav.dashboard') },
+    { to: '/accounts',  label: t('nav.accounts') },
+    { to: '/transactions', label: t('nav.transactions') },
+    { to: '/shopping',  label: t('nav.shopping') },
+    { to: '/household', label: t('nav.household') },
+  ];
 
   return (
     <aside className="flex w-56 flex-col border-r border-gray-200 bg-white">
@@ -19,7 +21,6 @@ export function Sidebar() {
         <span className="text-lg font-bold text-primary-600">Household</span>
       </div>
 
-      {/* Household switcher */}
       {households.length > 1 && (
         <div className="border-b border-gray-200 px-3 py-2">
           <select
@@ -39,7 +40,7 @@ export function Sidebar() {
 
       {activeHousehold && households.length === 1 && (
         <div className="border-b border-gray-200 px-4 py-2.5">
-          <p className="text-xs text-gray-500">Home</p>
+          <p className="text-xs text-gray-500">{t('nav.household')}</p>
           <p className="font-medium text-gray-800">{activeHousehold.name}</p>
         </div>
       )}

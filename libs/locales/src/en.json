@@ -1,0 +1,143 @@
+{
+  "common": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "create": "Create",
+    "add": "Add",
+    "edit": "Edit",
+    "close": "Close",
+    "loading": "Loading…",
+    "error": "Something went wrong",
+    "confirm": "Confirm",
+    "search": "Search",
+    "none": "None",
+    "archive": "Archive",
+    "back": "Back",
+    "optional": "optional"
+  },
+  "lang": {
+    "en": "English",
+    "uk": "Українська",
+    "de": "Deutsch",
+    "es": "Español"
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "accounts": "Accounts",
+    "transactions": "Transactions",
+    "shopping": "Shopping",
+    "household": "Household"
+  },
+  "auth": {
+    "title": "Household",
+    "subtitle": "Family finance & shopping",
+    "signInWithGoogle": "Sign in with Google",
+    "loginError": "Login failed. Please try again.",
+    "logout": "Sign out"
+  },
+  "dashboard": {
+    "totalBalance": "Total balance",
+    "incomeThisMonth": "Income this month",
+    "expensesThisMonth": "Expenses this month",
+    "accounts": "Accounts",
+    "upcomingPayments": "Upcoming payments (30 days)",
+    "noHousehold": "You don't have any household yet.",
+    "createFirst": "Create your first home",
+    "newHome": "+ New home"
+  },
+  "accounts": {
+    "title": "Accounts",
+    "total": "Total",
+    "new": "+ New account",
+    "empty": "No accounts yet.",
+    "addFirst": "Add first account",
+    "name": "Name",
+    "namePlaceholder": "e.g. Mono Card",
+    "type": "Type",
+    "currency": "Currency",
+    "newTitle": "New account",
+    "types": {
+      "cash": "Cash",
+      "bank": "Bank",
+      "crypto": "Crypto",
+      "investment": "Investment",
+      "deposit": "Deposit"
+    }
+  },
+  "transactions": {
+    "title": "Transactions",
+    "new": "+ New",
+    "transfer": "⇄ Transfer",
+    "empty": "No transactions found.",
+    "allTypes": "All types",
+    "allAccounts": "All accounts",
+    "clearFilters": "Clear",
+    "type": "Type",
+    "account": "Account",
+    "amount": "Amount",
+    "amountPlaceholder": "0.00",
+    "date": "Date",
+    "description": "Description",
+    "category": "Category",
+    "noCategory": "— none —",
+    "newTitle": "New transaction",
+    "transferTitle": "Transfer between accounts",
+    "from": "From",
+    "to": "To",
+    "types": {
+      "income": "Income",
+      "expense": "Expense",
+      "transfer": "Transfer",
+      "adjustment": "Adjustment"
+    }
+  },
+  "categories": {
+    "title": "Categories",
+    "new": "+ New category",
+    "empty": "No categories yet.",
+    "name": "Name",
+    "type": "Type",
+    "income": "Income",
+    "expense": "Expense"
+  },
+  "shopping": {
+    "title": "Shopping",
+    "newList": "+ New list",
+    "emptyLists": "No shopping lists yet.",
+    "active": "Active",
+    "completed": "Completed",
+    "archived": "Archived",
+    "complete": "Complete list",
+    "addItem": "Add item",
+    "itemName": "Item name",
+    "quantity": "Quantity",
+    "purchased": "Purchased",
+    "listName": "List name",
+    "newListTitle": "New shopping list",
+    "store": "Store"
+  },
+  "household": {
+    "title": "Household",
+    "newHome": "New home",
+    "createTitle": "Create new home",
+    "namePlaceholder": "Home name…",
+    "members": "Members",
+    "invites": "Invites",
+    "inviteByEmail": "Invite by email",
+    "email": "Email address",
+    "role": "Role",
+    "invite": "Invite",
+    "revokeInvite": "Revoke",
+    "roles": {
+      "owner": "Owner",
+      "admin": "Admin",
+      "member": "Member",
+      "viewer": "Viewer"
+    },
+    "settings": "Settings",
+    "rename": "Rename",
+    "danger": "Danger zone",
+    "deleteHome": "Delete home"
+  }
+}

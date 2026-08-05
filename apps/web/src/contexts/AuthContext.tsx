@@ -1,7 +1,15 @@
 import { createContext, useContext, useState, useCallback, ReactNode, useEffect } from 'react';
+import i18n from '../i18n';
 import type { User, TokenPair } from '../types/api';
 import { authApi } from '../api/auth';
 import { clearSession } from '../api/client';
+import type { SupportedLng } from '@household/locales';
+
+function applyLocale(locale: string) {
+  const supported: SupportedLng[] = ['en', 'uk', 'de', 'es'];
+  const lng = supported.includes(locale as SupportedLng) ? locale : 'en';
+  void i18n.changeLanguage(lng);
+}
 
 interface AuthState {
   user: User | null;
@@ -28,7 +36,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!state.accessToken) { setIsLoading(false); return; }
     authApi.getMe()
-      .then((user) => setState((s) => ({ ...s, user })))
+      .then((user) => { applyLocale(user.locale); setState((s) => ({ ...s, user })); })
       .catch(() => { clearSession(); setState({ user: null, accessToken: null, sessionId: null }); })
       .finally(() => setIsLoading(false));
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -38,6 +46,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.setItem('refreshToken', tokens.refreshToken);
     localStorage.setItem('sessionId', tokens.sessionId);
     const user = await authApi.getMe();
+    applyLocale(user.locale);
     setState({ user, accessToken: tokens.accessToken, sessionId: tokens.sessionId });
   }, []);
 

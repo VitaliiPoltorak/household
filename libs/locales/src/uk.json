@@ -1,0 +1,143 @@
+{
+  "common": {
+    "save": "Зберегти",
+    "cancel": "Скасувати",
+    "delete": "Видалити",
+    "create": "Створити",
+    "add": "Додати",
+    "edit": "Редагувати",
+    "close": "Закрити",
+    "loading": "Завантаження…",
+    "error": "Щось пішло не так",
+    "confirm": "Підтвердити",
+    "search": "Пошук",
+    "none": "Немає",
+    "archive": "Архівувати",
+    "back": "Назад",
+    "optional": "необов'язково"
+  },
+  "lang": {
+    "en": "English",
+    "uk": "Українська",
+    "de": "Deutsch",
+    "es": "Español"
+  },
+  "nav": {
+    "dashboard": "Головна",
+    "accounts": "Рахунки",
+    "transactions": "Транзакції",
+    "shopping": "Покупки",
+    "household": "Дім"
+  },
+  "auth": {
+    "title": "Household",
+    "subtitle": "Сімейні фінанси та покупки",
+    "signInWithGoogle": "Увійти через Google",
+    "loginError": "Помилка входу. Спробуйте ще раз.",
+    "logout": "Вийти"
+  },
+  "dashboard": {
+    "totalBalance": "Загальний баланс",
+    "incomeThisMonth": "Доходи цього місяця",
+    "expensesThisMonth": "Витрати цього місяця",
+    "accounts": "Рахунки",
+    "upcomingPayments": "Найближчі платежі (30 днів)",
+    "noHousehold": "У вас ще немає жодного дому.",
+    "createFirst": "Створити перший дім",
+    "newHome": "+ Новий дім"
+  },
+  "accounts": {
+    "title": "Рахунки",
+    "total": "Разом",
+    "new": "+ Новий рахунок",
+    "empty": "Рахунки відсутні.",
+    "addFirst": "Додати перший рахунок",
+    "name": "Назва",
+    "namePlaceholder": "напр. Mono Card",
+    "type": "Тип",
+    "currency": "Валюта",
+    "newTitle": "Новий рахунок",
+    "types": {
+      "cash": "Готівка",
+      "bank": "Банк",
+      "crypto": "Крипто",
+      "investment": "Інвестиції",
+      "deposit": "Депозит"
+    }
+  },
+  "transactions": {
+    "title": "Транзакції",
+    "new": "+ Нова",
+    "transfer": "⇄ Переказ",
+    "empty": "Транзакції не знайдено.",
+    "allTypes": "Всі типи",
+    "allAccounts": "Всі рахунки",
+    "clearFilters": "Очистити",
+    "type": "Тип",
+    "account": "Рахунок",
+    "amount": "Сума",
+    "amountPlaceholder": "0.00",
+    "date": "Дата",
+    "description": "Опис",
+    "category": "Категорія",
+    "noCategory": "— без категорії —",
+    "newTitle": "Нова транзакція",
+    "transferTitle": "Переказ між рахунками",
+    "from": "З рахунку",
+    "to": "На рахунок",
+    "types": {
+      "income": "Дохід",
+      "expense": "Витрата",
+      "transfer": "Переказ",
+      "adjustment": "Корекція"
+    }
+  },
+  "categories": {
+    "title": "Категорії",
+    "new": "+ Нова категорія",
+    "empty": "Категорій ще немає.",
+    "name": "Назва",
+    "type": "Тип",
+    "income": "Дохід",
+    "expense": "Витрата"
+  },
+  "shopping": {
+    "title": "Покупки",
+    "newList": "+ Новий список",
+    "emptyLists": "Списків покупок ще немає.",
+    "active": "Активні",
+    "completed": "Завершені",
+    "archived": "Архівовані",
+    "complete": "Завершити список",
+    "addItem": "Додати товар",
+    "itemName": "Назва товару",
+    "quantity": "Кількість",
+    "purchased": "Куплено",
+    "listName": "Назва списку",
+    "newListTitle": "Новий список покупок",
+    "store": "Магазин"
+  },
+  "household": {
+    "title": "Дім",
+    "newHome": "Новий дім",
+    "createTitle": "Створити новий дім",
+    "namePlaceholder": "Назва дому…",
+    "members": "Учасники",
+    "invites": "Запрошення",
+    "inviteByEmail": "Запросити за email",
+    "email": "Email адреса",
+    "role": "Роль",
+    "invite": "Запросити",
+    "revokeInvite": "Відкликати",
+    "roles": {
+      "owner": "Власник",
+      "admin": "Адмін",
+      "member": "Учасник",
+      "viewer": "Глядач"
+    },
+    "settings": "Налаштування",
+    "rename": "Перейменувати",
+    "danger": "Небезпечна зона",
+    "deleteHome": "Видалити дім"
+  }
+}
