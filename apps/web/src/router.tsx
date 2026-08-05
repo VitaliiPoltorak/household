@@ -6,6 +6,7 @@ import { AccountsPage } from './pages/AccountsPage';
 import { TransactionsPage } from './pages/TransactionsPage';
 import { ShoppingPage } from './pages/ShoppingPage';
 import { HouseholdPage } from './pages/HouseholdPage';
+import { SettingsPage } from './pages/SettingsPage';
 
 export const router = createBrowserRouter([
   { path: '/login', element: <LoginPage /> },
@@ -18,6 +19,7 @@ export const router = createBrowserRouter([
       { path: '/transactions', element: <TransactionsPage /> },
       { path: '/shopping', element: <ShoppingPage /> },
       { path: '/household', element: <HouseholdPage /> },
+      { path: '/settings', element: <SettingsPage /> },
     ],
   },
 ]);

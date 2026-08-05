@@ -8,11 +8,15 @@ export function Sidebar() {
   const { households, activeHousehold, setActiveHousehold } = useHousehold();
 
   const NAV = [
-    { to: '/dashboard', label: t('nav.dashboard') },
-    { to: '/accounts',  label: t('nav.accounts') },
+    { to: '/dashboard',    label: t('nav.dashboard') },
+    { to: '/accounts',     label: t('nav.accounts') },
     { to: '/transactions', label: t('nav.transactions') },
-    { to: '/shopping',  label: t('nav.shopping') },
-    { to: '/household', label: t('nav.household') },
+    { to: '/shopping',     label: t('nav.shopping') },
+    { to: '/household',    label: t('nav.household') },
+  ];
+
+  const BOTTOM_NAV = [
+    { to: '/settings', label: t('nav.settings') },
   ];
 
   return (
@@ -63,6 +67,26 @@ export function Sidebar() {
           </NavLink>
         ))}
       </nav>
+
+      {/* Bottom: settings */}
+      <div className="border-t border-gray-200 px-2 py-2">
+        {BOTTOM_NAV.map(({ to, label }) => (
+          <NavLink
+            key={to}
+            to={to}
+            className={({ isActive }) =>
+              clsx(
+                'flex items-center rounded-md px-3 py-2 text-sm transition-colors',
+                isActive
+                  ? 'bg-primary-50 font-medium text-primary-700'
+                  : 'text-gray-500 hover:bg-gray-100 hover:text-gray-800',
+              )
+            }
+          >
+            ⚙️ {label}
+          </NavLink>
+        ))}
+      </div>
     </aside>
   );
 }

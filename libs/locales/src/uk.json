@@ -29,7 +29,8 @@
     "accounts": "Рахунки",
     "transactions": "Транзакції",
     "shopping": "Покупки",
-    "household": "Дім"
+    "household": "Дім",
+    "settings": "Налаштування"
   },
   "auth": {
     "title": "Household",
@@ -151,5 +152,21 @@
     "rename": "Перейменувати",
     "danger": "Небезпечна зона",
     "deleteHome": "Видалити дім"
+  },
+  "settings": {
+    "title": "Налаштування",
+    "profile": "Профіль",
+    "displayName": "Ім'я",
+    "email": "Email",
+    "avatarUrl": "URL аватара",
+    "language": "Мова",
+    "preferences": "Уподобання",
+    "defaultCurrency": "Валюта за замовчуванням",
+    "account": "Акаунт",
+    "deleteAccount": "Видалити акаунт",
+    "deleteWarning": "Це назавжди видалить ваш акаунт і видалить вас з усіх домохозяйств. Цю дію неможливо скасувати.",
+    "confirmEmail": "Введіть ваш email для підтвердження",
+    "saved": "Збережено",
+    "saving": "Зберігаємо…"
   }
 }

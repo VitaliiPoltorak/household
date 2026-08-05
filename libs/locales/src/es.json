@@ -29,7 +29,8 @@
     "accounts": "Cuentas",
     "transactions": "Transacciones",
     "shopping": "Compras",
-    "household": "Hogar"
+    "household": "Hogar",
+    "settings": "Configuración"
   },
   "auth": {
     "title": "Household",
@@ -151,5 +152,21 @@
     "rename": "Renombrar",
     "danger": "Zona peligrosa",
     "deleteHome": "Eliminar hogar"
+  },
+  "settings": {
+    "title": "Configuración",
+    "profile": "Perfil",
+    "displayName": "Nombre para mostrar",
+    "email": "Correo",
+    "avatarUrl": "URL del avatar",
+    "language": "Idioma",
+    "preferences": "Preferencias",
+    "defaultCurrency": "Moneda predeterminada",
+    "account": "Cuenta",
+    "deleteAccount": "Eliminar cuenta",
+    "deleteWarning": "Esto eliminará tu cuenta permanentemente y te eliminará de todos los hogares. Esta acción no se puede deshacer.",
+    "confirmEmail": "Escribe tu correo para confirmar",
+    "saved": "Guardado",
+    "saving": "Guardando…"
   }
 }

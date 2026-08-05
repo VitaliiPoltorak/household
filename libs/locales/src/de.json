@@ -29,7 +29,8 @@
     "accounts": "Konten",
     "transactions": "Transaktionen",
     "shopping": "Einkaufen",
-    "household": "Haushalt"
+    "household": "Haushalt",
+    "settings": "Einstellungen"
   },
   "auth": {
     "title": "Household",
@@ -151,5 +152,21 @@
     "rename": "Umbenennen",
     "danger": "Gefahrenzone",
     "deleteHome": "Haushalt löschen"
+  },
+  "settings": {
+    "title": "Einstellungen",
+    "profile": "Profil",
+    "displayName": "Anzeigename",
+    "email": "E-Mail",
+    "avatarUrl": "Avatar-URL",
+    "language": "Sprache",
+    "preferences": "Einstellungen",
+    "defaultCurrency": "Standardwährung",
+    "account": "Konto",
+    "deleteAccount": "Konto löschen",
+    "deleteWarning": "Dies löscht Ihr Konto dauerhaft und entfernt Sie aus allen Haushalten. Diese Aktion kann nicht rückgängig gemacht werden.",
+    "confirmEmail": "Geben Sie Ihre E-Mail zur Bestätigung ein",
+    "saved": "Gespeichert",
+    "saving": "Speichert…"
   }
 }

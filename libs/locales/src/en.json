@@ -29,7 +29,8 @@
     "accounts": "Accounts",
     "transactions": "Transactions",
     "shopping": "Shopping",
-    "household": "Household"
+    "household": "Household",
+    "settings": "Settings"
   },
   "auth": {
     "title": "Household",
@@ -151,5 +152,21 @@
     "rename": "Rename",
     "danger": "Danger zone",
     "deleteHome": "Delete home"
+  },
+  "settings": {
+    "title": "Settings",
+    "profile": "Profile",
+    "displayName": "Display name",
+    "email": "Email",
+    "avatarUrl": "Avatar URL",
+    "language": "Language",
+    "preferences": "Preferences",
+    "defaultCurrency": "Default currency",
+    "account": "Account",
+    "deleteAccount": "Delete account",
+    "deleteWarning": "This will permanently delete your account and remove you from all households. This action cannot be undone.",
+    "confirmEmail": "Type your email to confirm",
+    "saved": "Saved",
+    "saving": "Saving…"
   }
 }
