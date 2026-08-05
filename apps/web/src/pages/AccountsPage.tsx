@@ -92,6 +92,9 @@ export function AccountsPage() {
 
   const { data: rates = [], dataUpdatedAt } = useExchangeRates();
 
+  // Sort A-Z client-side — prevents visual jumps after revalidation
+  const sortedAccounts = [...accounts].sort((a, b) => a.name.localeCompare(b.name));
+
   const archive = useMutation({
     mutationFn: (id: string) => financeApi.archiveAccount(id, hid),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['accounts', hid] }),
@@ -105,12 +108,12 @@ export function AccountsPage() {
 
   // Per-currency totals
   const byCurrency: Record<string, number> = {};
-  for (const a of accounts) {
+  for (const a of sortedAccounts) {
     byCurrency[a.currency] = (byCurrency[a.currency] ?? 0) + Number(a.balance);
   }
 
   // Grand total in base currency
-  const grandTotal = accounts.reduce((sum, a) => {
+  const grandTotal = sortedAccounts.reduce((sum, a) => {
     return sum + convert(Number(a.balance), a.currency, baseCurrency, rates);
   }, 0);
 
@@ -178,7 +181,7 @@ export function AccountsPage() {
       {/* Grid */}
       {isLoading ? (
         <Spinner />
-      ) : accounts.length === 0 ? (
+      ) : sortedAccounts.length === 0 ? (
         <Empty
           text={t('accounts.empty')}
           action={() => setShowCreate(true)}
@@ -186,7 +189,7 @@ export function AccountsPage() {
         />
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {accounts.map((a) => (
+          {sortedAccounts.map((a) => (
             <AccountCard
               key={a.id}
               account={a}

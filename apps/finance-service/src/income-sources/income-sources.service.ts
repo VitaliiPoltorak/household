@@ -15,7 +15,7 @@ export class IncomeSourcesService {
   }
 
   findAll(householdId: string): Promise<IncomeSource[]> {
-    return this.repo.find({ where: { householdId } });
+    return this.repo.find({ where: { householdId }, order: { name: 'ASC' } });
   }
 
   async findOne(id: string, householdId: string): Promise<IncomeSource> {

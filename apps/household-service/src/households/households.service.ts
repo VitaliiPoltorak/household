@@ -50,7 +50,7 @@ export class HouseholdsService {
     const memberships = await this.memberRepo.find({ where: { userId } });
     if (!memberships.length) return [];
     const ids = memberships.map((m) => m.householdId);
-    return this.householdRepo.findBy({ id: In(ids) });
+    return this.householdRepo.find({ where: { id: In(ids) }, order: { name: 'ASC' } });
   }
 
   async findOne(householdId: string, userId: string): Promise<Household> {
@@ -77,7 +77,7 @@ export class HouseholdsService {
 
   async getMembers(householdId: string, userId: string): Promise<HouseholdMember[]> {
     await this.requireMember(householdId, userId);
-    return this.memberRepo.find({ where: { householdId } });
+    return this.memberRepo.find({ where: { householdId }, order: { createdAt: 'ASC' } });
   }
 
   async updateMemberRole(

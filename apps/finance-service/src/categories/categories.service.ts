@@ -19,7 +19,7 @@ export class CategoriesService {
   findAll(householdId: string, type?: CategoryType): Promise<Category[]> {
     const where: Record<string, unknown> = { householdId };
     if (type) where['type'] = type;
-    return this.repo.find({ where });
+    return this.repo.find({ where, order: { name: 'ASC' } });
   }
 
   async findOne(id: string, householdId: string): Promise<Category> {

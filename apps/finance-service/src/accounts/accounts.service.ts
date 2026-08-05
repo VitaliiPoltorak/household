@@ -22,7 +22,7 @@ export class AccountsService {
   }
 
   findAll(householdId: string): Promise<Account[]> {
-    return this.repo.find({ where: { householdId, isArchived: false } });
+    return this.repo.find({ where: { householdId, isArchived: false }, order: { name: 'ASC' } });
   }
 
   async findOne(id: string, householdId: string): Promise<Account> {

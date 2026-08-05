@@ -23,11 +23,12 @@ export function ShoppingPage() {
   const [selectedList, setSelectedList] = useState<ShoppingList | null>(null);
   const [showCreate, setShowCreate] = useState(false);
 
-  const { data: lists = [], isLoading } = useQuery({
+  const { data: rawLists = [], isLoading } = useQuery({
     queryKey: ['shopping-lists', hid, statusFilter],
     queryFn: () => shoppingApi.getLists(hid, statusFilter),
     enabled: !!hid,
   });
+  const lists = [...rawLists].sort((a, b) => a.name.localeCompare(b.name));
 
   const { data: openList } = useQuery({
     queryKey: ['shopping-list', selectedList?.id, hid],
