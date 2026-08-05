@@ -15,6 +15,12 @@ pnpm format        # Prettier format
 # Target a specific app (preferred during development)
 pnpm --filter @household/api-gateway dev
 pnpm --filter @household/auth-service dev
+pnpm --filter @household/web dev          # React SPA at http://localhost:5173
+
+# Web tests (no Docker needed)
+pnpm --filter @household/web test:run     # 27 Vitest integration tests
+pnpm --filter @household/web test:ui      # Vitest browser UI
+pnpm --filter @household/api-gateway test:unit  # Redis throttler unit tests
 
 # TypeORM migrations (same pattern for all services)
 pnpm --filter @household/auth-service migration:generate -- -n MigrationName
@@ -33,23 +39,24 @@ This is a **pnpm + Turborepo monorepo** containing NestJS microservices behind a
 ```
 apps/
   api-gateway/         # Port 3000 — single entry point, JWT, proxy, Swagger
-  auth-service/        # Port 3001 — OAuth, JWT issuance, Redis sessions
-  household-service/   # Port 3002 — households, members, invites (not yet scaffolded)
-  finance-service/     # Port 3003 — accounts, transactions, categories (not yet scaffolded)
-  shopping-service/    # Port 3004 — stores, products, shopping lists (not yet scaffolded)
-  realtime-gateway/    # Port 3010 — Socket.IO, presence, Kafka→WS bridge (Phase 2)
+  auth-service/        # Port 3001 — Google/Apple/Facebook OAuth, JWT, Redis sessions
+  household-service/   # Port 3002 — households, members (roles), Redis invites
+  finance-service/     # Port 3003 — accounts, transactions, categories, reports
+  shopping-service/    # Port 3004 — stores, products, shopping lists + items
+  realtime-gateway/    # Port 3010 — Socket.IO, presence, Kafka→WS bridge
   integration-service/ # Phase 3 — Monobank sync
   notification-service/# Phase 3 — email + push
-  web/                 # Phase 4 — React + Vite SPA
+  web/                 # Port 5173 — React 18 + Vite SPA (Dashboard, Accounts,
+                       #   Transactions, Shopping, Household settings)
   mobile/              # Phase 5 — React Native (Expo)
 
 libs/
-  common/     # Guards, decorators, pipes, exception filters (planned)
-  contracts/  # Shared DTOs, event schemas, Socket.IO event types (planned)
-  database/   # Base entities, migration helpers (planned)
-  kafka/      # Producer/consumer wrappers, event envelope (planned)
-  auth/       # Auth-related shared code (planned)
-  config/     # Shared config helpers (planned)
+  common/     # HttpExceptionFilter, AppConfigModule
+  contracts/  # Kafka envelope, Socket.IO event types, PaginationDto
+  database/   # BaseEntity, createDataSourceOptions, ensureSchema
+  kafka/      # KafkaModule, KafkaProducerService, KafkaConsumerService
+  locales/    # Shared i18n JSON (en / uk / de / es) — used by web + mobile
+  testing/    # createTestApp, cleanDatabase, kafka mocks (integration tests)
 ```
 
 Infra services: **postgres:5432**, **redis:6379**, **kafka:9092**, **kafka-ui:8081**, **adminer:8080**.
@@ -161,6 +168,25 @@ pnpm test:integration                                          # all services
 - `tsconfig.test.json` (copy from finance-service, add `@household/testing` path)
 - `"test:integration"` script in `package.json`
 
+### Web app tests (Vitest)
+
+**Stack:** Vitest v2 + @testing-library/react + MSW v2 (no Docker needed).
+
+```bash
+pnpm --filter @household/web test:run    # 27 tests, ~1s
+pnpm --filter @household/web test        # watch mode
+```
+
+**Pattern** — copy from `apps/web/src/test/`:
+```typescript
+import { renderWithProviders } from './wrapper'; // sets tokens, wraps with providers
+import { server } from './setup';               // MSW server (auto started in setup.ts)
+// Override specific handlers per test:
+server.use(http.get('/api/v1/accounts', () => HttpResponse.json([])));
+```
+
+Socket.IO is mocked globally in `setup.ts` — no WebSocket connections in tests.
+
 ### Manual testing
 
 **Tool: Postman** — `docs/postman/household.postman_collection.json` + `household.postman_environment.json`.
@@ -169,11 +195,23 @@ Swagger at `/docs` per service is for endpoint reference during development only
 
 ## Current implementation status
 
-Phase 0 and Phase 1 complete. Implemented:
-- `libs/common`, `libs/contracts`, `libs/database`, `libs/kafka` — shared libs
-- `api-gateway` — JWT proxy, rate limiting, Swagger
-- `auth-service` — Google/Apple/Facebook OAuth, JWT, Redis sessions
-- `household-service` — CRUD households, members (owner/admin/member/viewer roles), Redis-backed invites
-- `finance-service` — accounts with balance tracking, transactions (income/expense/transfer/adjustment), categories, income sources, recurring payments
+**Phases 0–4 complete.** Implemented:
 
-Next: Phase 2 — shopping-service, Kafka consumers between services, realtime-gateway (Socket.IO).
+**Libs:** `common`, `contracts`, `database`, `kafka`, `locales` (i18n en/uk/de/es), `testing`
+
+**Backend services:**
+- `api-gateway` — JWT proxy, Redis rate limiting, Swagger
+- `auth-service` — Google/Apple/Facebook OAuth, JWT, Redis sessions
+- `household-service` — CRUD households, members (owner/admin/member/viewer), Redis invites, Kafka consumer (auth.user.deleted → cleanup)
+- `finance-service` — accounts with balance tracking, transactions, categories, recurring payments, reports (monthly/by-category/net-worth)
+- `shopping-service` — stores, products, shopping lists + items, Kafka events
+- `realtime-gateway` — Socket.IO (JWT auth, rooms, presence, Kafka→WS bridge)
+
+**Web app** (`apps/web`, port 5173):
+- React 18 + Vite 5 + TanStack Query + Tailwind CSS + react-i18next
+- Pages: Dashboard, Accounts, Transactions (with transfer), Shopping lists, Household settings
+- Auth: Google OAuth via @react-oauth/google, axios→fetch, auto token refresh
+- Real-time: Socket.IO client (entity updates, presence avatars, editing indicators)
+- i18n: 4 languages, language switcher in Header, user.locale sync
+
+Next: **Phase 5** — React Native mobile app.

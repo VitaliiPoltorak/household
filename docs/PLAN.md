@@ -744,7 +744,7 @@ pnpm test:integration                                       # все серви�
 
 ---
 
-### Phase 4 — Web App (3–4 недели)
+### Phase 4 — Web App ✅ (завершено)
 
 ```
 □ React + Vite + TypeScript

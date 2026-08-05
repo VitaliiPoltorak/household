@@ -10,8 +10,9 @@ Family finance & shopping management — NestJS microservices monorepo.
 | Database | PostgreSQL 16 (schema-per-service) |
 | Cache / Sessions | Redis 7 |
 | Message bus | Apache Kafka (KRaft) |
-| Real-time | Socket.IO (Phase 2) |
-| Web | React + Vite (Phase 4) |
+| Real-time | Socket.IO |
+| Web | React 18 + Vite 5 + TanStack Query + Tailwind CSS |
+| i18n | react-i18next, shared `libs/locales` (en / uk / de / es) |
 | Mobile | React Native / Expo (Phase 5) |
 
 ## Services
@@ -22,8 +23,9 @@ Family finance & shopping management — NestJS microservices monorepo.
 | auth-service | 3001 | Google / Apple / Facebook OAuth, JWT, Redis sessions |
 | household-service | 3002 | Households, members, roles, invites |
 | finance-service | 3003 | Accounts, transactions, categories, recurring payments |
-| shopping-service | 3004 | Stores, products, shopping lists (Phase 2) |
-| realtime-gateway | 3010 | Socket.IO, presence, live updates (Phase 2) |
+| shopping-service | 3004 | Stores, products, shopping lists |
+| realtime-gateway | 3010 | Socket.IO, presence, live updates |
+| **web** | **5173** | **React SPA — dashboard, finance, shopping, household** |
 
 ## Prerequisites
 
@@ -57,24 +59,34 @@ docker compose up -d
 
 This starts PostgreSQL (5432), Redis (6379), Kafka (9092), Kafka UI (8081), Adminer (8080).
 
-**4. Run services**
-
-Run all services in watch mode:
+**4. Run backend services**
 
 ```bash
 pnpm dev
 ```
 
-Or run a single service:
+Or a single service:
 
 ```bash
 pnpm --filter @household/api-gateway dev
 pnpm --filter @household/auth-service dev
 pnpm --filter @household/household-service dev
 pnpm --filter @household/finance-service dev
+pnpm --filter @household/shopping-service dev
+pnpm --filter @household/realtime-gateway dev
 ```
 
-**5. Open Swagger**
+**5. Run the web app**
+
+```bash
+cp apps/web/.env.local.example apps/web/.env.local
+# Fill in VITE_GOOGLE_CLIENT_ID (see Google OAuth setup below)
+pnpm --filter @household/web dev    # http://localhost:5173
+```
+
+The web app uses a Vite proxy — all `/api` requests are forwarded to the API Gateway on port 3000. The Socket.IO connection goes directly to the Realtime Gateway on port 3010.
+
+**6. Open Swagger**
 
 | Service | URL |
 |---------|-----|
@@ -148,18 +160,32 @@ THROTTLE_LIMIT=100    # max requests per window per IP
 ## Development commands
 
 ```bash
-pnpm build          # build all packages
-pnpm dev            # start all services in watch mode
-pnpm lint           # lint all packages
-pnpm test           # run all tests
-pnpm format         # prettier format
+pnpm build                  # build all packages
+pnpm dev                    # start all backend services in watch mode
+pnpm lint                   # lint all packages
+pnpm test                   # run all tests
+pnpm format                 # prettier format
 
-# TypeORM migrations (run from service directory)
+# Web app
+pnpm --filter @household/web dev          # start dev server
+pnpm --filter @household/web test:run     # run Vitest integration tests (27 tests, no Docker needed)
+pnpm --filter @household/web test:ui      # Vitest UI
+
+# Backend integration tests (requires docker compose up -d)
+pnpm --filter @household/finance-service test:integration
+pnpm --filter @household/shopping-service test:integration
+
+# Unit tests (no Docker needed)
+pnpm --filter @household/api-gateway test:unit
+
+# TypeORM migrations (same pattern for all services)
 pnpm --filter @household/auth-service migration:generate -- -n InitAuth
 pnpm --filter @household/auth-service migration:run
 ```
 
 ## Testing
+
+### Backend — Postman + integration tests
 
 Integration tests use **Postman**. The collection covers full request flows with automatic token extraction and environment variable chaining (login → set `accessToken` → use in all subsequent requests).
 
@@ -203,10 +229,19 @@ Required once to get a `GOOGLE_CLIENT_ID` and test tokens locally.
 
 > The `id_token` expires in ~1 hour. Repeat step 2 when it expires.
 
-> **How to get a Google ID token for testing:**
-> Open [Google OAuth Playground](https://developers.google.com/oauthplayground), select scope `openid email profile`, authorize with your Google account, exchange code for tokens, copy the `id_token` value.
-
 Each completed feature has a manual testing checklist in the [Testing milestone](https://github.com/VitaliiPoltorak/household/milestone/8) on GitHub. Swagger (`/docs` on each service) is available for quick endpoint reference during development.
+
+### Web — Vitest
+
+The web app has 27 integration tests using **Vitest + @testing-library/react + MSW** (Mock Service Worker intercepts fetch at the network level). No Docker needed.
+
+```bash
+pnpm --filter @household/web test:run   # run once
+pnpm --filter @household/web test       # watch mode
+pnpm --filter @household/web test:ui    # browser UI
+```
+
+**Covered flows:** login, dashboard (empty state + create household), accounts (list/create/archive), transactions (list/create/delete/filter/transfer), shopping lists (list/create/select/mark purchased).
 
 ## Architecture overview
 
