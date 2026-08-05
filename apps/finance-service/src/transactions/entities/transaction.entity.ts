@@ -8,6 +8,11 @@ export enum TransactionType {
   ADJUSTMENT = 'adjustment',
 }
 
+export enum TransferDirection {
+  DEBIT = 'debit',
+  CREDIT = 'credit',
+}
+
 @Entity({ name: 'transactions', schema: 'finance' })
 export class Transaction extends BaseEntity {
   @Column({ name: 'household_id' })
@@ -45,4 +50,12 @@ export class Transaction extends BaseEntity {
 
   @Column({ name: 'transfer_pair_id', type: 'varchar', nullable: true })
   transferPairId: string | null;
+
+  @Column({
+    name: 'transfer_direction',
+    type: 'enum',
+    enum: TransferDirection,
+    nullable: true,
+  })
+  transferDirection: TransferDirection | null;
 }

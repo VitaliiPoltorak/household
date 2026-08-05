@@ -113,6 +113,72 @@ describe('Transactions (integration)', () => {
     });
   });
 
+  describe('DELETE /transactions/:id — transfer', () => {
+    it('reverses both accounts and deletes both legs when deleting a transfer', async () => {
+      const fromId = await createAccount(app, 'Bank');
+      const toId = await createAccount(app, 'Cash', 'cash');
+
+      await request(app.getHttpServer())
+        .post('/transactions')
+        .set('X-User-Id', U).set('X-Household-Id', H)
+        .send({ accountId: fromId, type: 'income', amount: 2000, currency: 'UAH', date: '2026-07-30' });
+
+      const transferRes = await request(app.getHttpServer())
+        .post('/transactions/transfer')
+        .set('X-User-Id', U).set('X-Household-Id', H)
+        .send({ fromAccountId: fromId, toAccountId: toId, amount: 500, currency: 'UAH', date: '2026-07-30' });
+      const [debit, credit] = transferRes.body as Array<{ id: string }>;
+
+      expect(await getBalance(app, fromId)).toBe(1500);
+      expect(await getBalance(app, toId)).toBe(500);
+
+      // Delete one leg — expect both legs gone and both balances restored
+      await request(app.getHttpServer())
+        .delete(`/transactions/${debit.id}`)
+        .set('X-User-Id', U).set('X-Household-Id', H)
+        .expect(204);
+
+      expect(await getBalance(app, fromId)).toBe(2000);
+      expect(await getBalance(app, toId)).toBe(0);
+
+      // Paired leg should be gone too
+      await request(app.getHttpServer())
+        .delete(`/transactions/${credit.id}`)
+        .set('X-User-Id', U).set('X-Household-Id', H)
+        .expect(404);
+
+      // No transfer transactions left
+      const list = await request(app.getHttpServer())
+        .get('/transactions?type=transfer')
+        .set('X-User-Id', U).set('X-Household-Id', H);
+      expect(list.body).toHaveLength(0);
+    });
+
+    it('deleting the credit leg also reverses both balances', async () => {
+      const fromId = await createAccount(app, 'Bank');
+      const toId = await createAccount(app, 'Cash', 'cash');
+
+      await request(app.getHttpServer())
+        .post('/transactions')
+        .set('X-User-Id', U).set('X-Household-Id', H)
+        .send({ accountId: fromId, type: 'income', amount: 2000, currency: 'UAH', date: '2026-07-30' });
+
+      const transferRes = await request(app.getHttpServer())
+        .post('/transactions/transfer')
+        .set('X-User-Id', U).set('X-Household-Id', H)
+        .send({ fromAccountId: fromId, toAccountId: toId, amount: 500, currency: 'UAH', date: '2026-07-30' });
+      const [, credit] = transferRes.body as Array<{ id: string }>;
+
+      await request(app.getHttpServer())
+        .delete(`/transactions/${credit.id}`)
+        .set('X-User-Id', U).set('X-Household-Id', H)
+        .expect(204);
+
+      expect(await getBalance(app, fromId)).toBe(2000);
+      expect(await getBalance(app, toId)).toBe(0);
+    });
+  });
+
   describe('DELETE /transactions/:id', () => {
     it('reverses balance on delete of income', async () => {
       const accountId = await createAccount(app, 'Bank');
