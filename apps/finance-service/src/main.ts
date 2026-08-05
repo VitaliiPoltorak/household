@@ -9,6 +9,7 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const config = app.get(ConfigService);
   const port = config.get<number>('FINANCE_SERVICE_PORT', 3003);
+  const host = config.get<string>('LISTEN_HOST', '127.0.0.1');
   const logger = new Logger('Bootstrap');
 
   app.useGlobalFilters(new HttpExceptionFilter());
@@ -17,7 +18,7 @@ async function bootstrap() {
   const swagger = new DocumentBuilder().setTitle('Finance Service').setVersion('0.1.0').build();
   SwaggerModule.setup('docs', app, SwaggerModule.createDocument(app, swagger));
 
-  await app.listen(port);
-  logger.log(`Finance Service running on http://localhost:${port}`);
+  await app.listen(port, host);
+  logger.log(`Finance Service running on http://${host}:${port}`);
 }
 bootstrap();
