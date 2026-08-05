@@ -163,30 +163,33 @@ export class HouseholdsService {
     await this.redis.del(`invite:${invite.token}`);
   }
 
-  async acceptInvite(token: string, userId: string): Promise<HouseholdMember> {
-    const raw = await this.redis.get(`invite:${token}`);
-    if (!raw) throw new NotFoundException('Invite not found or expired');
+  async acceptInvite(token: string, userId: string, userEmail: string): Promise<HouseholdMember> {
+    const invite = await this.inviteRepo.findOne({ where: { token } });
+    if (!invite) throw new NotFoundException('Invite not found');
+    if (invite.acceptedAt) throw new ConflictException('Invite already used');
+    if (invite.expiresAt.getTime() <= Date.now()) {
+      throw new NotFoundException('Invite expired');
+    }
+    if (invite.email.trim().toLowerCase() !== userEmail.trim().toLowerCase()) {
+      throw new ForbiddenException('Invite email does not match your account');
+    }
 
-    const { householdId, role } = JSON.parse(raw) as {
-      householdId: string;
-      email: string;
-      role: MemberRole;
-    };
-
-    const existing = await this.memberRepo.findOne({ where: { householdId, userId } });
+    const existing = await this.memberRepo.findOne({
+      where: { householdId: invite.householdId, userId },
+    });
     if (existing) throw new ConflictException('Already a member');
 
     const member = await this.memberRepo.save(
-      this.memberRepo.create({ householdId, userId, role }),
+      this.memberRepo.create({ householdId: invite.householdId, userId, role: invite.role }),
     );
 
-    await this.inviteRepo.update({ token }, { acceptedAt: new Date() });
+    await this.inviteRepo.update(invite.id, { acceptedAt: new Date() });
     await this.redis.del(`invite:${token}`);
 
     await this.kafka.emit(
       'household.member.joined',
-      { householdId, userId, role },
-      { userId, householdId },
+      { householdId: invite.householdId, userId, role: invite.role },
+      { userId, householdId: invite.householdId },
     );
 
     return member;
