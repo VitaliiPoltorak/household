@@ -72,7 +72,17 @@
     "estimatedTotal": "Estimated total",
     "ratesBy": "Rates: PrivatBank",
     "loading": "Loading…",
-    "quickTx": "Quick transaction"
+    "quickTx": "Quick transaction",
+    "adjustBalance": "Adjust balance",
+    "adjust": {
+      "current": "Current balance",
+      "newBalance": "New balance",
+      "delta": "Change",
+      "descriptionPlaceholder": "e.g. Cash count correction",
+      "hint": "This creates an adjustment transaction so balance history stays consistent.",
+      "invalidNumber": "Enter a valid number.",
+      "noChange": "New balance is the same as the current balance."
+    }
   },
   "transactions": {
     "title": "Transactions",

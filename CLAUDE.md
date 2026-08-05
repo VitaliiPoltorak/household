@@ -155,7 +155,9 @@ pnpm --filter @household/<service> test:integration            # single service
 pnpm test:integration                                          # all services
 ```
 
-**Test database:** `household_test` — created automatically by `ensureSchema()` on first run. Never use the dev database for tests.
+**Test database:** `household_test` — enforced by `libs/testing/jest.env.js` (registered in each service's `jest.integration.config.js` via `setupFiles`), which sets `POSTGRES_DB=household_test` before any module loads. `cleanDatabase()` and `ensureSchema()` additionally refuse to run if the connected database name does not end in `_test` — so a misconfigured test can never wipe dev data.
+
+If you add a new service with integration tests, its `jest.integration.config.js` MUST include `<rootDir>/../../libs/testing/jest.env.js` in `setupFiles`.
 
 **What to cover per feature:**
 - Happy path (201/200 with correct body)

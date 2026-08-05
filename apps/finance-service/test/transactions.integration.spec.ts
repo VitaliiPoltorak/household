@@ -111,6 +111,56 @@ describe('Transactions (integration)', () => {
         .set('X-User-Id', U).set('X-Household-Id', H);
       expect(summary.body.totalBalance).toBe(2000);
     });
+
+    it('rejects transfer to the same account', async () => {
+      const id = await createAccount(app, 'Bank');
+      await request(app.getHttpServer())
+        .post('/transactions/transfer')
+        .set('X-User-Id', U).set('X-Household-Id', H)
+        .send({ fromAccountId: id, toAccountId: id, amount: 100, currency: 'UAH', date: '2026-07-30' })
+        .expect(400);
+    });
+
+    it('rejects transfer when destination account belongs to another household', async () => {
+      const mine = await createAccount(app, 'Mine');
+      const foreign = await request(app.getHttpServer())
+        .post('/accounts')
+        .set('X-User-Id', U).set('X-Household-Id', 'other-household')
+        .send({ name: 'Foreign', type: 'bank', currency: 'UAH' });
+
+      await request(app.getHttpServer())
+        .post('/transactions/transfer')
+        .set('X-User-Id', U).set('X-Household-Id', H)
+        .send({ fromAccountId: mine, toAccountId: foreign.body.id, amount: 100, currency: 'UAH', date: '2026-07-30' })
+        .expect(404);
+
+      expect(await getBalance(app, mine)).toBe(0);
+    });
+
+    it('rejects transfer when source account belongs to another household', async () => {
+      const mine = await createAccount(app, 'Mine');
+      const foreign = await request(app.getHttpServer())
+        .post('/accounts')
+        .set('X-User-Id', U).set('X-Household-Id', 'other-household')
+        .send({ name: 'Foreign', type: 'bank', currency: 'UAH' });
+
+      await request(app.getHttpServer())
+        .post('/transactions/transfer')
+        .set('X-User-Id', U).set('X-Household-Id', H)
+        .send({ fromAccountId: foreign.body.id, toAccountId: mine, amount: 100, currency: 'UAH', date: '2026-07-30' })
+        .expect(404);
+
+      expect(await getBalance(app, mine)).toBe(0);
+    });
+
+    it('rejects transfer when account does not exist', async () => {
+      const mine = await createAccount(app, 'Mine');
+      await request(app.getHttpServer())
+        .post('/transactions/transfer')
+        .set('X-User-Id', U).set('X-Household-Id', H)
+        .send({ fromAccountId: mine, toAccountId: '00000000-0000-0000-0000-000000000000', amount: 100, currency: 'UAH', date: '2026-07-30' })
+        .expect(404);
+    });
   });
 
   describe('DELETE /transactions/:id', () => {

@@ -74,6 +74,7 @@ export function AccountsPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [editAccount, setEditAccount] = useState<Account | null>(null);
   const [quickTx, setQuickTx] = useState<{ account: Account; type: QuickTxType } | null>(null);
+  const [adjustAccount, setAdjustAccount] = useState<Account | null>(null);
   const [baseCurrency, setBaseCurrency] = useState<string>(
     () => localStorage.getItem(BASE_CURRENCY_KEY) ?? 'UAH',
   );
@@ -198,6 +199,7 @@ export function AccountsPage() {
               onEdit={() => setEditAccount(a)}
               onNameSave={(name) => updateAccount.mutate({ id: a.id, data: { name } })}
               onQuickTx={(type) => setQuickTx({ account: a, type })}
+              onAdjust={() => setAdjustAccount(a)}
             />
           ))}
         </div>
@@ -240,6 +242,19 @@ export function AccountsPage() {
           }}
         />
       )}
+
+      {adjustAccount && (
+        <AdjustBalanceModal
+          account={adjustAccount}
+          hid={hid}
+          onClose={() => setAdjustAccount(null)}
+          onAdjusted={() => {
+            qc.invalidateQueries({ queryKey: ['accounts', hid] });
+            qc.invalidateQueries({ queryKey: ['transactions', hid] });
+            setAdjustAccount(null);
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -247,14 +262,16 @@ export function AccountsPage() {
 // ──────────────────────────────────────────────
 // Account card with inline name edit
 // ──────────────────────────────────────────────
-function AccountCard({ account, archiveLabel, onArchive, onEdit, onNameSave, onQuickTx }: {
+function AccountCard({ account, archiveLabel, onArchive, onEdit, onNameSave, onQuickTx, onAdjust }: {
   account: Account;
   archiveLabel: string;
   onArchive: () => void;
   onEdit: () => void;
   onNameSave: (name: string) => void;
   onQuickTx: (type: QuickTxType) => void;
+  onAdjust: () => void;
 }) {
+  const { t } = useTranslation();
   const [editingName, setEditingName] = useState(false);
   const [nameVal, setNameVal] = useState(account.name);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -318,7 +335,11 @@ function AccountCard({ account, archiveLabel, onArchive, onEdit, onNameSave, onQ
           </button>
         </div>
       </div>
-      <p className="mt-3 text-2xl font-bold text-gray-800">
+      <p
+        className="mt-3 text-2xl font-bold text-gray-800 cursor-pointer hover:text-primary-600 transition-colors"
+        onClick={onAdjust}
+        title={t('accounts.adjustBalance')}
+      >
         {fmt(Number(account.balance), account.currency)}
       </p>
       <div className="flex items-center justify-between mt-0.5">
@@ -601,6 +622,105 @@ function QuickTxModal({ account, txType, hid, accounts, categories, onClose, onC
             disabled={saving || !amount || (isTransfer && !toAccountId)}
           >
             {saving ? t('common.saving') : t('common.add')}
+          </Button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+// ──────────────────────────────────────────────
+// Manual balance adjustment modal
+// ──────────────────────────────────────────────
+function AdjustBalanceModal({ account, hid, onClose, onAdjusted }: {
+  account: Account;
+  hid: string;
+  onClose: () => void;
+  onAdjusted: () => void;
+}) {
+  const { t } = useTranslation();
+  const currentBalance = Number(account.balance);
+  const [newBalance, setNewBalance] = useState(currentBalance.toFixed(2));
+  const [description, setDescription] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const parsed = parseFloat(newBalance);
+  const delta = Number.isFinite(parsed) ? parsed - currentBalance : 0;
+  const deltaClass = delta > 0 ? 'text-green-600' : delta < 0 ? 'text-red-600' : 'text-gray-400';
+  const deltaSign = delta > 0 ? '+' : '';
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    if (!Number.isFinite(parsed)) {
+      setError(t('accounts.adjust.invalidNumber'));
+      return;
+    }
+    if (delta === 0) {
+      setError(t('accounts.adjust.noChange'));
+      return;
+    }
+    setSaving(true);
+    try {
+      await financeApi.adjustBalance(account.id, hid, {
+        newBalance: parsed,
+        description: description.trim() || undefined,
+      });
+      onAdjusted();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal title={`${t('accounts.adjustBalance')} — ${account.name}`} onClose={onClose}>
+      <form onSubmit={submit} className="space-y-3">
+        <div className="rounded-lg bg-gray-50 px-3 py-2 text-sm text-gray-500">
+          <span className="font-medium">{t('accounts.adjust.current')}:</span>{' '}
+          <span className="text-gray-800">{fmt(currentBalance, account.currency)}</span>
+        </div>
+
+        <Input
+          label={t('accounts.adjust.newBalance')}
+          type="number"
+          step="0.01"
+          value={newBalance}
+          onChange={(e) => setNewBalance(e.target.value)}
+          required
+          autoFocus
+        />
+
+        <div className="text-sm">
+          <span className="text-gray-500">{t('accounts.adjust.delta')}:</span>{' '}
+          <span className={`font-semibold ${deltaClass}`}>
+            {deltaSign}{fmt(delta, account.currency)}
+          </span>
+        </div>
+
+        <Input
+          label={`${t('transactions.description')} (${t('common.optional')})`}
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          placeholder={t('accounts.adjust.descriptionPlaceholder')}
+        />
+
+        {error && (
+          <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>
+        )}
+
+        <p className="text-xs text-gray-400">
+          {t('accounts.adjust.hint')}
+        </p>
+
+        <div className="flex gap-2 pt-2">
+          <Button type="button" variant="secondary" className="flex-1" onClick={onClose}>
+            {t('common.cancel')}
+          </Button>
+          <Button type="submit" className="flex-1" disabled={saving || delta === 0}>
+            {saving ? t('common.saving') : t('common.save')}
           </Button>
         </div>
       </form>

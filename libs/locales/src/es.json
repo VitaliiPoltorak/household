@@ -72,7 +72,17 @@
     "estimatedTotal": "Total estimado",
     "ratesBy": "Tasas: PrivatBank",
     "loading": "Cargando…",
-    "quickTx": "Transacción rápida"
+    "quickTx": "Transacción rápida",
+    "adjustBalance": "Ajustar saldo",
+    "adjust": {
+      "current": "Saldo actual",
+      "newBalance": "Nuevo saldo",
+      "delta": "Cambio",
+      "descriptionPlaceholder": "p. ej. Conteo de efectivo",
+      "hint": "Crea una transacción de ajuste para mantener el historial de saldo consistente.",
+      "invalidNumber": "Ingrese un número válido.",
+      "noChange": "El nuevo saldo es igual al actual."
+    }
   },
   "transactions": {
     "title": "Transacciones",
