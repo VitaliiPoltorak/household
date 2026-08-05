@@ -65,6 +65,23 @@ export class CreateTransferDto {
 }
 
 export class UpdateTransactionDto {
+  @ApiPropertyOptional({ enum: [TransactionType.INCOME, TransactionType.EXPENSE, TransactionType.ADJUSTMENT] })
+  @IsEnum([TransactionType.INCOME, TransactionType.EXPENSE, TransactionType.ADJUSTMENT])
+  @IsOptional()
+  type?: Exclude<TransactionType, TransactionType.TRANSFER>;
+
+  @ApiPropertyOptional()
+  @IsNumber() @IsPositive() @IsOptional()
+  amount?: number;
+
+  @ApiPropertyOptional()
+  @IsDateString() @IsOptional()
+  date?: string;
+
+  @ApiPropertyOptional()
+  @IsString() @IsOptional()
+  description?: string;
+
   @ApiPropertyOptional()
   @IsString() @IsOptional()
   categoryId?: string;
@@ -72,16 +89,4 @@ export class UpdateTransactionDto {
   @ApiPropertyOptional()
   @IsString() @IsOptional()
   incomeSourceId?: string;
-
-  @ApiPropertyOptional()
-  @IsString() @IsOptional()
-  description?: string;
-
-  @ApiPropertyOptional()
-  @IsDateString() @IsOptional()
-  date?: string;
-
-  @ApiPropertyOptional()
-  @IsNumber() @IsPositive() @IsOptional()
-  amount?: number;
 }

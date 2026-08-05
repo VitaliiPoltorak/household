@@ -113,9 +113,32 @@ export class TransactionsService {
   }
 
   async update(id: string, householdId: string, dto: UpdateTransactionDto): Promise<Transaction> {
-    await this.findOne(id, householdId);
-    const { description, date, categoryId, incomeSourceId } = dto;
-    await this.repo.update(id, { description, date, categoryId, incomeSourceId });
+    const existing = await this.findOne(id, householdId);
+
+    const newAmount = dto.amount ?? Number(existing.amount);
+    const newType   = dto.type   ?? existing.type;
+
+    // Recalculate balance when amount or type changes (skip for transfers — both legs must stay in sync)
+    if (existing.type !== TransactionType.TRANSFER && (dto.amount !== undefined || dto.type !== undefined)) {
+      // Reverse old effect
+      const oldDelta = existing.type === TransactionType.EXPENSE
+        ? Number(existing.amount)
+        : -Number(existing.amount);
+      await this.accountsService.adjustBalance(existing.accountId, oldDelta);
+
+      // Apply new effect
+      const newDelta = newType === TransactionType.EXPENSE ? -newAmount : newAmount;
+      await this.accountsService.adjustBalance(existing.accountId, newDelta);
+    }
+
+    await this.repo.update(id, {
+      type: newType,
+      amount: newAmount,
+      description: dto.description,
+      date: dto.date,
+      categoryId: dto.categoryId,
+      incomeSourceId: dto.incomeSourceId,
+    });
 
     const updated = await this.findOne(id, householdId);
     await this.kafka.emit(

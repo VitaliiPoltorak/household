@@ -347,7 +347,7 @@ function CreateTxModal({ hid, accounts, categories, onClose, onCreated }: {
 }
 
 // ──────────────────────────────────────────────
-// Edit transaction modal — only metadata fields
+// Edit transaction modal — type, amount + metadata
 // ──────────────────────────────────────────────
 function EditTxModal({ tx, hid, categories, accountName, onClose, onSaved }: {
   tx: Transaction;
@@ -358,20 +358,23 @@ function EditTxModal({ tx, hid, categories, accountName, onClose, onSaved }: {
   onSaved: () => void;
 }) {
   const { t } = useTranslation();
+  const isTransfer = tx.type === 'transfer';
+
+  const [type, setType] = useState(tx.type);
+  const [amount, setAmount] = useState(String(tx.amount));
   const [description, setDescription] = useState(tx.description ?? '');
   const [date, setDate] = useState(tx.date);
   const [categoryId, setCategoryId] = useState(tx.categoryId ?? '');
   const [saving, setSaving] = useState(false);
 
-  const filteredCategories = categories.filter(
-    (c) => c.type === tx.type,
-  );
+  const filteredCategories = categories.filter((c) => c.type === type);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
     try {
       await financeApi.updateTransaction(tx.id, hid, {
+        ...(isTransfer ? {} : { type: type as 'income' | 'expense' | 'adjustment', amount: parseFloat(amount) }),
         description: description || undefined,
         date,
         categoryId: categoryId || undefined,
@@ -383,16 +386,41 @@ function EditTxModal({ tx, hid, categories, accountName, onClose, onSaved }: {
   return (
     <Modal title={t('transactions.editTitle')} onClose={onClose}>
       <form onSubmit={submit} className="space-y-3">
-        {/* Read-only info */}
-        <div className="rounded-lg bg-gray-50 px-3 py-2 text-sm text-gray-500 space-y-0.5">
-          <p><span className="font-medium">{t('transactions.type')}:</span>{' '}
-            {t(`transactions.types.${tx.type}`)}</p>
-          <p><span className="font-medium">{t('transactions.account')}:</span>{' '}{accountName}</p>
-          <p><span className="font-medium">{t('transactions.amount')}:</span>{' '}
-            {fmt(Number(tx.amount), tx.currency)}</p>
+        {/* Account — always read-only */}
+        <div className="rounded-lg bg-gray-50 px-3 py-2 text-sm text-gray-500">
+          <span className="font-medium">{t('transactions.account')}:</span>{' '}{accountName}
         </div>
 
-        {/* Editable fields */}
+        {/* Transfer notice */}
+        {isTransfer && (
+          <p className="text-xs text-amber-600 bg-amber-50 rounded-lg px-3 py-2">
+            ⚠️ Transfer type and amount cannot be changed — both sides of the transfer must stay in sync.
+          </p>
+        )}
+
+        {/* Type — editable for non-transfers */}
+        <Select
+          label={t('transactions.type')}
+          value={type}
+          onChange={(e) => { setType(e.target.value); setCategoryId(''); }}
+          disabled={isTransfer}
+        >
+          {TX_TYPES.map((tp) => (
+            <option key={tp} value={tp}>{t(`transactions.types.${tp}`)}</option>
+          ))}
+        </Select>
+
+        {/* Amount — editable for non-transfers */}
+        <Input
+          label={t('transactions.amount')}
+          type="number" step="0.01" min="0.01"
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+          disabled={isTransfer}
+          required
+        />
+
+        {/* Date */}
         <Input label={t('transactions.date')} type="date" value={date}
           onChange={(e) => setDate(e.target.value)} required />
 
