@@ -14,7 +14,9 @@
     "none": "Keine",
     "archive": "Archivieren",
     "back": "Zurück",
-    "optional": "optional"
+    "optional": "optional",
+    "selectHousehold": "Wählen oder erstellen Sie zuerst einen Haushalt.",
+    "saving": "Speichert…"
   },
   "lang": {
     "en": "English",
@@ -90,7 +92,8 @@
       "expense": "Ausgabe",
       "transfer": "Überweisung",
       "adjustment": "Anpassung"
-    }
+    },
+    "transferring": "Wird überwiesen…"
   },
   "categories": {
     "title": "Kategorien",

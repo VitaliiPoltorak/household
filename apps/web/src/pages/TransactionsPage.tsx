@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useHousehold } from '../contexts/HouseholdContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -19,8 +20,8 @@ function fmt(n: number, currency = 'UAH') {
 function today() { return new Date().toISOString().split('T')[0]; }
 
 export function TransactionsPage() {
+  const { t } = useTranslation();
   const { activeHousehold } = useHousehold();
-  
   const qc = useQueryClient();
   const hid = activeHousehold?.id ?? '';
 
@@ -76,9 +77,9 @@ export function TransactionsPage() {
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center gap-3">
-        <h1 className="text-2xl font-bold text-gray-900 flex-1">Transactions</h1>
-        <Button variant="secondary" size="sm" onClick={() => setShowTransfer(true)}>⇄ Transfer</Button>
-        <Button size="sm" onClick={() => setShowCreate(true)}>+ New</Button>
+        <h1 className="text-2xl font-bold text-gray-900 flex-1">{t('transactions.title')}</h1>
+        <Button variant="secondary" size="sm" onClick={() => setShowTransfer(true)}>{t('transactions.transfer')}</Button>
+        <Button size="sm" onClick={() => setShowCreate(true)}>{t('transactions.new')}</Button>
       </div>
 
       {/* Filters */}
@@ -105,7 +106,7 @@ export function TransactionsPage() {
           className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm" title="To date" />
         {(filterType || filterAccountId || from || to) && (
           <button onClick={() => { setFilterType(''); setFilterAccountId(''); setFrom(''); setTo(''); }}
-            className="text-sm text-gray-400 hover:text-gray-700">Clear</button>
+            className="text-sm text-gray-400 hover:text-gray-700">{t('transactions.clearFilters')}</button>
         )}
       </div>
 
@@ -180,7 +181,7 @@ function TxRow({
 }
 
 function CreateTxModal({
-  hid, accounts, categories, onClose, onCreated,
+  hid, accounts, categories, onClose, onCreated, // eslint-disable-line
 }: {
   hid: string;
   accounts: Account[];
@@ -188,6 +189,7 @@ function CreateTxModal({
   onClose: () => void;
   onCreated: () => void;
 }) {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const [type, setType] = useState<'income' | 'expense' | 'adjustment'>('expense');
   const [accountId, setAccountId] = useState(accounts[0]?.id ?? '');
@@ -217,29 +219,29 @@ function CreateTxModal({
   };
 
   return (
-    <Modal title="New transaction" onClose={onClose}>
+    <Modal title={t('transactions.newTitle')} onClose={onClose}>
       <form onSubmit={submit} className="space-y-3">
-        <Select label="Type" value={type} onChange={(e) => setType(e.target.value as typeof type)}>
+        <Select label={t('transactions.type')} value={type} onChange={(e) => setType(e.target.value as typeof type)}>
           <option value="income">Income</option>
           <option value="expense">Expense</option>
           <option value="adjustment">Adjustment</option>
         </Select>
-        <Select label="Account" value={accountId} onChange={(e) => setAccountId(e.target.value)}>
+        <Select label={t('transactions.account')} value={accountId} onChange={(e) => setAccountId(e.target.value)}>
           {accounts.map((a) => <option key={a.id} value={a.id}>{a.name} ({a.currency})</option>)}
         </Select>
-        <Input label="Amount" type="number" step="0.01" min="0.01" value={amount}
+        <Input label={t('transactions.amount')} type="number" step="0.01" min="0.01" value={amount}
           onChange={(e) => setAmount(e.target.value)} required placeholder="0.00" />
-        <Input label="Date" type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
-        <Input label="Description (optional)" value={description} onChange={(e) => setDescription(e.target.value)} />
+        <Input label={t('transactions.date')} type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
+        <Input label={`${t('transactions.description')} (${t('common.optional')})`} value={description} onChange={(e) => setDescription(e.target.value)} />
         {filteredCategories.length > 0 && (
-          <Select label="Category (optional)" value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
+          <Select label={`${t('transactions.category')} (${t('common.optional')})`} value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
             <option value="">— none —</option>
             {filteredCategories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </Select>
         )}
         <div className="flex gap-2 pt-2">
-          <Button type="button" variant="secondary" className="flex-1" onClick={onClose}>Cancel</Button>
-          <Button type="submit" className="flex-1" disabled={saving || !amount}>{saving ? 'Saving…' : 'Add'}</Button>
+          <Button type="button" variant="secondary" className="flex-1" onClick={onClose}>{t('common.cancel')}</Button>
+          <Button type="submit" className="flex-1" disabled={saving || !amount}>{saving ? t('common.saving') : 'Add'}</Button>
         </div>
       </form>
     </Modal>
@@ -247,13 +249,14 @@ function CreateTxModal({
 }
 
 function TransferModal({
-  hid, accounts, onClose, onCreated,
+  hid, accounts, onClose, onCreated, // i18n below
 }: {
   hid: string;
   accounts: Account[];
   onClose: () => void;
   onCreated: () => void;
 }) {
+  const { t } = useTranslation();
   const [fromId, setFromId] = useState(accounts[0]?.id ?? '');
   const [toId, setToId] = useState(accounts[1]?.id ?? accounts[0]?.id ?? '');
   const [amount, setAmount] = useState('');
@@ -276,21 +279,21 @@ function TransferModal({
   };
 
   return (
-    <Modal title="Transfer between accounts" onClose={onClose}>
+    <Modal title={t('transactions.transferTitle')} onClose={onClose}>
       <form onSubmit={submit} className="space-y-3">
-        <Select label="From" value={fromId} onChange={(e) => setFromId(e.target.value)}>
+        <Select label={t('transactions.from')} value={fromId} onChange={(e) => setFromId(e.target.value)}>
           {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
         </Select>
-        <Select label="To" value={toId} onChange={(e) => setToId(e.target.value)}>
+        <Select label={t('transactions.to')} value={toId} onChange={(e) => setToId(e.target.value)}>
           {accounts.filter((a) => a.id !== fromId).map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
         </Select>
-        <Input label="Amount" type="number" step="0.01" min="0.01" value={amount}
+        <Input label={t('transactions.amount')} type="number" step="0.01" min="0.01" value={amount}
           onChange={(e) => setAmount(e.target.value)} required placeholder="0.00" />
-        <Input label="Date" type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
+        <Input label={t('transactions.date')} type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
         <div className="flex gap-2 pt-2">
-          <Button type="button" variant="secondary" className="flex-1" onClick={onClose}>Cancel</Button>
+          <Button type="button" variant="secondary" className="flex-1" onClick={onClose}>{t('common.cancel')}</Button>
           <Button type="submit" className="flex-1" disabled={saving || !amount || fromId === toId}>
-            {saving ? 'Transferring…' : 'Transfer'}
+            {saving ? t('transactions.transferring') : 'Transfer'}
           </Button>
         </div>
       </form>

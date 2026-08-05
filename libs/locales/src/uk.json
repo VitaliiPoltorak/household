@@ -14,7 +14,9 @@
     "none": "Немає",
     "archive": "Архівувати",
     "back": "Назад",
-    "optional": "необов'язково"
+    "optional": "необов'язково",
+    "selectHousehold": "Оберіть або створіть домохозяйство спочатку.",
+    "saving": "Зберігаємо…"
   },
   "lang": {
     "en": "English",
@@ -90,7 +92,8 @@
       "expense": "Витрата",
       "transfer": "Переказ",
       "adjustment": "Корекція"
-    }
+    },
+    "transferring": "Переказуємо…"
   },
   "categories": {
     "title": "Категорії",

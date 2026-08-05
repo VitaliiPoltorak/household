@@ -4,12 +4,14 @@ import { financeApi } from '../api/finance';
 // import { householdsApi } from '../api/households';
 import { CreateHouseholdModal } from '../components/households/CreateHouseholdModal';
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 function fmt(n: number, currency = 'UAH') {
   return new Intl.NumberFormat('uk-UA', { style: 'currency', currency }).format(n);
 }
 
 export function DashboardPage() {
+  const { t } = useTranslation();
   const { activeHousehold, setActiveHousehold, refetch } = useHousehold();
   const [showCreate, setShowCreate] = useState(false);
   const hid = activeHousehold?.id;
@@ -74,17 +76,17 @@ export function DashboardPage() {
       {/* Balance cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <StatCard
-          label="Total balance"
+          label={t('dashboard.totalBalance')}
           value={summary ? fmt(summary.totalBalance) : '—'}
           color="blue"
         />
         <StatCard
-          label="Income this month"
+          label={t('dashboard.incomeThisMonth')}
           value={monthly ? fmt(monthly.totalIncome) : '—'}
           color="green"
         />
         <StatCard
-          label="Expenses this month"
+          label={t('dashboard.expensesThisMonth')}
           value={monthly ? fmt(monthly.totalExpense) : '—'}
           color="red"
         />
@@ -92,7 +94,7 @@ export function DashboardPage() {
 
       {/* Accounts */}
       {summary && summary.accounts.length > 0 && (
-        <Section title="Accounts">
+        <Section title={t('dashboard.accounts')}>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {summary.accounts.map((a) => (
               <div key={a.id} className="rounded-lg border border-gray-200 bg-white p-4">
@@ -107,7 +109,7 @@ export function DashboardPage() {
 
       {/* Upcoming payments */}
       {upcoming.length > 0 && (
-        <Section title="Upcoming payments (30 days)">
+        <Section title={t('dashboard.upcomingPayments')}>
           <div className="divide-y divide-gray-100 rounded-lg border border-gray-200 bg-white">
             {upcoming.slice(0, 5).map((p) => (
               <div key={p.id} className="flex items-center justify-between px-4 py-3">

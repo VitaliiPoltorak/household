@@ -14,7 +14,9 @@
     "none": "None",
     "archive": "Archive",
     "back": "Back",
-    "optional": "optional"
+    "optional": "optional",
+    "selectHousehold": "Select or create a household first.",
+    "saving": "Saving…"
   },
   "lang": {
     "en": "English",
@@ -90,7 +92,8 @@
       "expense": "Expense",
       "transfer": "Transfer",
       "adjustment": "Adjustment"
-    }
+    },
+    "transferring": "Transferring…"
   },
   "categories": {
     "title": "Categories",

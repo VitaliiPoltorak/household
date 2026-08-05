@@ -1,7 +1,7 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useHousehold } from '../contexts/HouseholdContext';
-import { useAuth } from '../contexts/AuthContext';
 import { financeApi } from '../api/finance';
 import type { Account } from '../types/api';
 import { Modal } from '../components/ui/Modal';
@@ -13,15 +13,14 @@ const ACCOUNT_TYPES = ['cash', 'bank', 'crypto', 'investment', 'deposit'] as con
 const CURRENCIES = ['UAH', 'USD', 'EUR'];
 
 function fmt(n: number, currency = 'UAH') {
-  return new Intl.NumberFormat('uk-UA', { style: 'currency', currency, maximumFractionDigits: 2 }).format(n);
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency, maximumFractionDigits: 2 }).format(n);
 }
 
 export function AccountsPage() {
+  const { t } = useTranslation();
   const { activeHousehold } = useHousehold();
-  const { user } = useAuth();
   const qc = useQueryClient();
   const hid = activeHousehold?.id ?? '';
-
   const [showCreate, setShowCreate] = useState(false);
 
   const { data: accounts = [], isLoading } = useQuery({
@@ -37,26 +36,37 @@ export function AccountsPage() {
 
   const total = accounts.reduce((s, a) => s + Number(a.balance), 0);
 
-  if (!activeHousehold) return <p className="text-gray-500">Select or create a household first.</p>;
+  if (!activeHousehold) return <p className="text-gray-500">{t('common.selectHousehold')}</p>;
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Accounts</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Total: <span className="font-semibold text-gray-800">{fmt(total)}</span></p>
+          <h1 className="text-2xl font-bold text-gray-900">{t('accounts.title')}</h1>
+          <p className="text-sm text-gray-500 mt-0.5">
+            {t('accounts.total')}: <span className="font-semibold text-gray-800">{fmt(total)}</span>
+          </p>
         </div>
-        <Button onClick={() => setShowCreate(true)}>+ New account</Button>
+        <Button onClick={() => setShowCreate(true)}>{t('accounts.new')}</Button>
       </div>
 
       {isLoading ? (
         <Spinner />
       ) : accounts.length === 0 ? (
-        <Empty text="No accounts yet." action={() => setShowCreate(true)} actionLabel="Add first account" />
+        <Empty
+          text={t('accounts.empty')}
+          action={() => setShowCreate(true)}
+          actionLabel={t('accounts.addFirst')}
+        />
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {accounts.map((a) => (
-            <AccountCard key={a.id} account={a} onArchive={() => archive.mutate(a.id)} />
+            <AccountCard
+              key={a.id}
+              account={a}
+              archiveLabel={t('common.archive')}
+              onArchive={() => archive.mutate(a.id)}
+            />
           ))}
         </div>
       )}
@@ -64,7 +74,6 @@ export function AccountsPage() {
       {showCreate && (
         <CreateAccountModal
           hid={hid}
-          uid={user?.id ?? ''}
           onClose={() => setShowCreate(false)}
           onCreated={() => { qc.invalidateQueries({ queryKey: ['accounts', hid] }); setShowCreate(false); }}
         />
@@ -73,7 +82,11 @@ export function AccountsPage() {
   );
 }
 
-function AccountCard({ account, onArchive }: { account: Account; onArchive: () => void }) {
+function AccountCard({ account, archiveLabel, onArchive }: {
+  account: Account;
+  archiveLabel: string;
+  onArchive: () => void;
+}) {
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
       <div className="flex items-start justify-between">
@@ -81,7 +94,7 @@ function AccountCard({ account, onArchive }: { account: Account; onArchive: () =
           <Badge label={account.type} />
           <p className="mt-2 font-semibold text-gray-900">{account.name}</p>
         </div>
-        <button onClick={onArchive} className="text-gray-300 hover:text-red-400 text-lg" title="Archive">🗑</button>
+        <button onClick={onArchive} className="text-gray-300 hover:text-red-400 text-lg" title={archiveLabel}>🗑</button>
       </div>
       <p className="mt-3 text-2xl font-bold text-gray-800">
         {fmt(Number(account.balance), account.currency)}
@@ -90,7 +103,12 @@ function AccountCard({ account, onArchive }: { account: Account; onArchive: () =
   );
 }
 
-function CreateAccountModal({ hid, uid: _uid, onClose, onCreated }: { hid: string; uid: string; onClose: () => void; onCreated: () => void }) {
+function CreateAccountModal({ hid, onClose, onCreated }: {
+  hid: string;
+  onClose: () => void;
+  onCreated: () => void;
+}) {
+  const { t } = useTranslation();
   const [name, setName] = useState('');
   const [type, setType] = useState<string>('bank');
   const [currency, setCurrency] = useState('UAH');
@@ -107,18 +125,28 @@ function CreateAccountModal({ hid, uid: _uid, onClose, onCreated }: { hid: strin
   };
 
   return (
-    <Modal title="New account" onClose={onClose}>
+    <Modal title={t('accounts.newTitle')} onClose={onClose}>
       <form onSubmit={submit} className="space-y-4">
-        <Input label="Name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Mono Card" required />
-        <Select label="Type" value={type} onChange={(e) => setType(e.target.value)}>
-          {ACCOUNT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+        <Input
+          label={t('accounts.name')}
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder={t('accounts.namePlaceholder')}
+          required
+        />
+        <Select label={t('accounts.type')} value={type} onChange={(e) => setType(e.target.value)}>
+          {ACCOUNT_TYPES.map((tp) => (
+            <option key={tp} value={tp}>{t(`accounts.types.${tp}`)}</option>
+          ))}
         </Select>
-        <Select label="Currency" value={currency} onChange={(e) => setCurrency(e.target.value)}>
+        <Select label={t('accounts.currency')} value={currency} onChange={(e) => setCurrency(e.target.value)}>
           {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
         </Select>
         <div className="flex gap-2 pt-2">
-          <Button type="button" variant="secondary" className="flex-1" onClick={onClose}>Cancel</Button>
-          <Button type="submit" className="flex-1" disabled={saving}>{saving ? 'Creating…' : 'Create'}</Button>
+          <Button type="button" variant="secondary" className="flex-1" onClick={onClose}>{t('common.cancel')}</Button>
+          <Button type="submit" className="flex-1" disabled={saving}>
+            {saving ? t('common.saving') : t('common.create')}
+          </Button>
         </div>
       </form>
     </Modal>
