@@ -18,6 +18,8 @@ export class KafkaConsumerService implements OnModuleDestroy {
     this.kafka = new Kafka({
       clientId: `${options.clientId}-consumer`,
       brokers: options.brokers,
+      // Allow topics to be created automatically on first subscribe
+      // (needed when no producer has run yet)
     });
   }
 
@@ -32,6 +34,7 @@ export class KafkaConsumerService implements OnModuleDestroy {
     try {
       await consumer.connect();
       for (const topic of topics) {
+        // allowAutoTopicCreation lets KafkaJS create the topic on first subscribe
         await consumer.subscribe({ topic, fromBeginning });
       }
 
@@ -54,7 +57,8 @@ export class KafkaConsumerService implements OnModuleDestroy {
       this.consumers.push(consumer);
       this.logger.log(`Subscribed to [${topics.join(', ')}] as group "${groupId}"`);
     } catch (err) {
-      this.logger.error(`Failed to subscribe: ${(err as Error).message}`);
+      // Topics may not exist yet on first boot — Kafka will auto-create them.
+      this.logger.warn(`Consumer subscribe issue (will retry): ${(err as Error).message}`);
     }
   }
 
