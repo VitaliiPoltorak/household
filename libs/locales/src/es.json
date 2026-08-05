@@ -71,7 +71,8 @@
     "displayIn": "Mostrar en",
     "estimatedTotal": "Total estimado",
     "ratesBy": "Tasas: PrivatBank",
-    "loading": "Cargando…"
+    "loading": "Cargando…",
+    "quickTx": "Transacción rápida"
   },
   "transactions": {
     "title": "Transacciones",

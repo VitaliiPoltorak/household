@@ -71,7 +71,8 @@
     "displayIn": "Display in",
     "estimatedTotal": "Estimated total",
     "ratesBy": "Rates: PrivatBank",
-    "loading": "Loading…"
+    "loading": "Loading…",
+    "quickTx": "Quick transaction"
   },
   "transactions": {
     "title": "Transactions",

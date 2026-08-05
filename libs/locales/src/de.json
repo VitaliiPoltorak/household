@@ -71,7 +71,8 @@
     "displayIn": "Anzeigen in",
     "estimatedTotal": "Geschätzter Gesamtbetrag",
     "ratesBy": "Kurse: PrivatBank",
-    "loading": "Wird geladen…"
+    "loading": "Wird geladen…",
+    "quickTx": "Schnelltransaktion"
   },
   "transactions": {
     "title": "Transaktionen",

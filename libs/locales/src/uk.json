@@ -71,7 +71,8 @@
     "displayIn": "Показати в",
     "estimatedTotal": "Приблизний підсумок",
     "ratesBy": "Курс: ПриватБанк",
-    "loading": "Завантаження…"
+    "loading": "Завантаження…",
+    "quickTx": "Швидка транзакція"
   },
   "transactions": {
     "title": "Транзакції",

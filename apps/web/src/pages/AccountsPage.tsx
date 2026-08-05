@@ -3,11 +3,13 @@ import { useTranslation } from 'react-i18next';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useHousehold } from '../contexts/HouseholdContext';
 import { financeApi } from '../api/finance';
-import type { Account } from '../types/api';
+import type { Account, Category } from '../types/api';
 import { Modal } from '../components/ui/Modal';
 import { Button } from '../components/ui/Button';
 import { Input, Select } from '../components/ui/Input';
 import { Badge } from '../components/ui/Badge';
+
+type QuickTxType = 'income' | 'expense' | 'transfer';
 
 const ACCOUNT_TYPES = ['cash', 'bank', 'crypto', 'investment', 'deposit'] as const;
 const CURRENCIES = ['UAH', 'USD', 'EUR'];
@@ -71,6 +73,7 @@ export function AccountsPage() {
 
   const [showCreate, setShowCreate] = useState(false);
   const [editAccount, setEditAccount] = useState<Account | null>(null);
+  const [quickTx, setQuickTx] = useState<{ account: Account; type: QuickTxType } | null>(null);
   const [baseCurrency, setBaseCurrency] = useState<string>(
     () => localStorage.getItem(BASE_CURRENCY_KEY) ?? 'UAH',
   );
@@ -78,6 +81,12 @@ export function AccountsPage() {
   const { data: accounts = [], isLoading } = useQuery({
     queryKey: ['accounts', hid],
     queryFn: () => financeApi.getAccounts(hid),
+    enabled: !!hid,
+  });
+
+  const { data: categories = [] } = useQuery({
+    queryKey: ['categories', hid],
+    queryFn: () => financeApi.getCategories(hid),
     enabled: !!hid,
   });
 
@@ -185,6 +194,7 @@ export function AccountsPage() {
               onArchive={() => archive.mutate(a.id)}
               onEdit={() => setEditAccount(a)}
               onNameSave={(name) => updateAccount.mutate({ id: a.id, data: { name } })}
+              onQuickTx={(type) => setQuickTx({ account: a, type })}
             />
           ))}
         </div>
@@ -212,6 +222,21 @@ export function AccountsPage() {
           }}
         />
       )}
+
+      {quickTx && (
+        <QuickTxModal
+          account={quickTx.account}
+          txType={quickTx.type}
+          hid={hid}
+          accounts={accounts}
+          categories={categories}
+          onClose={() => setQuickTx(null)}
+          onCreated={() => {
+            qc.invalidateQueries({ queryKey: ['accounts', hid] });
+            setQuickTx(null);
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -219,12 +244,13 @@ export function AccountsPage() {
 // ──────────────────────────────────────────────
 // Account card with inline name edit
 // ──────────────────────────────────────────────
-function AccountCard({ account, archiveLabel, onArchive, onEdit, onNameSave }: {
+function AccountCard({ account, archiveLabel, onArchive, onEdit, onNameSave, onQuickTx }: {
   account: Account;
   archiveLabel: string;
   onArchive: () => void;
   onEdit: () => void;
   onNameSave: (name: string) => void;
+  onQuickTx: (type: QuickTxType) => void;
 }) {
   const [editingName, setEditingName] = useState(false);
   const [nameVal, setNameVal] = useState(account.name);
@@ -292,7 +318,59 @@ function AccountCard({ account, archiveLabel, onArchive, onEdit, onNameSave }: {
       <p className="mt-3 text-2xl font-bold text-gray-800">
         {fmt(Number(account.balance), account.currency)}
       </p>
-      <p className="text-xs text-gray-400 mt-0.5">{account.currency}</p>
+      <div className="flex items-center justify-between mt-0.5">
+        <p className="text-xs text-gray-400">{account.currency}</p>
+        <QuickTxDropdown onSelect={onQuickTx} />
+      </div>
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────
+// Quick transaction dropdown button
+// ──────────────────────────────────────────────
+function QuickTxDropdown({ onSelect }: { onSelect: (type: QuickTxType) => void }) {
+  const { t } = useTranslation();
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const options: { type: QuickTxType; label: string; color: string }[] = [
+    { type: 'income',   label: `+ ${t('transactions.types.income')}`,   color: 'text-green-600 hover:bg-green-50' },
+    { type: 'expense',  label: `− ${t('transactions.types.expense')}`,  color: 'text-red-600 hover:bg-red-50' },
+    { type: 'transfer', label: `⇄ ${t('transactions.types.transfer')}`, color: 'text-blue-600 hover:bg-blue-50' },
+  ];
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="flex h-7 w-7 items-center justify-center rounded-full bg-primary-100 text-primary-600 text-lg font-bold hover:bg-primary-200 transition-colors"
+        title={t('accounts.quickTx')}
+      >
+        +
+      </button>
+
+      {open && (
+        <div className="absolute bottom-full right-0 mb-1 min-w-[150px] rounded-xl border border-gray-200 bg-white shadow-lg z-10 overflow-hidden">
+          {options.map(({ type, label, color }) => (
+            <button
+              key={type}
+              onClick={() => { onSelect(type); setOpen(false); }}
+              className={`w-full px-4 py-2.5 text-left text-sm font-medium ${color} transition-colors`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -382,6 +460,144 @@ function EditAccountModal({ account, hid, onClose, onSaved }: {
           <Button type="button" variant="secondary" className="flex-1" onClick={onClose}>{t('common.cancel')}</Button>
           <Button type="submit" className="flex-1" disabled={saving || !name.trim()}>
             {saving ? t('common.saving') : t('common.save')}
+          </Button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+// ──────────────────────────────────────────────
+// Quick transaction modal (pre-filled with account)
+// ──────────────────────────────────────────────
+function QuickTxModal({ account, txType, hid, accounts, categories, onClose, onCreated }: {
+  account: Account;
+  txType: QuickTxType;
+  hid: string;
+  accounts: Account[];
+  categories: Category[];
+  onClose: () => void;
+  onCreated: () => void;
+}) {
+  const { t } = useTranslation();
+  const [amount, setAmount] = useState('');
+  const [description, setDescription] = useState('');
+  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [categoryId, setCategoryId] = useState('');
+  const [toAccountId, setToAccountId] = useState(
+    accounts.find((a) => a.id !== account.id)?.id ?? '',
+  );
+  const [saving, setSaving] = useState(false);
+
+  const isTransfer = txType === 'transfer';
+  const filteredCategories = categories.filter((c) => c.type === txType && txType !== 'transfer');
+  const otherAccounts = accounts.filter((a) => a.id !== account.id);
+
+  const titleKey = `transactions.types.${txType}`;
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!amount || parseFloat(amount) <= 0) return;
+    setSaving(true);
+    try {
+      if (isTransfer) {
+        await financeApi.createTransfer(hid, {
+          fromAccountId: account.id,
+          toAccountId,
+          amount: parseFloat(amount),
+          currency: account.currency,
+          description: description || undefined,
+          date,
+        });
+      } else {
+        await financeApi.createTransaction(hid, {
+          accountId: account.id,
+          type: txType,
+          amount: parseFloat(amount),
+          currency: account.currency,
+          description: description || undefined,
+          date,
+          categoryId: categoryId || undefined,
+        });
+      }
+      onCreated();
+    } finally { setSaving(false); }
+  };
+
+  return (
+    <Modal title={`${t(titleKey)} — ${account.name}`} onClose={onClose}>
+      <form onSubmit={submit} className="space-y-3">
+        {/* From account — read-only info */}
+        <div className="rounded-lg bg-gray-50 px-3 py-2 text-sm text-gray-500">
+          <span className="font-medium">{t('transactions.account')}:</span>{' '}
+          {account.name}{' '}
+          <span className="text-gray-400">({fmt(Number(account.balance), account.currency)})</span>
+        </div>
+
+        {/* Transfer: target account */}
+        {isTransfer && (
+          otherAccounts.length === 0 ? (
+            <p className="text-sm text-amber-600 bg-amber-50 rounded-lg px-3 py-2">
+              You need at least 2 accounts to make a transfer.
+            </p>
+          ) : (
+            <Select
+              label={t('transactions.to')}
+              value={toAccountId}
+              onChange={(e) => setToAccountId(e.target.value)}
+            >
+              {otherAccounts.map((a) => (
+                <option key={a.id} value={a.id}>{a.name} ({a.currency})</option>
+              ))}
+            </Select>
+          )
+        )}
+
+        <Input
+          label={t('transactions.amount')}
+          type="number" step="0.01" min="0.01"
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+          placeholder="0.00"
+          required
+          autoFocus
+        />
+
+        <Input
+          label={t('transactions.date')}
+          type="date"
+          value={date}
+          onChange={(e) => setDate(e.target.value)}
+          required
+        />
+
+        <Input
+          label={`${t('transactions.description')} (${t('common.optional')})`}
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+        />
+
+        {filteredCategories.length > 0 && (
+          <Select
+            label={`${t('transactions.category')} (${t('common.optional')})`}
+            value={categoryId}
+            onChange={(e) => setCategoryId(e.target.value)}
+          >
+            <option value="">{t('transactions.noCategory')}</option>
+            {filteredCategories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </Select>
+        )}
+
+        <div className="flex gap-2 pt-2">
+          <Button type="button" variant="secondary" className="flex-1" onClick={onClose}>
+            {t('common.cancel')}
+          </Button>
+          <Button
+            type="submit"
+            className="flex-1"
+            disabled={saving || !amount || (isTransfer && !toAccountId)}
+          >
+            {saving ? t('common.saving') : t('common.add')}
           </Button>
         </div>
       </form>
