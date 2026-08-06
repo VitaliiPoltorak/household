@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { signHeaders, SIGNATURE_HEADER, TIMESTAMP_HEADER } from '@household/common';
 
 /**
  * Maintains a per-user set of household IDs the user is a member of.
@@ -8,18 +9,19 @@ import { ConfigService } from '@nestjs/config';
  *   handled in KafkaBridgeService so mid-session changes are reflected without
  *   waiting for reconnect.
  *
- * Trust model: calls household-service directly with X-User-Id (same pattern
- * as api-gateway → services). Cross-service header trust is tracked
- * separately in Sec#46 and will be hardened globally.
+ * Trust model: signs X-User-Id with GATEWAY_SIGNING_SECRET so household-service
+ * accepts the request under the same policy it applies to api-gateway.
  */
 @Injectable()
 export class MembershipService {
   private readonly logger = new Logger(MembershipService.name);
   private readonly cache = new Map<string, Set<string>>();
   private readonly baseUrl: string;
+  private readonly signingSecret: string | undefined;
 
   constructor(config: ConfigService) {
     this.baseUrl = config.get<string>('HOUSEHOLD_SERVICE_URL', 'http://localhost:3002');
+    this.signingSecret = config.get<string>('GATEWAY_SIGNING_SECRET');
   }
 
   async isMember(userId: string, householdId: string): Promise<boolean> {
@@ -43,7 +45,7 @@ export class MembershipService {
   private async fetchMemberships(userId: string): Promise<Set<string>> {
     try {
       const res = await fetch(`${this.baseUrl}/households`, {
-        headers: { 'X-User-Id': userId },
+        headers: this.buildHeaders(userId),
       });
       if (!res.ok) {
         this.logger.warn(`household-service returned ${res.status} for user ${userId}`);
@@ -55,5 +57,17 @@ export class MembershipService {
       this.logger.error(`Failed to fetch memberships for user ${userId}: ${(err as Error).message}`);
       return new Set();
     }
+  }
+
+  private buildHeaders(userId: string): Record<string, string> {
+    if (!this.signingSecret) {
+      return { 'X-User-Id': userId };
+    }
+    const signed = signHeaders({ userId }, this.signingSecret);
+    return {
+      'X-User-Id': userId,
+      [SIGNATURE_HEADER]: signed[SIGNATURE_HEADER],
+      [TIMESTAMP_HEADER]: signed[TIMESTAMP_HEADER],
+    };
   }
 }
