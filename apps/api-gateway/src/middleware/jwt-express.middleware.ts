@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import * as jwt from 'jsonwebtoken';
+import { verifyJwt } from '@household/common';
 
 const PUBLIC_PATHS = [
   '/api/v1/health',
@@ -40,7 +40,7 @@ export function createJwtMiddleware(secret: string) {
     }
 
     try {
-      (req as any).user = jwt.verify(token, secret);
+      (req as any).user = verifyJwt(token, secret);
     } catch {
       return res.status(401).json({
         statusCode: 401,

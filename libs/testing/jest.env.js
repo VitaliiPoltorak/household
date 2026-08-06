@@ -10,3 +10,10 @@ if (!process.env.POSTGRES_DB || !process.env.POSTGRES_DB.endsWith('_test')) {
 // to sign every request. Prod is protected by requireSigningSecret() at
 // bootstrap and the fail-fast when NODE_ENV=production.
 delete process.env.GATEWAY_SIGNING_SECRET;
+
+// AppModule of services that import JwtModule (auth-service) reads JWT_SECRET
+// via requireStrongJwtSecret. Provide a dev-length secret so tests don't need
+// a real one. NODE_ENV=test skips the production strength check.
+if (!process.env.JWT_SECRET) {
+  process.env.JWT_SECRET = 'test-jwt-secret';
+}

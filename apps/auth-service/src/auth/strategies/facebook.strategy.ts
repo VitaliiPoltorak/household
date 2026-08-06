@@ -12,8 +12,12 @@ interface FacebookUserResponse {
 export class FacebookStrategy {
   async validate(accessToken: string): Promise<OAuthProfile> {
     try {
-      const url = `https://graph.facebook.com/me?fields=id,email,name,picture.type(large)&access_token=${encodeURIComponent(accessToken)}`;
-      const res = await fetch(url);
+      // Send the token in the Authorization header, NOT as a query parameter.
+      // Query params leak into access logs, proxy logs, and APM traces.
+      const url = 'https://graph.facebook.com/me?fields=id,email,name,picture.type(large)';
+      const res = await fetch(url, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
       if (!res.ok) {
         throw new UnauthorizedException('Invalid Facebook token');
       }
