@@ -25,7 +25,6 @@ export class SocketIoAdapter extends IoAdapter {
     const redisOptions = {
       host: config.get<string>('REDIS_HOST', 'localhost'),
       port: config.get<number>('REDIS_PORT', 6379),
-      lazyConnect: true,
     };
     this.pubClient = new Redis(redisOptions);
     this.subClient = this.pubClient.duplicate();
