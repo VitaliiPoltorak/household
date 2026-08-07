@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { financeApi } from '../api/finance';
 import { useHousehold } from '../contexts/HouseholdContext';
 import { Button } from '../components/ui/Button';
+import { PermanentDeleteModal } from '../components/categories/PermanentDeleteModal';
 import type { Category } from '../types/api';
 
 const EMPTY: Category[] = [];
@@ -15,6 +16,7 @@ export function CategoriesPage() {
   const qc = useQueryClient();
 
   const [confirmArchive, setConfirmArchive] = useState<Category | null>(null);
+  const [permanentTarget, setPermanentTarget] = useState<Category | null>(null);
   const [showArchived, setShowArchived] = useState(false);
 
   // Single request fetches everything; toggle only controls what we render.
@@ -81,6 +83,7 @@ export function CategoriesPage() {
             items={archived}
             emptyLabel={t('categoryMgmt.empty.archived')}
             onUnarchive={(id) => unarchiveMutation.mutate(id)}
+            onPermanentDelete={(cat) => setPermanentTarget(cat)}
             unarchivingId={unarchiveMutation.isPending ? unarchiveMutation.variables ?? null : null}
           />
         </>
@@ -94,6 +97,14 @@ export function CategoriesPage() {
           onCancel={() => setConfirmArchive(null)}
           onConfirm={() => archiveMutation.mutate(confirmArchive.id)}
           confirming={archiveMutation.isPending}
+        />
+      )}
+
+      {permanentTarget && (
+        <PermanentDeleteModal
+          category={permanentTarget}
+          householdId={hid}
+          onClose={() => setPermanentTarget(null)}
         />
       )}
     </div>
@@ -170,13 +181,14 @@ function TypeGroup({
 }
 
 function ArchivedSection({
-  expanded, onToggle, items, emptyLabel, onUnarchive, unarchivingId,
+  expanded, onToggle, items, emptyLabel, onUnarchive, onPermanentDelete, unarchivingId,
 }: {
   expanded: boolean;
   onToggle: () => void;
   items: Category[];
   emptyLabel: string;
   onUnarchive: (id: string) => void;
+  onPermanentDelete: (cat: Category) => void;
   unarchivingId: string | null;
 }) {
   const { t } = useTranslation();
@@ -217,9 +229,11 @@ function ArchivedSection({
                   >
                     {t('categoryMgmt.actions.unarchive')}
                   </Button>
-                  {/* Stub for #115. Non-functional here — the modal is wired up
-                      in the next PR. Left as a plain button so #115 can plug in. */}
-                  <Button size="sm" variant="danger" disabled title="Coming in #115">
+                  <Button
+                    size="sm"
+                    variant="danger"
+                    onClick={() => onPermanentDelete(cat)}
+                  >
                     {t('categoryMgmt.actions.deletePermanent')}
                   </Button>
                 </div>

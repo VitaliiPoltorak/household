@@ -197,6 +197,25 @@
     "confirm": {
       "archiveTitle": "¿Archivar categoría?",
       "archiveBody": "¿Archivar \"{{name}}\"? Las transacciones históricas conservan su categoría; solo dejará de aparecer en los desplegables. Podrás restaurarla más tarde."
+    },
+    "deletePermanent": {
+      "title": "¿Eliminar \"{{name}}\" permanentemente?",
+      "warningEmpty": "\"{{name}}\" será eliminada permanentemente. Esta acción no se puede deshacer.",
+      "warningBlocked": "No se puede eliminar permanentemente una categoría con referencias existentes. Reasigna esos elementos primero e intenta de nuevo.",
+      "impact": {
+        "transactions_one": "{{count}} transacción",
+        "transactions_other": "{{count}} transacciones",
+        "recurringPayments_one": "{{count}} pago recurrente",
+        "recurringPayments_other": "{{count}} pagos recurrentes",
+        "subcategories_one": "{{count}} subcategoría",
+        "subcategories_other": "{{count}} subcategorías"
+      },
+      "cta": {
+        "delete": "Eliminar permanentemente",
+        "cancel": "Cancelar",
+        "close": "Cerrar"
+      },
+      "reassignSoonHint": "Reasignar / fusionar estará disponible en una próxima versión."
     }
   }
 }
