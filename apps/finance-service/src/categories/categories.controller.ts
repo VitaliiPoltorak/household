@@ -32,6 +32,13 @@ export class CategoriesController {
     return this.svc.findOne(id, hid);
   }
 
+  @Get(':id/impact')
+  @ApiOperation({ summary: 'Count rows referencing this category (transactions, recurring, subcategories)' })
+  getImpact(@Headers('x-household-id') hid: string, @Param('id') id: string) {
+    this.require(hid);
+    return this.svc.getImpact(id, hid);
+  }
+
   @Patch(':id')
   update(@Headers('x-household-id') hid: string, @Param('id') id: string, @Body() dto: UpdateCategoryDto) {
     this.require(hid);
