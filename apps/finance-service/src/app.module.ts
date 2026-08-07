@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { KafkaModule } from '@household/kafka';
 import { ensureSchema } from '@household/database';
@@ -37,6 +38,7 @@ import { RecurringPayment } from './recurring-payments/entities/recurring-paymen
       },
     }),
     KafkaModule.forRootAsync('finance-service'),
+    ScheduleModule.forRoot(),
     AccountsModule,
     TransactionsModule,
     CategoriesModule,
