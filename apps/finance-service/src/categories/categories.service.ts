@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Category, CategoryType } from './entities/category.entity';
@@ -50,6 +50,26 @@ export class CategoriesService {
   async remove(id: string, householdId: string): Promise<void> {
     await this.findOne(id, householdId);
     await this.repo.update(id, { isArchived: true });
+  }
+
+  async permanentDelete(id: string, householdId: string): Promise<void> {
+    await this.findOne(id, householdId);
+    const impact = await this.getImpact(id, householdId);
+    const total = impact.transactions + impact.recurringPayments + impact.subcategories;
+    if (total > 0) {
+      // Body is picked up by HttpExceptionFilter — extra keys (impact) are
+      // passed through to the response. UI can rely on this shape even if
+      // its own upfront getImpact() call was stale.
+      throw new ConflictException({
+        message: 'Cannot permanently delete category with existing references',
+        impact: {
+          transactions: impact.transactions,
+          recurringPayments: impact.recurringPayments,
+          subcategories: impact.subcategories,
+        },
+      });
+    }
+    await this.repo.delete(id);
   }
 
   async unarchive(id: string, householdId: string): Promise<Category> {

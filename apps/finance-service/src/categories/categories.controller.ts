@@ -58,8 +58,20 @@ export class CategoriesController {
 
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
-  remove(@Headers('x-household-id') hid: string, @Param('id') id: string) {
+  @ApiQuery({
+    name: 'permanent',
+    required: false,
+    description: 'When "true", hard-delete the row. Returns 409 with an impact body if any dependents exist.',
+  })
+  remove(
+    @Headers('x-household-id') hid: string,
+    @Param('id') id: string,
+    @Query('permanent') permanent?: string,
+  ) {
     this.require(hid);
+    // Strict string check — do NOT accept "1"/"yes"/etc. Prevents ambiguity
+    // around what "truthy" means and keeps missing/false param → archive.
+    if (permanent === 'true') return this.svc.permanentDelete(id, hid);
     return this.svc.remove(id, hid);
   }
 

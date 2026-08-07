@@ -90,6 +90,100 @@ describe('Categories (integration)', () => {
     });
   });
 
+  describe('DELETE /categories/:id?permanent=true', () => {
+    it('hard-deletes when there are no dependents', async () => {
+      const id = await createCategory(app, 'Unused');
+
+      await request(app.getHttpServer())
+        .delete(`/categories/${id}?permanent=true`).set('X-Household-Id', H).expect(204);
+
+      const list = await request(app.getHttpServer())
+        .get('/categories?includeArchived=true').set('X-Household-Id', H);
+      expect(list.body.find((c: { id: string }) => c.id === id)).toBeUndefined();
+    });
+
+    it('hard-deletes an already-archived category with no dependents', async () => {
+      const id = await createCategory(app, 'Archived');
+      await request(app.getHttpServer()).delete(`/categories/${id}`).set('X-Household-Id', H);
+
+      await request(app.getHttpServer())
+        .delete(`/categories/${id}?permanent=true`).set('X-Household-Id', H).expect(204);
+
+      const list = await request(app.getHttpServer())
+        .get('/categories?includeArchived=true').set('X-Household-Id', H);
+      expect(list.body.find((c: { id: string }) => c.id === id)).toBeUndefined();
+    });
+
+    it('returns 409 with impact body when transactions still reference the category', async () => {
+      const categoryId = await createCategory(app, 'Groceries');
+      const accountRes = await request(app.getHttpServer())
+        .post('/accounts').set('X-User-Id', U).set('X-Household-Id', H)
+        .send({ name: 'Bank', type: 'bank', currency: 'UAH' });
+      await request(app.getHttpServer())
+        .post('/transactions').set('X-User-Id', U).set('X-Household-Id', H)
+        .send({ accountId: accountRes.body.id, categoryId, type: 'expense', amount: 100, currency: 'UAH', date: '2026-07-30' });
+
+      const res = await request(app.getHttpServer())
+        .delete(`/categories/${categoryId}?permanent=true`).set('X-Household-Id', H).expect(409);
+
+      expect(res.body.impact).toEqual({
+        transactions: 1,
+        recurringPayments: 0,
+        subcategories: 0,
+      });
+    });
+
+    it('returns 409 when subcategories still exist', async () => {
+      const parentId = await createCategory(app, 'Food');
+      await request(app.getHttpServer())
+        .post('/categories').set('X-Household-Id', H)
+        .send({ name: 'Fruit', type: 'expense', parentId });
+
+      const res = await request(app.getHttpServer())
+        .delete(`/categories/${parentId}?permanent=true`).set('X-Household-Id', H).expect(409);
+
+      expect(res.body.impact.subcategories).toBe(1);
+    });
+
+    it('archive path still works when dependents exist (no ?permanent flag)', async () => {
+      const categoryId = await createCategory(app, 'Groceries');
+      const accountRes = await request(app.getHttpServer())
+        .post('/accounts').set('X-User-Id', U).set('X-Household-Id', H)
+        .send({ name: 'Bank', type: 'bank', currency: 'UAH' });
+      await request(app.getHttpServer())
+        .post('/transactions').set('X-User-Id', U).set('X-Household-Id', H)
+        .send({ accountId: accountRes.body.id, categoryId, type: 'expense', amount: 100, currency: 'UAH', date: '2026-07-30' });
+
+      await request(app.getHttpServer())
+        .delete(`/categories/${categoryId}`).set('X-Household-Id', H).expect(204);
+
+      const list = await request(app.getHttpServer())
+        .get('/categories?includeArchived=true').set('X-Household-Id', H);
+      expect(list.body.find((c: { id: string }) => c.id === categoryId)?.isArchived).toBe(true);
+    });
+
+    it('does not accept truthy variants like "1" — treated as archive', async () => {
+      const categoryId = await createCategory(app, 'Groceries');
+      const accountRes = await request(app.getHttpServer())
+        .post('/accounts').set('X-User-Id', U).set('X-Household-Id', H)
+        .send({ name: 'Bank', type: 'bank', currency: 'UAH' });
+      await request(app.getHttpServer())
+        .post('/transactions').set('X-User-Id', U).set('X-Household-Id', H)
+        .send({ accountId: accountRes.body.id, categoryId, type: 'expense', amount: 100, currency: 'UAH', date: '2026-07-30' });
+
+      // ?permanent=1 must be treated as absent → archive, no 409
+      await request(app.getHttpServer())
+        .delete(`/categories/${categoryId}?permanent=1`).set('X-Household-Id', H).expect(204);
+    });
+
+    it('returns 404 for a foreign household', async () => {
+      const foreignId = await createCategory(app, 'Theirs', 'expense', 'other-household');
+
+      await request(app.getHttpServer())
+        .delete(`/categories/${foreignId}?permanent=true`).set('X-Household-Id', H).expect(404);
+    });
+  });
+
   describe('POST /categories/:id/unarchive', () => {
     it('restores an archived category', async () => {
       const id = await createCategory(app, 'Groceries');

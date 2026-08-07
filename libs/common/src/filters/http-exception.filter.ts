@@ -35,6 +35,17 @@ export class HttpExceptionFilter implements ExceptionFilter {
         ? (HttpStatus[status] ?? 'Error').replace(/_/g, ' ')
         : 'Internal Server Error';
 
+    // Preserve any extra keys the thrower attached to the exception body
+    // (e.g., `impact` on a 409 from category permanent-delete). Excludes
+    // fields we set explicitly to avoid double-writing them.
+    const extra: Record<string, unknown> = {};
+    if (raw && typeof raw === 'object') {
+      for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+        if (key === 'message' || key === 'error' || key === 'statusCode') continue;
+        extra[key] = value;
+      }
+    }
+
     if (status >= 500) {
       this.logger.error(
         `${request.method} ${request.url} → ${status}`,
@@ -46,6 +57,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
       statusCode: status,
       message,
       error,
+      ...extra,
       timestamp: new Date().toISOString(),
       path: request.url,
     });
