@@ -17,6 +17,15 @@ export class TransactionsService {
   ) {}
 
   async create(householdId: string, userId: string, dto: CreateTransactionDto): Promise<Transaction> {
+    // Defence-in-depth. DTO already restricts via @IsEnum, but a transfer
+    // created here would skip the paired-leg logic in createTransfer() and
+    // leave the ledger in an unpaired state.
+    if ((dto.type as TransactionType) === TransactionType.TRANSFER) {
+      throw new BadRequestException(
+        'Use POST /transactions/transfer to create transfers',
+      );
+    }
+
     const transaction = await this.repo.manager.transaction(async (manager) => {
       const saved = await manager.getRepository(Transaction).save(
         manager.getRepository(Transaction).create({
@@ -141,6 +150,17 @@ export class TransactionsService {
 
   async update(id: string, householdId: string, dto: UpdateTransactionDto): Promise<Transaction> {
     const existing = await this.findOne(id, householdId);
+
+    if (dto.type !== undefined && (dto.type as TransactionType) === TransactionType.TRANSFER) {
+      throw new BadRequestException(
+        'Cannot change transaction type to transfer',
+      );
+    }
+    if (existing.type === TransactionType.TRANSFER && dto.type !== undefined) {
+      throw new BadRequestException(
+        'Cannot change type of a transfer leg',
+      );
+    }
 
     const newAmount = dto.amount ?? Number(existing.amount);
     const newType = dto.type ?? existing.type;

@@ -329,5 +329,42 @@ describe('Transactions (integration)', () => {
         .send({ accountId, type: 'transfer', amount: 100, currency: 'UAH', date: '2026-07-30' })
         .expect(400);
     });
+
+    it('rejects PATCH that sets type to "transfer"', async () => {
+      const accountId = await createAccount(app, 'Bank');
+      const tx = await request(app.getHttpServer())
+        .post('/transactions')
+        .set('X-User-Id', U).set('X-Household-Id', H)
+        .send({ accountId, type: 'income', amount: 100, currency: 'UAH', date: '2026-07-30' });
+
+      await request(app.getHttpServer())
+        .patch(`/transactions/${tx.body.id}`)
+        .set('X-User-Id', U).set('X-Household-Id', H)
+        .send({ type: 'transfer' })
+        .expect(400);
+    });
+
+    it('rejects PATCH that changes the type of an existing transfer leg', async () => {
+      const fromId = await createAccount(app, 'Bank');
+      const toId = await createAccount(app, 'Cash', 'cash');
+      await request(app.getHttpServer())
+        .post('/transactions')
+        .set('X-User-Id', U).set('X-Household-Id', H)
+        .send({ accountId: fromId, type: 'income', amount: 1000, currency: 'UAH', date: '2026-07-30' });
+
+      const transferRes = await request(app.getHttpServer())
+        .post('/transactions/transfer')
+        .set('X-User-Id', U).set('X-Household-Id', H)
+        .send({ fromAccountId: fromId, toAccountId: toId, amount: 200, currency: 'UAH', date: '2026-07-30' });
+      const [debit] = transferRes.body as Array<{ id: string }>;
+
+      // Attempting to convert a transfer leg to a regular income row would
+      // orphan the paired leg and desync balances.
+      await request(app.getHttpServer())
+        .patch(`/transactions/${debit.id}`)
+        .set('X-User-Id', U).set('X-Household-Id', H)
+        .send({ type: 'income' })
+        .expect(400);
+    });
   });
 });
