@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useHousehold } from '../contexts/HouseholdContext';
-import { financeApi } from '../api/finance';
+import { financeApi, type ExchangeRate } from '../api/finance';
 import type { Account, AccountType, Category } from '../types/api';
 import { Modal } from '../components/ui/Modal';
 import { Button } from '../components/ui/Button';
@@ -27,11 +27,12 @@ const RATES_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 const fmt = (n: number, currency = 'UAH') => formatMoney(n, currency);
 
 // ──────────────────────────────────────────────
-// PrivatBank exchange rates
+// Exchange rates (proxied through finance-service, which pulls from PrivatBank
+// daily and stores each snapshot in exchange_rates for future dynamics).
 // ──────────────────────────────────────────────
-// PrivatBank always returns rates vs UAH (base_ccy === 'UAH'). If they ever
-// change that, this hook needs revisiting.
-interface PBRate { ccy: string; base_ccy: string; buy: string; sale: string }
+// Same field names as the raw PrivatBank payload — the backend stores them
+// verbatim so the client-side math didn't need to change.
+type PBRate = Pick<ExchangeRate, 'ccy' | 'base_ccy' | 'buy' | 'sale'>;
 
 type RateMap = Record<string, number>;
 
@@ -82,14 +83,10 @@ function ratesFromPB(pb: PBRate[]): RateMap {
 
 export function useRatesState(needed: boolean): RatesState {
   const { data: pbRates, isLoading, isError, isFetched } = useQuery<PBRate[]>({
-    queryKey: ['privatbank-rates'],
-    queryFn: async () => {
-      const res = await fetch(
-        'https://api.privatbank.ua/p24api/pubinfo?json&exchange&coursid=5',
-      );
-      if (!res.ok) throw new Error('PrivatBank API error');
-      return res.json() as Promise<PBRate[]>;
-    },
+    queryKey: ['exchange-rates'],
+    // finance-service proxies + persists PrivatBank; no third-party CORS
+    // concern from the browser, and rows are preserved for /rates/history.
+    queryFn: () => financeApi.getLatestRates(),
     enabled: needed,
     staleTime: 30 * 60 * 1000, // 30 min
     retry: 1,
