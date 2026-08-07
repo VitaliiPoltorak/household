@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { ValidationPipe, Logger } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
+import { requireStrongJwtSecret } from '@household/common';
 import { AppModule } from './app.module';
 import { createJwtMiddleware } from './middleware/jwt-express.middleware';
 import { setupProxies } from './proxy/proxy-setup';
@@ -17,8 +18,9 @@ async function bootstrap() {
 
   app.use(helmet());
 
+  const corsOrigins = parseCorsOrigins(config);
   app.enableCors({
-    origin: config.get<string>('CORS_ORIGIN', '*'),
+    origin: corsOrigins,
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
     credentials: true,
   });
@@ -31,7 +33,7 @@ async function bootstrap() {
     }),
   );
 
-  app.use(createJwtMiddleware(config.getOrThrow<string>('JWT_SECRET')));
+  app.use(createJwtMiddleware(requireStrongJwtSecret(config)));
 
   setupProxies(app);
 
@@ -47,5 +49,20 @@ async function bootstrap() {
   await app.listen(port);
   logger.log(`API Gateway running on http://localhost:${port}`);
   logger.log(`Swagger docs at http://localhost:${port}/api/docs`);
+  logger.log(`CORS allowed origins: ${corsOrigins.join(', ')}`);
 }
 bootstrap();
+
+function parseCorsOrigins(config: ConfigService): string[] {
+  const raw = config.get<string>('CORS_ORIGIN', '');
+  const origins = raw
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean);
+  if (origins.length === 0) {
+    throw new Error(
+      'CORS_ORIGIN must be set to a comma-separated list of allowed browser origins. Refusing to start.',
+    );
+  }
+  return origins;
+}

@@ -2,6 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import helmet from 'helmet';
 import {
   createGatewaySignatureMiddleware,
   HttpExceptionFilter,
@@ -17,6 +18,7 @@ async function bootstrap() {
   const host = config.get<string>('LISTEN_HOST', '127.0.0.1');
   const logger = new Logger('Bootstrap');
 
+  app.use(helmet());
   app.use(createGatewaySignatureMiddleware(config));
   app.useGlobalFilters(new HttpExceptionFilter());
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }));

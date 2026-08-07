@@ -115,11 +115,22 @@ export function setupProxies(app: INestApplication) {
           proxyReq: (proxyReq, req: any) => {
             const userId = req.user?.sub as string | undefined;
             const email = req.user?.email as string | undefined;
-            const householdId = req.householdId as string | undefined;
+            // Read the household id from the incoming request headers directly
+            // rather than relying on req.householdId set by HouseholdIdMiddleware:
+            // Nest module middleware is registered against Nest routes, which
+            // this proxy layer bypasses. Reading here guarantees the value we
+            // sign matches the value the downstream service will verify.
+            const householdIdRaw = req.headers['x-household-id'];
+            const householdId = Array.isArray(householdIdRaw)
+              ? householdIdRaw[0]
+              : (householdIdRaw as string | undefined);
 
             if (userId) proxyReq.setHeader('X-User-Id', userId);
+            else proxyReq.removeHeader('X-User-Id');
             if (email) proxyReq.setHeader('X-User-Email', email);
+            else proxyReq.removeHeader('X-User-Email');
             if (householdId) proxyReq.setHeader('X-Household-Id', householdId);
+            else proxyReq.removeHeader('X-Household-Id');
 
             // Sign only if we're actually setting trust headers. Public routes
             // (e.g. /auth/google) go through without any of them and stay unsigned.
@@ -132,6 +143,10 @@ export function setupProxies(app: INestApplication) {
               );
               proxyReq.setHeader(SIGNATURE_HEADER, signature);
               proxyReq.setHeader(TIMESTAMP_HEADER, timestamp);
+            } else {
+              // Strip stale signature headers if the client tried to inject them.
+              proxyReq.removeHeader(SIGNATURE_HEADER);
+              proxyReq.removeHeader(TIMESTAMP_HEADER);
             }
           },
           error: (err, _req, res) => {
