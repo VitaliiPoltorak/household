@@ -1,8 +1,8 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { EntityManager, Repository } from 'typeorm';
 import { randomUUID } from 'crypto';
-import { KafkaProducerService } from '@household/kafka';
+import { EVENT_PUBLISHER, IEventPublisher } from '@household/contracts';
 import { AccountsService } from '../accounts/accounts.service';
 import { Transaction, TransactionType, TransferDirection } from './entities/transaction.entity';
 import { CreateTransactionDto, CreateTransferDto, UpdateTransactionDto } from './dto/transaction.dto';
@@ -13,7 +13,7 @@ export class TransactionsService {
     @InjectRepository(Transaction)
     private readonly repo: Repository<Transaction>,
     private readonly accountsService: AccountsService,
-    private readonly kafka: KafkaProducerService,
+    @Inject(EVENT_PUBLISHER) private readonly events: IEventPublisher,
   ) {}
 
   async create(householdId: string, userId: string, dto: CreateTransactionDto): Promise<Transaction> {
@@ -41,7 +41,7 @@ export class TransactionsService {
       return saved;
     });
 
-    await this.kafka.emit(
+    await this.events.emit(
       'finance.transaction.created',
       { transactionId: transaction.id, householdId },
       { userId, householdId },
@@ -111,12 +111,12 @@ export class TransactionsService {
       return [debitLeg, creditLeg] as const;
     });
 
-    await this.kafka.emit(
+    await this.events.emit(
       'finance.transaction.created',
       { transactionId: debit.id, householdId, transferPairId },
       { userId, householdId },
     );
-    await this.kafka.emit(
+    await this.events.emit(
       'finance.transaction.created',
       { transactionId: credit.id, householdId, transferPairId },
       { userId, householdId },
@@ -191,7 +191,7 @@ export class TransactionsService {
       return txRepo.findOneOrFail({ where: { id, householdId } });
     });
 
-    await this.kafka.emit(
+    await this.events.emit(
       'finance.transaction.updated',
       { transactionId: id, householdId },
       { householdId },
@@ -231,7 +231,7 @@ export class TransactionsService {
       return saved;
     });
 
-    await this.kafka.emit(
+    await this.events.emit(
       'finance.transaction.created',
       { transactionId: transaction.id, householdId },
       { userId, householdId },

@@ -1,6 +1,7 @@
 import { INestApplication, Type, ValidationPipe } from '@nestjs/common';
 import { Test, TestingModuleBuilder } from '@nestjs/testing';
 import { HttpExceptionFilter } from '@household/common';
+import { EVENT_PUBLISHER } from '@household/contracts';
 import { KafkaProducerService, KafkaConsumerService } from '@household/kafka';
 import { mockKafkaProducer, mockKafkaConsumer } from './kafka.mock';
 import { ensureSchema } from './database.helper';
@@ -10,6 +11,8 @@ export async function createTestApp(
   configure?: (builder: TestingModuleBuilder) => TestingModuleBuilder,
 ): Promise<INestApplication> {
   let builder = Test.createTestingModule({ imports: [AppModule] })
+    .overrideProvider(EVENT_PUBLISHER)
+    .useValue(mockKafkaProducer)
     .overrideProvider(KafkaProducerService)
     .useValue(mockKafkaProducer)
     .overrideProvider(KafkaConsumerService)

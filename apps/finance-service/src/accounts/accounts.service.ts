@@ -1,7 +1,7 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { EntityManager, Repository } from 'typeorm';
-import { KafkaProducerService } from '@household/kafka';
+import { EVENT_PUBLISHER, IEventPublisher } from '@household/contracts';
 import { Account } from './entities/account.entity';
 import { CreateAccountDto, UpdateAccountDto } from './dto/account.dto';
 
@@ -10,14 +10,14 @@ export class AccountsService {
   constructor(
     @InjectRepository(Account)
     private readonly repo: Repository<Account>,
-    private readonly kafka: KafkaProducerService,
+    @Inject(EVENT_PUBLISHER) private readonly events: IEventPublisher,
   ) {}
 
   async create(householdId: string, userId: string, dto: CreateAccountDto): Promise<Account> {
     const account = await this.repo.save(
       this.repo.create({ ...dto, householdId }),
     );
-    await this.kafka.emit('finance.account.created', { accountId: account.id, householdId }, { userId, householdId });
+    await this.events.emit('finance.account.created', { accountId: account.id, householdId }, { userId, householdId });
     return account;
   }
 

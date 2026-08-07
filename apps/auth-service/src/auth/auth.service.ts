@@ -1,11 +1,11 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Inject, Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'crypto';
 import { getAccessTtlSeconds } from '@household/common';
+import { EVENT_PUBLISHER, IEventPublisher } from '@household/contracts';
 import { UsersService, OAuthProfile } from '../users/users.service';
 import { SessionsService } from '../sessions/sessions.service';
-import { KafkaProducerService } from '@household/kafka';
 import { User } from '../users/entities/user.entity';
 
 export interface TokenPair {
@@ -24,7 +24,7 @@ export class AuthService {
     private readonly sessions: SessionsService,
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
-    private readonly kafka: KafkaProducerService,
+    @Inject(EVENT_PUBLISHER) private readonly events: IEventPublisher,
   ) {
     this.accessExpiresIn = getAccessTtlSeconds(config);
   }
@@ -36,7 +36,7 @@ export class AuthService {
     const { user, isNew } = await this.users.findOrCreateByOAuth(profile);
 
     if (isNew) {
-      await this.kafka.emit('auth.user.created', {
+      await this.events.emit('auth.user.created', {
         userId: user.id,
         email: user.email,
         displayName: user.displayName,
@@ -96,7 +96,7 @@ export class AuthService {
     await this.sessions.deleteAllUserSessions(userId);
     await this.users.deleteUser(userId);
 
-    await this.kafka.emit('auth.user.deleted', { userId });
+    await this.events.emit('auth.user.deleted', { userId });
   }
 
   private async generateTokens(

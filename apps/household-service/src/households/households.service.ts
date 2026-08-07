@@ -1,4 +1,5 @@
 import {
+  Inject,
   Injectable,
   NotFoundException,
   ForbiddenException,
@@ -9,7 +10,7 @@ import { Repository, MoreThan, In } from 'typeorm';
 import { randomUUID } from 'crypto';
 import Redis from 'ioredis';
 import { InjectRedis } from '../redis/redis.module';
-import { KafkaProducerService } from '@household/kafka';
+import { EVENT_PUBLISHER, IEventPublisher } from '@household/contracts';
 import { Household } from './entities/household.entity';
 import { HouseholdMember } from './entities/household-member.entity';
 import { HouseholdInvite } from './entities/household-invite.entity';
@@ -31,7 +32,7 @@ export class HouseholdsService {
     @InjectRepository(HouseholdInvite)
     private readonly inviteRepo: Repository<HouseholdInvite>,
     @InjectRedis() private readonly redis: Redis,
-    private readonly kafka: KafkaProducerService,
+    @Inject(EVENT_PUBLISHER) private readonly events: IEventPublisher,
   ) {}
 
   async create(userId: string, dto: CreateHouseholdDto): Promise<Household> {
@@ -42,7 +43,7 @@ export class HouseholdsService {
     await this.memberRepo.save(
       this.memberRepo.create({ householdId: household.id, userId, role: MemberRole.OWNER }),
     );
-    await this.kafka.emit('household.created', { householdId: household.id }, { userId });
+    await this.events.emit('household.created', { householdId: household.id }, { userId });
     return household;
   }
 
@@ -101,7 +102,7 @@ export class HouseholdsService {
     if (!target) throw new NotFoundException('Member not found');
     if (!canManage(actor.role, target.role)) throw new ForbiddenException('Insufficient role');
     await this.memberRepo.delete(memberId);
-    await this.kafka.emit(
+    await this.events.emit(
       'household.member.removed',
       { householdId, removedUserId: target.userId },
       { userId: actorId, householdId },
@@ -139,7 +140,7 @@ export class HouseholdsService {
       INVITE_TTL_DAYS * 86400,
     );
 
-    await this.kafka.emit(
+    await this.events.emit(
       'household.member.invited',
       { householdId, email: dto.email, role, token },
       { userId: actorId, householdId },
@@ -186,7 +187,7 @@ export class HouseholdsService {
     await this.inviteRepo.update(invite.id, { acceptedAt: new Date() });
     await this.redis.del(`invite:${token}`);
 
-    await this.kafka.emit(
+    await this.events.emit(
       'household.member.joined',
       { householdId: invite.householdId, userId, role: invite.role },
       { userId, householdId: invite.householdId },
