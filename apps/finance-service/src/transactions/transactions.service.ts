@@ -3,6 +3,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { EVENT_PUBLISHER, IEventPublisher } from '@household/contracts';
 import { AccountsService } from '../accounts/accounts.service';
+import { CategoriesService } from '../categories/categories.service';
+import { IncomeSourcesService } from '../income-sources/income-sources.service';
 import { Transaction, TransactionType } from './entities/transaction.entity';
 import { CreateTransactionDto, CreateTransferDto, UpdateTransactionDto } from './dto/transaction.dto';
 import { BalanceAdjustmentService } from './balance-adjustment.service';
@@ -21,10 +23,26 @@ export class TransactionsService {
     @InjectRepository(Transaction)
     private readonly repo: Repository<Transaction>,
     private readonly accountsService: AccountsService,
+    private readonly categoriesService: CategoriesService,
+    private readonly incomeSourcesService: IncomeSourcesService,
     private readonly balances: BalanceAdjustmentService,
     private readonly transfers: TransferDomainService,
     @Inject(EVENT_PUBLISHER) private readonly events: IEventPublisher,
   ) {}
+
+  // Prevents IDOR: a caller must not be able to reference another household's
+  // account/category/incomeSource by ID. findOne is scoped by householdId and
+  // throws NotFoundException on miss.
+  private async assertReferencesBelongToHousehold(
+    householdId: string,
+    refs: { accountId?: string; categoryId?: string | null; incomeSourceId?: string | null },
+  ): Promise<void> {
+    const checks: Promise<unknown>[] = [];
+    if (refs.accountId) checks.push(this.accountsService.findOne(refs.accountId, householdId));
+    if (refs.categoryId) checks.push(this.categoriesService.findOne(refs.categoryId, householdId));
+    if (refs.incomeSourceId) checks.push(this.incomeSourcesService.findOne(refs.incomeSourceId, householdId));
+    await Promise.all(checks);
+  }
 
   async create(householdId: string, userId: string, dto: CreateTransactionDto): Promise<Transaction> {
     // Defence-in-depth. DTO already restricts via @IsEnum, but a transfer
@@ -35,6 +53,12 @@ export class TransactionsService {
         'Use POST /transactions/transfer to create transfers',
       );
     }
+
+    await this.assertReferencesBelongToHousehold(householdId, {
+      accountId: dto.accountId,
+      categoryId: dto.categoryId,
+      incomeSourceId: dto.incomeSourceId,
+    });
 
     const transaction = await this.repo.manager.transaction(async (manager) => {
       const saved = await manager.getRepository(Transaction).save(
@@ -103,6 +127,11 @@ export class TransactionsService {
         'Cannot change type of a transfer leg',
       );
     }
+
+    await this.assertReferencesBelongToHousehold(householdId, {
+      categoryId: dto.categoryId,
+      incomeSourceId: dto.incomeSourceId,
+    });
 
     const newAmount = dto.amount ?? Number(existing.amount);
     const newType = dto.type ?? existing.type;

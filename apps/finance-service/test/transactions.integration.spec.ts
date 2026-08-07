@@ -25,6 +25,32 @@ async function getBalance(app: INestApplication, accountId: string): Promise<num
   return Number(res.body.balance);
 }
 
+async function createCategory(
+  app: INestApplication,
+  householdId: string,
+  name = 'Groceries',
+  type = 'expense',
+): Promise<string> {
+  const res = await request(app.getHttpServer())
+    .post('/categories')
+    .set('X-User-Id', U).set('X-Household-Id', householdId)
+    .send({ name, type });
+  return res.body.id as string;
+}
+
+async function createIncomeSource(
+  app: INestApplication,
+  householdId: string,
+  name = 'Main Job',
+  type = 'salary',
+): Promise<string> {
+  const res = await request(app.getHttpServer())
+    .post('/income-sources')
+    .set('X-User-Id', U).set('X-Household-Id', householdId)
+    .send({ name, type });
+  return res.body.id as string;
+}
+
 describe('Transactions (integration)', () => {
   let app: INestApplication;
 
@@ -159,6 +185,97 @@ describe('Transactions (integration)', () => {
         .post('/transactions/transfer')
         .set('X-User-Id', U).set('X-Household-Id', H)
         .send({ fromAccountId: mine, toAccountId: '00000000-0000-0000-0000-000000000000', amount: 100, currency: 'UAH', date: '2026-07-30' })
+        .expect(404);
+    });
+  });
+
+  describe('Cross-household reference isolation', () => {
+    it('rejects POST /transactions with a category from another household', async () => {
+      const accountId = await createAccount(app, 'Bank');
+      const foreignCategoryId = await createCategory(app, 'other-household', 'Foreign');
+
+      await request(app.getHttpServer())
+        .post('/transactions')
+        .set('X-User-Id', U).set('X-Household-Id', H)
+        .send({
+          accountId,
+          categoryId: foreignCategoryId,
+          type: 'expense',
+          amount: 100,
+          currency: 'UAH',
+          date: '2026-07-30',
+        })
+        .expect(404);
+
+      expect(await getBalance(app, accountId)).toBe(0);
+    });
+
+    it('rejects POST /transactions with an income source from another household', async () => {
+      const accountId = await createAccount(app, 'Bank');
+      const foreignIncomeSourceId = await createIncomeSource(app, 'other-household', 'Foreign');
+
+      await request(app.getHttpServer())
+        .post('/transactions')
+        .set('X-User-Id', U).set('X-Household-Id', H)
+        .send({
+          accountId,
+          incomeSourceId: foreignIncomeSourceId,
+          type: 'income',
+          amount: 500,
+          currency: 'UAH',
+          date: '2026-07-30',
+        })
+        .expect(404);
+
+      expect(await getBalance(app, accountId)).toBe(0);
+    });
+
+    it('rejects POST /transactions with an account from another household', async () => {
+      const foreignAccountId = await request(app.getHttpServer())
+        .post('/accounts')
+        .set('X-User-Id', U).set('X-Household-Id', 'other-household')
+        .send({ name: 'Foreign', type: 'bank', currency: 'UAH' });
+
+      await request(app.getHttpServer())
+        .post('/transactions')
+        .set('X-User-Id', U).set('X-Household-Id', H)
+        .send({
+          accountId: foreignAccountId.body.id,
+          type: 'income',
+          amount: 100,
+          currency: 'UAH',
+          date: '2026-07-30',
+        })
+        .expect(404);
+    });
+
+    it('rejects PATCH /transactions/:id that swaps in a foreign category', async () => {
+      const accountId = await createAccount(app, 'Bank');
+      const tx = await request(app.getHttpServer())
+        .post('/transactions')
+        .set('X-User-Id', U).set('X-Household-Id', H)
+        .send({ accountId, type: 'expense', amount: 100, currency: 'UAH', date: '2026-07-30' });
+      const foreignCategoryId = await createCategory(app, 'other-household', 'Foreign');
+
+      await request(app.getHttpServer())
+        .patch(`/transactions/${tx.body.id}`)
+        .set('X-User-Id', U).set('X-Household-Id', H)
+        .send({ categoryId: foreignCategoryId })
+        .expect(404);
+    });
+
+    it('rejects PATCH /transactions/:id that swaps in a foreign income source', async () => {
+      const accountId = await createAccount(app, 'Bank');
+      const tx = await request(app.getHttpServer())
+        .post('/transactions')
+        .set('X-User-Id', U).set('X-Household-Id', H)
+        .send({ accountId, type: 'income', amount: 100, currency: 'UAH', date: '2026-07-30' });
+      const foreignIncomeSourceId = await createIncomeSource(app, 'other-household', 'Foreign');
+
+      await request(app.getHttpServer())
+        .patch(`/transactions/${tx.body.id}`)
+        .set('X-User-Id', U).set('X-Household-Id', H)
+        .send({ incomeSourceId: foreignIncomeSourceId })
         .expect(404);
     });
   });
