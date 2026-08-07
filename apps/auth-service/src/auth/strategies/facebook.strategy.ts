@@ -1,5 +1,6 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { OAuthProfile } from '../../users/users.service';
+import { IOAuthStrategy } from './oauth-strategy.interface';
 
 interface FacebookUserResponse {
   id: string;
@@ -9,7 +10,9 @@ interface FacebookUserResponse {
 }
 
 @Injectable()
-export class FacebookStrategy {
+export class FacebookStrategy implements IOAuthStrategy {
+  readonly provider = 'facebook';
+
   async validate(accessToken: string): Promise<OAuthProfile> {
     try {
       // Send the token in the Authorization header, NOT as a query parameter.
