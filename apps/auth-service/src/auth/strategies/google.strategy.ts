@@ -2,9 +2,11 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { OAuth2Client } from 'google-auth-library';
 import { OAuthProfile } from '../../users/users.service';
+import { IOAuthStrategy } from './oauth-strategy.interface';
 
 @Injectable()
-export class GoogleStrategy {
+export class GoogleStrategy implements IOAuthStrategy {
+  readonly provider = 'google';
   private readonly client: OAuth2Client;
 
   constructor(private readonly config: ConfigService) {

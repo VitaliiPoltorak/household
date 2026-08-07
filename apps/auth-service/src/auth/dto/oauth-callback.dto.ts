@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsNotEmpty, IsObject, IsOptional, IsString } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class GoogleAuthDto {
@@ -69,4 +69,29 @@ export class LogoutDto {
   @IsString()
   @IsNotEmpty()
   sessionId: string;
+}
+
+/**
+ * Canonical body for the provider-agnostic `POST /auth/oauth/:provider`
+ * endpoint. The `meta` field is forwarded verbatim to the strategy for
+ * provider-specific extras (e.g. Apple's firstName/lastName).
+ */
+export class OAuthAuthDto {
+  @ApiProperty({ description: 'Provider-issued id_token or access_token' })
+  @IsString()
+  @IsNotEmpty()
+  token: string;
+
+  @ApiPropertyOptional()
+  @IsString()
+  @IsOptional()
+  deviceInfo?: string;
+
+  @ApiPropertyOptional({
+    description: 'Optional provider-specific extras (e.g. Apple firstName/lastName).',
+    type: Object,
+  })
+  @IsObject()
+  @IsOptional()
+  meta?: Record<string, unknown>;
 }

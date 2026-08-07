@@ -6,19 +6,19 @@ import {
   Delete,
   Body,
   Headers,
+  Param,
   UnauthorizedException,
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiHeader } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiHeader, ApiParam } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
-import { GoogleStrategy } from './strategies/google.strategy';
-import { AppleStrategy } from './strategies/apple.strategy';
-import { FacebookStrategy } from './strategies/facebook.strategy';
+import { OAuthStrategyRegistry } from './strategies/oauth-strategy.registry';
 import {
   GoogleAuthDto,
   AppleAuthDto,
   FacebookAuthDto,
+  OAuthAuthDto,
   RefreshTokenDto,
   LogoutDto,
 } from './dto/oauth-callback.dto';
@@ -29,22 +29,24 @@ import { UpdateProfileDto } from './dto/update-profile.dto';
 export class AuthController {
   constructor(
     private readonly auth: AuthService,
-    private readonly google: GoogleStrategy,
-    private readonly apple: AppleStrategy,
-    private readonly facebook: FacebookStrategy,
+    private readonly registry: OAuthStrategyRegistry,
   ) {}
+
+  // Provider-specific endpoints are retained for backward compatibility with
+  // existing web/mobile clients (see apps/web/src/api/auth.ts). New providers
+  // should use the canonical `POST /auth/oauth/:provider` below.
 
   @Post('google')
   @ApiOperation({ summary: 'Sign in with Google' })
   async googleAuth(@Body() dto: GoogleAuthDto) {
-    const profile = await this.google.validate(dto.idToken);
+    const profile = await this.registry.get('google').validate(dto.idToken);
     return this.auth.loginWithOAuth(profile, dto.deviceInfo);
   }
 
   @Post('apple')
   @ApiOperation({ summary: 'Sign in with Apple' })
   async appleAuth(@Body() dto: AppleAuthDto) {
-    const profile = await this.apple.validate(dto.idToken, {
+    const profile = await this.registry.get('apple').validate(dto.idToken, {
       firstName: dto.firstName,
       lastName: dto.lastName,
     });
@@ -54,7 +56,27 @@ export class AuthController {
   @Post('facebook')
   @ApiOperation({ summary: 'Sign in with Facebook' })
   async facebookAuth(@Body() dto: FacebookAuthDto) {
-    const profile = await this.facebook.validate(dto.accessToken);
+    const profile = await this.registry
+      .get('facebook')
+      .validate(dto.accessToken);
+    return this.auth.loginWithOAuth(profile, dto.deviceInfo);
+  }
+
+  /**
+   * Canonical, provider-agnostic OAuth endpoint. Resolves the strategy via
+   * {@link OAuthStrategyRegistry} — adding a new provider requires zero
+   * controller edits.
+   */
+  @Post('oauth/:provider')
+  @ApiOperation({ summary: 'Sign in with any registered OAuth provider' })
+  @ApiParam({ name: 'provider', description: 'Provider slug (e.g. google, apple, facebook)' })
+  async oauth(
+    @Param('provider') provider: string,
+    @Body() dto: OAuthAuthDto,
+  ) {
+    const profile = await this.registry
+      .get(provider)
+      .validate(dto.token, dto.meta);
     return this.auth.loginWithOAuth(profile, dto.deviceInfo);
   }
 
