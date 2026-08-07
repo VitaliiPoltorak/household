@@ -15,3 +15,11 @@ export const ROLE_WEIGHT: Record<MemberRole, number> = {
 export function canManage(actor: MemberRole, target: MemberRole): boolean {
   return ROLE_WEIGHT[actor] > ROLE_WEIGHT[target];
 }
+
+// Whether `grantor` may hand out `role` — same strict-inequality rule as
+// canManage, but semantically distinct: canManage protects an existing member
+// from a peer, canGrant protects the role hierarchy from peer elevation
+// (an ADMIN inviting another ADMIN, or promoting a MEMBER to ADMIN).
+export function canGrant(grantor: MemberRole, role: MemberRole): boolean {
+  return ROLE_WEIGHT[grantor] > ROLE_WEIGHT[role];
+}

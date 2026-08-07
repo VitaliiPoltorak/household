@@ -13,7 +13,7 @@ import { InjectRedis } from '../redis/redis.module';
 import { EVENT_PUBLISHER, IEventPublisher } from '@household/contracts';
 import { HouseholdInvite } from './entities/household-invite.entity';
 import { HouseholdMember } from './entities/household-member.entity';
-import { MemberRole } from './entities/member-role.enum';
+import { MemberRole, canGrant } from './entities/member-role.enum';
 import { CreateInviteDto } from './dto/create-invite.dto';
 import { MembersService } from './members.service';
 
@@ -40,11 +40,17 @@ export class InvitesService {
     actorId: string,
     dto: CreateInviteDto,
   ): Promise<HouseholdInvite> {
-    await this.members.requireRole(householdId, actorId, [MemberRole.OWNER, MemberRole.ADMIN]);
+    const actor = await this.members.requireRole(householdId, actorId, [MemberRole.OWNER, MemberRole.ADMIN]);
 
     const token = randomUUID();
     const expiresAt = new Date(Date.now() + INVITE_TTL_DAYS * 86400 * 1000);
     const role = dto.role ?? MemberRole.MEMBER;
+
+    // Prevent peer-level elevation: an ADMIN must not be able to invite
+    // another ADMIN (or an OWNER). Only OWNER can grant ADMIN.
+    if (!canGrant(actor.role, role)) {
+      throw new ForbiddenException('Cannot grant a role equal to or above your own');
+    }
 
     const invite = await this.inviteRepo.save(
       this.inviteRepo.create({ householdId, email: dto.email, token, role, expiresAt, acceptedAt: null }),

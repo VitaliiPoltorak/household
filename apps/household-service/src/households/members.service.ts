@@ -8,7 +8,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { EVENT_PUBLISHER, IEventPublisher } from '@household/contracts';
 import { HouseholdMember } from './entities/household-member.entity';
-import { MemberRole, canManage } from './entities/member-role.enum';
+import { MemberRole, canManage, canGrant } from './entities/member-role.enum';
 import { UpdateMemberRoleDto } from './dto/update-member-role.dto';
 
 /**
@@ -58,6 +58,10 @@ export class MembersService {
     if (!target) throw new NotFoundException('Member not found');
     if (!canManage(actor.role, target.role)) throw new ForbiddenException('Insufficient role');
     if (dto.role === MemberRole.OWNER) throw new ForbiddenException('Cannot assign owner role');
+    // Prevent peer-level elevation: an ADMIN must not be able to promote a
+    // MEMBER to ADMIN. canManage already blocks touching someone above you;
+    // canGrant blocks handing out a role equal to your own.
+    if (!canGrant(actor.role, dto.role)) throw new ForbiddenException('Cannot grant a role equal to or above your own');
     await this.memberRepo.update(memberId, { role: dto.role });
     return this.memberRepo.findOneOrFail({ where: { id: memberId } });
   }
