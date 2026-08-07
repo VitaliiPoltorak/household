@@ -82,6 +82,11 @@
       "hint": "Crea una transacción de ajuste para mantener el historial de saldo consistente.",
       "invalidNumber": "Ingrese un número válido.",
       "noChange": "El nuevo saldo es igual al actual."
+    },
+    "rates": {
+      "unavailable": "Tipos de cambio no disponibles",
+      "unavailableDesc": "No se pudieron obtener los tipos de PrivatBank. El total estimado está oculto para no mostrar una cifra incorrecta.",
+      "cached": "en caché"
     }
   },
   "transactions": {

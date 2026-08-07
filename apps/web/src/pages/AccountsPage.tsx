@@ -14,6 +14,11 @@ type QuickTxType = 'income' | 'expense' | 'transfer';
 const ACCOUNT_TYPES = ['cash', 'bank', 'crypto', 'investment', 'deposit'] as const;
 const CURRENCIES = ['UAH', 'USD', 'EUR'];
 const BASE_CURRENCY_KEY = 'accounts:baseCurrency';
+const RATES_CACHE_KEY = 'accounts:ratesCache';
+// Cache stays usable for a week — beyond that we prefer "unavailable" to
+// showing week-old totals. Rates rarely move enough that day-old cache is
+// harmful, but a month-old cache is misleading.
+const RATES_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
 // ──────────────────────────────────────────────
 // Formatting
@@ -29,10 +34,59 @@ function fmt(n: number, currency = 'UAH') {
 // ──────────────────────────────────────────────
 // PrivatBank exchange rates
 // ──────────────────────────────────────────────
+// PrivatBank always returns rates vs UAH (base_ccy === 'UAH'). If they ever
+// change that, this hook needs revisiting.
 interface PBRate { ccy: string; base_ccy: string; buy: string; sale: string }
 
-function useExchangeRates() {
-  return useQuery<PBRate[]>({
+type RateMap = Record<string, number>;
+
+// Discrete state so the render side never has to guess whether a missing rate
+// means "we didn't need one" (all accounts in base) or "rates broke and the
+// total is bogus". The old ?? 1 fallback conflated these — a $100 balance
+// showed as ₴100 when PrivatBank was down.
+export type RatesState =
+  | { status: 'not-needed' }
+  | { status: 'loading' }
+  | { status: 'ready'; rates: RateMap; source: 'live' | 'cache'; at: Date }
+  | { status: 'failed' };
+
+interface CachedRates {
+  rates: RateMap;
+  at: number;
+}
+
+function readRatesCache(): CachedRates | null {
+  try {
+    const raw = localStorage.getItem(RATES_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as CachedRates;
+    if (!parsed?.rates || !parsed.at) return null;
+    if (Date.now() - parsed.at > RATES_CACHE_MAX_AGE_MS) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function writeRatesCache(rates: RateMap): void {
+  try {
+    localStorage.setItem(RATES_CACHE_KEY, JSON.stringify({ rates, at: Date.now() }));
+  } catch {
+    // localStorage full / disabled — cache is best-effort, don't crash render.
+  }
+}
+
+function ratesFromPB(pb: PBRate[]): RateMap {
+  const rates: RateMap = { UAH: 1 };
+  for (const r of pb) {
+    const n = parseFloat(r.buy);
+    if (Number.isFinite(n) && n > 0) rates[r.ccy] = n;
+  }
+  return rates;
+}
+
+export function useRatesState(needed: boolean): RatesState {
+  const { data: pbRates, isLoading, isError, isFetched } = useQuery<PBRate[]>({
     queryKey: ['privatbank-rates'],
     queryFn: async () => {
       const res = await fetch(
@@ -41,25 +95,50 @@ function useExchangeRates() {
       if (!res.ok) throw new Error('PrivatBank API error');
       return res.json() as Promise<PBRate[]>;
     },
+    enabled: needed,
     staleTime: 30 * 60 * 1000, // 30 min
     retry: 1,
   });
+
+  // Persist last-known-good so a brief outage doesn't blank the total.
+  useEffect(() => {
+    if (pbRates && pbRates.length > 0) {
+      writeRatesCache(ratesFromPB(pbRates));
+    }
+  }, [pbRates]);
+
+  if (!needed) return { status: 'not-needed' };
+
+  if (pbRates && pbRates.length > 0) {
+    return { status: 'ready', rates: ratesFromPB(pbRates), source: 'live', at: new Date() };
+  }
+
+  // No live data yet. Two sub-cases:
+  //   1. Still loading → 'loading'
+  //   2. Fetched but empty / error → fall back to cache, else 'failed'
+  if (isLoading && !isFetched) return { status: 'loading' };
+
+  if (isError || (isFetched && (!pbRates || pbRates.length === 0))) {
+    const cached = readRatesCache();
+    if (cached) {
+      return { status: 'ready', rates: cached.rates, source: 'cache', at: new Date(cached.at) };
+    }
+    return { status: 'failed' };
+  }
+
+  return { status: 'loading' };
 }
 
-/** Convert amount in fromCcy to toCcy using buy rates (all vs UAH) */
-function convert(
-  amount: number,
-  fromCcy: string,
-  toCcy: string,
-  rates: PBRate[],
-): number {
+// Convert amount in fromCcy to toCcy using UAH-based rate map. Returns null
+// if any required currency is missing — caller MUST check and refuse to show
+// a total in that case, rather than falling back to a silent 1:1 substitution.
+export function convert(amount: number, fromCcy: string, toCcy: string, rates: RateMap): number | null {
   if (fromCcy === toCcy) return amount;
-  const rateMap: Record<string, number> = { UAH: 1 };
-  for (const r of rates) {
-    rateMap[r.ccy] = parseFloat(r.buy);
-  }
-  const fromUAH = fromCcy === 'UAH' ? amount : amount * (rateMap[fromCcy] ?? 1);
-  return toCcy === 'UAH' ? fromUAH : fromUAH / (rateMap[toCcy] ?? 1);
+  const fromRate = fromCcy === 'UAH' ? 1 : rates[fromCcy];
+  const toRate = toCcy === 'UAH' ? 1 : rates[toCcy];
+  if (!fromRate || !toRate) return null;
+  const fromUAH = amount * fromRate;
+  return fromUAH / toRate;
 }
 
 // ──────────────────────────────────────────────
@@ -91,10 +170,11 @@ export function AccountsPage() {
     enabled: !!hid,
   });
 
-  const { data: rates = [], dataUpdatedAt } = useExchangeRates();
-
   // Sort A-Z client-side — prevents visual jumps after revalidation
   const sortedAccounts = [...accounts].sort((a, b) => a.name.localeCompare(b.name));
+
+  const ratesNeeded = sortedAccounts.some(a => a.currency !== baseCurrency);
+  const ratesState = useRatesState(ratesNeeded);
 
   const archive = useMutation({
     mutationFn: (id: string) => financeApi.archiveAccount(id, hid),
@@ -113,18 +193,28 @@ export function AccountsPage() {
     byCurrency[a.currency] = (byCurrency[a.currency] ?? 0) + Number(a.balance);
   }
 
-  // Grand total in base currency
-  const grandTotal = sortedAccounts.reduce((sum, a) => {
-    return sum + convert(Number(a.balance), a.currency, baseCurrency, rates);
-  }, 0);
+  // Grand total in base currency — computed only when rates are ready. When
+  // convert() returns null for any leg, the whole total is null: we refuse
+  // to show a partially-converted number since users can't tell what parts
+  // used real rates vs a fallback.
+  let grandTotal: number | null = 0;
+  if (ratesState.status === 'ready') {
+    for (const a of sortedAccounts) {
+      const converted = convert(Number(a.balance), a.currency, baseCurrency, ratesState.rates);
+      if (converted === null) { grandTotal = null; break; }
+      grandTotal += converted;
+    }
+  } else if (ratesState.status !== 'not-needed') {
+    grandTotal = null;
+  }
 
   const handleBaseCurrencyChange = (c: string) => {
     setBaseCurrency(c);
     localStorage.setItem(BASE_CURRENCY_KEY, c);
   };
 
-  const ratesTime = dataUpdatedAt
-    ? new Date(dataUpdatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  const ratesTime = ratesState.status === 'ready'
+    ? ratesState.at.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     : null;
 
   if (!activeHousehold) return <p className="text-gray-500">{t('common.selectHousehold')}</p>;
@@ -149,18 +239,34 @@ export function AccountsPage() {
           {accounts.length > 0 && Object.keys(byCurrency).length > 1 && (
             <div className="mt-1 flex items-center gap-2 flex-wrap">
               <span className="text-sm text-gray-400">{t('accounts.estimatedTotal')}:</span>
-              <span className="font-bold text-gray-900">{fmt(grandTotal, baseCurrency)}</span>
-              <select
-                value={baseCurrency}
-                onChange={(e) => handleBaseCurrencyChange(e.target.value)}
-                className="rounded border border-gray-200 px-1.5 py-0.5 text-xs text-gray-600"
-                title={t('accounts.displayIn')}
-              >
-                {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
-              </select>
-              {ratesTime && (
-                <span className="text-xs text-gray-300">
-                  {t('accounts.ratesBy')} {ratesTime}
+              {ratesState.status === 'ready' && grandTotal !== null ? (
+                <>
+                  <span className="font-bold text-gray-900">{fmt(grandTotal, baseCurrency)}</span>
+                  <select
+                    value={baseCurrency}
+                    onChange={(e) => handleBaseCurrencyChange(e.target.value)}
+                    className="rounded border border-gray-200 px-1.5 py-0.5 text-xs text-gray-600"
+                    title={t('accounts.displayIn')}
+                  >
+                    {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                  {ratesTime && (
+                    <span className="text-xs text-gray-300">
+                      {t('accounts.ratesBy')} {ratesTime}
+                      {ratesState.source === 'cache' && (
+                        <span className="ml-1 text-amber-500">({t('accounts.rates.cached')})</span>
+                      )}
+                    </span>
+                  )}
+                </>
+              ) : ratesState.status === 'loading' ? (
+                <span className="text-xs text-gray-400">{t('accounts.loading')}</span>
+              ) : (
+                <span
+                  className="text-xs text-amber-600 bg-amber-50 rounded px-2 py-0.5"
+                  title={t('accounts.rates.unavailableDesc')}
+                >
+                  {t('accounts.rates.unavailable')}
                 </span>
               )}
             </div>
