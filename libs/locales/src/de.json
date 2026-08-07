@@ -178,6 +178,25 @@
     "deleteWarning": "Dies löscht Ihr Konto dauerhaft und entfernt Sie aus allen Haushalten. Diese Aktion kann nicht rückgängig gemacht werden.",
     "confirmEmail": "Geben Sie Ihre E-Mail zur Bestätigung ein",
     "saved": "Gespeichert",
-    "saving": "Speichert…"
+    "saving": "Speichert…",
+    "manage": "Verwalten"
+  },
+  "categoryMgmt": {
+    "title": "Kategorien",
+    "active": "Aktiv",
+    "archived": "Archiviert",
+    "empty": {
+      "active": "Keine aktiven Kategorien.",
+      "archived": "Keine archivierten Kategorien."
+    },
+    "actions": {
+      "archive": "Archivieren",
+      "unarchive": "Wiederherstellen",
+      "deletePermanent": "Endgültig löschen"
+    },
+    "confirm": {
+      "archiveTitle": "Kategorie archivieren?",
+      "archiveBody": "\"{{name}}\" archivieren? Bestehende Buchungen behalten ihre Kategorie; sie erscheint nur nicht mehr in Auswahllisten. Sie können sie später wiederherstellen."
+    }
   }
 }

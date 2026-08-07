@@ -7,6 +7,7 @@ import { TransactionsPage } from './pages/TransactionsPage';
 import { ShoppingPage } from './pages/ShoppingPage';
 import { HouseholdPage } from './pages/HouseholdPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { CategoriesPage } from './pages/CategoriesPage';
 
 export const router = createBrowserRouter([
   { path: '/login', element: <LoginPage /> },
@@ -20,6 +21,7 @@ export const router = createBrowserRouter([
       { path: '/shopping', element: <ShoppingPage /> },
       { path: '/household', element: <HouseholdPage /> },
       { path: '/settings', element: <SettingsPage /> },
+      { path: '/settings/categories', element: <CategoriesPage /> },
     ],
   },
 ]);
