@@ -16,9 +16,10 @@ export class CategoriesService {
     );
   }
 
-  findAll(householdId: string, type?: CategoryType): Promise<Category[]> {
+  findAll(householdId: string, type?: CategoryType, includeArchived = false): Promise<Category[]> {
     const where: Record<string, unknown> = { householdId };
     if (type) where['type'] = type;
+    if (!includeArchived) where['isArchived'] = false;
     return this.repo.find({ where, order: { name: 'ASC' } });
   }
 
@@ -36,6 +37,12 @@ export class CategoriesService {
 
   async remove(id: string, householdId: string): Promise<void> {
     await this.findOne(id, householdId);
-    await this.repo.delete(id);
+    await this.repo.update(id, { isArchived: true });
+  }
+
+  async unarchive(id: string, householdId: string): Promise<Category> {
+    await this.findOne(id, householdId);
+    await this.repo.update(id, { isArchived: false });
+    return this.findOne(id, householdId);
   }
 }
