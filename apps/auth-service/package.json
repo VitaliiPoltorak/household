@@ -10,6 +10,7 @@
     "start:prod": "node dist/main",
     "lint": "eslint \"{src,test}/**/*.ts\"",
     "test": "jest",
+    "test:unit": "jest --config jest.unit.config.js",
     "typeorm": "ts-node -r tsconfig-paths/register ./node_modules/typeorm/cli.js",
     "migration:generate": "pnpm typeorm migration:generate -d src/config/typeorm.config.ts",
     "migration:run": "pnpm typeorm migration:run -d src/config/typeorm.config.ts"
