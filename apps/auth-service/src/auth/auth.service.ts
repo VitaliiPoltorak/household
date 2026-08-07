@@ -2,6 +2,7 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'crypto';
+import { getAccessTtlSeconds } from '@household/common';
 import { UsersService, OAuthProfile } from '../users/users.service';
 import { SessionsService } from '../sessions/sessions.service';
 import { KafkaProducerService } from '@household/kafka';
@@ -25,8 +26,7 @@ export class AuthService {
     private readonly config: ConfigService,
     private readonly kafka: KafkaProducerService,
   ) {
-    const expiresStr = config.get<string>('JWT_ACCESS_EXPIRES', '15m');
-    this.accessExpiresIn = this.parseExpiry(expiresStr);
+    this.accessExpiresIn = getAccessTtlSeconds(config);
   }
 
   async loginWithOAuth(
@@ -115,14 +115,5 @@ export class AuthService {
       sessionId,
       expiresIn: this.accessExpiresIn,
     };
-  }
-
-  private parseExpiry(str: string): number {
-    const match = str.match(/^(\d+)([smhd])$/);
-    if (!match) return 900;
-    const val = parseInt(match[1], 10);
-    const unit = match[2];
-    const multipliers: Record<string, number> = { s: 1, m: 60, h: 3600, d: 86400 };
-    return val * (multipliers[unit] || 60);
   }
 }

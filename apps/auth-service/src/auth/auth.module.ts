@@ -1,7 +1,11 @@
 import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { requireStrongJwtSecret, JWT_ALGORITHMS } from '@household/common';
+import {
+  requireStrongJwtSecret,
+  JWT_ALGORITHMS,
+  requireCoherentTokenTtls,
+} from '@household/common';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { UsersModule } from '../users/users.module';
@@ -15,13 +19,16 @@ import { FacebookStrategy } from './strategies/facebook.strategy';
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: (config: ConfigService) => ({
-        secret: requireStrongJwtSecret(config),
-        signOptions: {
-          expiresIn: config.get<string>('JWT_ACCESS_EXPIRES', '15m'),
-          algorithm: JWT_ALGORITHMS[0],
-        },
-      }),
+      useFactory: (config: ConfigService) => {
+        const { accessTtl } = requireCoherentTokenTtls(config);
+        return {
+          secret: requireStrongJwtSecret(config),
+          signOptions: {
+            expiresIn: accessTtl,
+            algorithm: JWT_ALGORITHMS[0],
+          },
+        };
+      },
     }),
   ],
   controllers: [AuthController],

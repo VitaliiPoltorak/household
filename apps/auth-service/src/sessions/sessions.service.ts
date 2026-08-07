@@ -2,6 +2,7 @@ import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Redis from 'ioredis';
 import { randomUUID, createHash } from 'crypto';
+import { getRefreshTtlSeconds } from '@household/common';
 
 export interface Session {
   userId: string;
@@ -21,7 +22,7 @@ export class SessionsService implements OnModuleDestroy {
       port: config.get('REDIS_PORT', 6379),
       lazyConnect: true,
     });
-    this.refreshTtl = config.get<number>('JWT_REFRESH_EXPIRES_DAYS', 30) * 86400;
+    this.refreshTtl = getRefreshTtlSeconds(config);
   }
 
   async onModuleDestroy() {
