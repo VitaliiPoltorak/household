@@ -1,18 +1,28 @@
 import { Inject, Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { EntityManager, Repository } from 'typeorm';
-import { randomUUID } from 'crypto';
+import { Repository } from 'typeorm';
 import { EVENT_PUBLISHER, IEventPublisher } from '@household/contracts';
 import { AccountsService } from '../accounts/accounts.service';
-import { Transaction, TransactionType, TransferDirection } from './entities/transaction.entity';
+import { Transaction, TransactionType } from './entities/transaction.entity';
 import { CreateTransactionDto, CreateTransferDto, UpdateTransactionDto } from './dto/transaction.dto';
+import { BalanceAdjustmentService } from './balance-adjustment.service';
+import { TransferDomainService } from './transfer-domain.service';
 
+/**
+ * HTTP-facing orchestrator for the /transactions endpoints.
+ *
+ * Delegates single-account balance mutations to {@link BalanceAdjustmentService}
+ * and two-leg transfer lifecycle to {@link TransferDomainService}. Owns only
+ * the guards, event emission for single-row mutations, and query-shape logic.
+ */
 @Injectable()
 export class TransactionsService {
   constructor(
     @InjectRepository(Transaction)
     private readonly repo: Repository<Transaction>,
     private readonly accountsService: AccountsService,
+    private readonly balances: BalanceAdjustmentService,
+    private readonly transfers: TransferDomainService,
     @Inject(EVENT_PUBLISHER) private readonly events: IEventPublisher,
   ) {}
 
@@ -36,8 +46,7 @@ export class TransactionsService {
           transferDirection: null,
         }),
       );
-      const delta = dto.type === TransactionType.EXPENSE ? -dto.amount : dto.amount;
-      await this.accountsService.adjustBalance(dto.accountId, delta, manager);
+      await this.balances.apply(dto.accountId, dto.type, dto.amount, manager);
       return saved;
     });
 
@@ -50,79 +59,12 @@ export class TransactionsService {
     return transaction;
   }
 
-  async createTransfer(
+  createTransfer(
     householdId: string,
     userId: string,
     dto: CreateTransferDto,
   ): Promise<[Transaction, Transaction]> {
-    if (dto.fromAccountId === dto.toAccountId) {
-      throw new BadRequestException('Source and destination accounts must differ');
-    }
-
-    // Verifies both accounts exist AND belong to the caller's household.
-    // Throws NotFoundException otherwise — prevents cross-household transfers.
-    await Promise.all([
-      this.accountsService.findOne(dto.fromAccountId, householdId),
-      this.accountsService.findOne(dto.toAccountId, householdId),
-    ]);
-
-    const transferPairId = randomUUID();
-
-    const [debit, credit] = await this.repo.manager.transaction(async (manager) => {
-      const txRepo = manager.getRepository(Transaction);
-
-      const debitLeg = await txRepo.save(
-        txRepo.create({
-          householdId,
-          accountId: dto.fromAccountId,
-          type: TransactionType.TRANSFER,
-          amount: dto.amount,
-          currency: dto.currency ?? 'UAH',
-          description: dto.description ?? null,
-          date: dto.date,
-          createdBy: userId,
-          categoryId: null,
-          incomeSourceId: null,
-          transferPairId,
-          transferDirection: TransferDirection.DEBIT,
-        }),
-      );
-
-      const creditLeg = await txRepo.save(
-        txRepo.create({
-          householdId,
-          accountId: dto.toAccountId,
-          type: TransactionType.TRANSFER,
-          amount: dto.amount,
-          currency: dto.currency ?? 'UAH',
-          description: dto.description ?? null,
-          date: dto.date,
-          createdBy: userId,
-          categoryId: null,
-          incomeSourceId: null,
-          transferPairId,
-          transferDirection: TransferDirection.CREDIT,
-        }),
-      );
-
-      await this.accountsService.adjustBalance(dto.fromAccountId, -dto.amount, manager);
-      await this.accountsService.adjustBalance(dto.toAccountId, dto.amount, manager);
-
-      return [debitLeg, creditLeg] as const;
-    });
-
-    await this.events.emit(
-      'finance.transaction.created',
-      { transactionId: debit.id, householdId, transferPairId },
-      { userId, householdId },
-    );
-    await this.events.emit(
-      'finance.transaction.created',
-      { transactionId: credit.id, householdId, transferPairId },
-      { userId, householdId },
-    );
-
-    return [debit, credit];
+    return this.transfers.createPair(householdId, userId, dto);
   }
 
   findAll(
@@ -170,13 +112,14 @@ export class TransactionsService {
 
       // Recalculate balance when amount or type changes (skip for transfers — both legs must stay in sync)
       if (existing.type !== TransactionType.TRANSFER && (dto.amount !== undefined || dto.type !== undefined)) {
-        const oldDelta = existing.type === TransactionType.EXPENSE
-          ? Number(existing.amount)
-          : -Number(existing.amount);
-        await this.accountsService.adjustBalance(existing.accountId, oldDelta, manager);
-
-        const newDelta = newType === TransactionType.EXPENSE ? -newAmount : newAmount;
-        await this.accountsService.adjustBalance(existing.accountId, newDelta, manager);
+        await this.balances.swap(
+          existing.accountId,
+          existing.type,
+          Number(existing.amount),
+          newType,
+          newAmount,
+          manager,
+        );
       }
 
       await txRepo.update(id, {
@@ -227,7 +170,7 @@ export class TransactionsService {
           transferDirection: null,
         }),
       );
-      await this.accountsService.adjustBalance(accountId, delta, manager);
+      await this.balances.apply(accountId, TransactionType.ADJUSTMENT, delta, manager);
       return saved;
     });
 
@@ -244,52 +187,13 @@ export class TransactionsService {
     const transaction = await this.findOne(id, householdId);
 
     if (transaction.type === TransactionType.TRANSFER && transaction.transferPairId) {
-      await this.removeTransferPair(transaction.transferPairId, householdId);
+      await this.transfers.removePair(transaction.transferPairId, householdId);
       return;
     }
 
     await this.repo.manager.transaction(async (manager) => {
-      const reverseDelta =
-        transaction.type === TransactionType.EXPENSE
-          ? Number(transaction.amount)
-          : transaction.type === TransactionType.INCOME || transaction.type === TransactionType.ADJUSTMENT
-            ? -Number(transaction.amount)
-            : 0;
-
-      if (reverseDelta !== 0) {
-        await this.accountsService.adjustBalance(transaction.accountId, reverseDelta, manager);
-      }
+      await this.balances.reverse(transaction, manager);
       await manager.getRepository(Transaction).delete(id);
-    });
-  }
-
-  /**
-   * Reverses both accounts and deletes both legs of a transfer atomically.
-   * Uses transferDirection when present; falls back to createdAt order for
-   * pre-migration rows (older leg = debit, newer = credit).
-   */
-  private async removeTransferPair(transferPairId: string, householdId: string): Promise<void> {
-    await this.repo.manager.transaction(async (manager) => {
-      const txRepo = manager.getRepository(Transaction);
-      const legs = await txRepo.find({
-        where: { transferPairId, householdId },
-        order: { createdAt: 'ASC', id: 'ASC' },
-      });
-      if (legs.length === 0) return;
-
-      const resolveDirection = (leg: Transaction, index: number): TransferDirection =>
-        leg.transferDirection ?? (index === 0 ? TransferDirection.DEBIT : TransferDirection.CREDIT);
-
-      for (let i = 0; i < legs.length; i++) {
-        const leg = legs[i];
-        const direction = resolveDirection(leg, i);
-        // debit leg had -amount applied to its account → reverse with +amount
-        // credit leg had +amount applied to its account → reverse with -amount
-        const reverse = direction === TransferDirection.DEBIT ? Number(leg.amount) : -Number(leg.amount);
-        await this.accountsService.adjustBalance(leg.accountId, reverse, manager);
-      }
-
-      await txRepo.delete({ transferPairId });
     });
   }
 }
