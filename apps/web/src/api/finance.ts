@@ -1,6 +1,6 @@
 import { api } from './client';
 import type {
-  Account, AccountSummary, Transaction, Category, RecurringPayment,
+  Account, AccountSummary, Transaction, Category, CategoryImpact, RecurringPayment,
   MonthlyReport, NetWorthReport,
 } from '../types/api';
 
@@ -44,14 +44,33 @@ export const financeApi = {
     api.delete(`/transactions/${id}`, cfg(hid)),
 
   // Categories
-  getCategories: (hid: string, type?: 'income' | 'expense') =>
-    api.get<Category[]>('/categories', { ...cfg(hid), params: type ? { type } : undefined }),
+  getCategories: (hid: string, type?: 'income' | 'expense', includeArchived = false) =>
+    api.get<Category[]>('/categories', {
+      ...cfg(hid),
+      params: {
+        ...(type ? { type } : {}),
+        ...(includeArchived ? { includeArchived: 'true' } : {}),
+      },
+    }),
 
   createCategory: (hid: string, data: object) =>
     api.post<Category>('/categories', data, cfg(hid)),
 
+  // Archives the category (backend #111). Response stays 204.
   deleteCategory: (id: string, hid: string) =>
     api.delete(`/categories/${id}`, cfg(hid)),
+
+  // Restores an archived category (backend #111).
+  unarchiveCategory: (id: string, hid: string) =>
+    api.post<Category>(`/categories/${id}/unarchive`, {}, cfg(hid)),
+
+  // Reference-count preview used before permanent-delete (backend #112).
+  getCategoryImpact: (id: string, hid: string) =>
+    api.get<CategoryImpact>(`/categories/${id}/impact`, cfg(hid)),
+
+  // Hard-deletes only when impact == 0; returns 409 + impact body otherwise (backend #113).
+  permanentlyDeleteCategory: (id: string, hid: string) =>
+    api.delete(`/categories/${id}?permanent=true`, cfg(hid)),
 
   // Recurring payments
   getRecurringPayments: (hid: string) =>

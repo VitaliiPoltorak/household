@@ -178,6 +178,25 @@
     "deleteWarning": "Esto eliminará tu cuenta permanentemente y te eliminará de todos los hogares. Esta acción no se puede deshacer.",
     "confirmEmail": "Escribe tu correo para confirmar",
     "saved": "Guardado",
-    "saving": "Guardando…"
+    "saving": "Guardando…",
+    "manage": "Gestionar"
+  },
+  "categoryMgmt": {
+    "title": "Categorías",
+    "active": "Activas",
+    "archived": "Archivadas",
+    "empty": {
+      "active": "No hay categorías activas.",
+      "archived": "No hay categorías archivadas."
+    },
+    "actions": {
+      "archive": "Archivar",
+      "unarchive": "Restaurar",
+      "deletePermanent": "Eliminar permanentemente"
+    },
+    "confirm": {
+      "archiveTitle": "¿Archivar categoría?",
+      "archiveBody": "¿Archivar \"{{name}}\"? Las transacciones históricas conservan su categoría; solo dejará de aparecer en los desplegables. Podrás restaurarla más tarde."
+    }
   }
 }

@@ -178,6 +178,25 @@
     "deleteWarning": "This will permanently delete your account and remove you from all households. This action cannot be undone.",
     "confirmEmail": "Type your email to confirm",
     "saved": "Saved",
-    "saving": "Saving…"
+    "saving": "Saving…",
+    "manage": "Manage"
+  },
+  "categoryMgmt": {
+    "title": "Categories",
+    "active": "Active",
+    "archived": "Archived",
+    "empty": {
+      "active": "No active categories.",
+      "archived": "No archived categories."
+    },
+    "actions": {
+      "archive": "Archive",
+      "unarchive": "Restore",
+      "deletePermanent": "Delete permanently"
+    },
+    "confirm": {
+      "archiveTitle": "Archive category?",
+      "archiveBody": "Archive \"{{name}}\"? Historical transactions keep their category label; it just stops appearing in dropdowns. You can restore it later."
+    }
   }
 }

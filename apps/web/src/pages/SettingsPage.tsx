@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { authApi } from '../api/auth';
 import { Button } from '../components/ui/Button';
@@ -23,8 +23,28 @@ export function SettingsPage() {
 
       <ProfileSection user={user} />
       <PreferencesSection i18n={i18n} />
+      <ManageSection />
       <DangerSection user={user} logout={logout} navigate={navigate} />
     </div>
+  );
+}
+
+function ManageSection() {
+  const { t } = useTranslation();
+  return (
+    <Section title={t('settings.manage')}>
+      <ul className="divide-y divide-gray-100 rounded-xl border border-gray-200 bg-white">
+        <li>
+          <Link
+            to="/settings/categories"
+            className="flex items-center justify-between px-4 py-3 hover:bg-gray-50"
+          >
+            <span className="text-sm text-gray-900">{t('categoryMgmt.title')}</span>
+            <span className="text-gray-400" aria-hidden>›</span>
+          </Link>
+        </li>
+      </ul>
+    </Section>
   );
 }
 

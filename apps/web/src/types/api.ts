@@ -87,6 +87,15 @@ export interface Category {
   type: 'income' | 'expense';
   icon: string | null;
   parentId: string | null;
+  isArchived: boolean;
+}
+
+export interface CategoryImpact {
+  categoryId: string;
+  transactions: number;
+  recurringPayments: number;
+  subcategories: number;
+  lastUsedAt: string | null;
 }
 
 export interface RecurringPayment {
