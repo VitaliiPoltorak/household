@@ -1,5 +1,8 @@
 {
   "name": "@household/kafka",
   "version": "0.0.1",
-  "private": true
+  "private": true,
+  "scripts": {
+    "test:unit": "jest --config jest.unit.config.js"
+  }
 }
