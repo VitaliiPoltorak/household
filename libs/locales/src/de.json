@@ -197,6 +197,25 @@
     "confirm": {
       "archiveTitle": "Kategorie archivieren?",
       "archiveBody": "\"{{name}}\" archivieren? Bestehende Buchungen behalten ihre Kategorie; sie erscheint nur nicht mehr in Auswahllisten. Sie können sie später wiederherstellen."
+    },
+    "deletePermanent": {
+      "title": "\"{{name}}\" endgültig löschen?",
+      "warningEmpty": "\"{{name}}\" wird endgültig gelöscht. Diese Aktion kann nicht rückgängig gemacht werden.",
+      "warningBlocked": "Eine Kategorie mit bestehenden Referenzen kann nicht endgültig gelöscht werden. Weisen Sie diese Elemente zuerst um.",
+      "impact": {
+        "transactions_one": "{{count}} Buchung",
+        "transactions_other": "{{count}} Buchungen",
+        "recurringPayments_one": "{{count}} wiederkehrende Zahlung",
+        "recurringPayments_other": "{{count}} wiederkehrende Zahlungen",
+        "subcategories_one": "{{count}} Unterkategorie",
+        "subcategories_other": "{{count}} Unterkategorien"
+      },
+      "cta": {
+        "delete": "Endgültig löschen",
+        "cancel": "Abbrechen",
+        "close": "Schließen"
+      },
+      "reassignSoonHint": "Neuzuweisen / Zusammenführen kommt in einer späteren Version."
     }
   }
 }

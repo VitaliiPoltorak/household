@@ -197,6 +197,25 @@
     "confirm": {
       "archiveTitle": "Archive category?",
       "archiveBody": "Archive \"{{name}}\"? Historical transactions keep their category label; it just stops appearing in dropdowns. You can restore it later."
+    },
+    "deletePermanent": {
+      "title": "Permanently delete \"{{name}}\"?",
+      "warningEmpty": "This will permanently delete \"{{name}}\". This action cannot be undone.",
+      "warningBlocked": "You can't permanently delete a category with existing references. Re-categorise these items first, then try again.",
+      "impact": {
+        "transactions_one": "{{count}} transaction",
+        "transactions_other": "{{count}} transactions",
+        "recurringPayments_one": "{{count}} recurring payment",
+        "recurringPayments_other": "{{count}} recurring payments",
+        "subcategories_one": "{{count}} subcategory",
+        "subcategories_other": "{{count}} subcategories"
+      },
+      "cta": {
+        "delete": "Delete permanently",
+        "cancel": "Cancel",
+        "close": "Close"
+      },
+      "reassignSoonHint": "Reassign / merge is coming in a future release."
     }
   }
 }
