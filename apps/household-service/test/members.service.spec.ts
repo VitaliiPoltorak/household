@@ -153,6 +153,33 @@ describe('MembersService (unit)', () => {
       expect(memberRepo.update).not.toHaveBeenCalled();
     });
 
+    it('rejects an ADMIN trying to promote a MEMBER to ADMIN (peer-level elevation)', async () => {
+      const actor = { id: 'actor', householdId: HOUSEHOLD_ID, userId: ACTOR_ID, role: MemberRole.ADMIN };
+      const target = { id: MEMBER_ID, householdId: HOUSEHOLD_ID, userId: TARGET_USER_ID, role: MemberRole.MEMBER };
+      memberRepo.findOne
+        .mockResolvedValueOnce(actor)
+        .mockResolvedValueOnce(target);
+
+      await expect(
+        service.updateRole(HOUSEHOLD_ID, ACTOR_ID, MEMBER_ID, { role: MemberRole.ADMIN }),
+      ).rejects.toThrow(new ForbiddenException('Cannot grant a role equal to or above your own'));
+      expect(memberRepo.update).not.toHaveBeenCalled();
+    });
+
+    it('lets an OWNER promote a MEMBER to ADMIN', async () => {
+      const actor = { id: 'actor', householdId: HOUSEHOLD_ID, userId: ACTOR_ID, role: MemberRole.OWNER };
+      const target = { id: MEMBER_ID, householdId: HOUSEHOLD_ID, userId: TARGET_USER_ID, role: MemberRole.MEMBER };
+      memberRepo.findOne
+        .mockResolvedValueOnce(actor)
+        .mockResolvedValueOnce(target);
+      memberRepo.findOneOrFail.mockResolvedValue({ ...target, role: MemberRole.ADMIN });
+
+      const result = await service.updateRole(HOUSEHOLD_ID, ACTOR_ID, MEMBER_ID, { role: MemberRole.ADMIN });
+
+      expect(memberRepo.update).toHaveBeenCalledWith(MEMBER_ID, { role: MemberRole.ADMIN });
+      expect(result.role).toBe(MemberRole.ADMIN);
+    });
+
     it('throws NotFoundException when the target member does not exist', async () => {
       const actor = { id: 'actor', householdId: HOUSEHOLD_ID, userId: ACTOR_ID, role: MemberRole.OWNER };
       memberRepo.findOne
