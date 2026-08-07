@@ -3,9 +3,11 @@ import { ConfigService } from '@nestjs/config';
 import { ValidationPipe, Logger } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
+import Redis from 'ioredis';
 import { requireStrongJwtSecret } from '@household/common';
 import { AppModule } from './app.module';
 import { createJwtMiddleware } from './middleware/jwt-express.middleware';
+import { createAuthRateLimitMiddleware } from './middleware/auth-rate-limit.middleware';
 import { setupProxies } from './proxy/proxy-setup';
 
 async function bootstrap() {
@@ -34,6 +36,12 @@ async function bootstrap() {
   );
 
   app.use(createJwtMiddleware(requireStrongJwtSecret(config)));
+
+  const authRateLimitRedis = new Redis({
+    host: config.get<string>('REDIS_HOST', 'localhost'),
+    port: config.get<number>('REDIS_PORT', 6379),
+  });
+  app.use(createAuthRateLimitMiddleware(authRateLimitRedis));
 
   setupProxies(app);
 
