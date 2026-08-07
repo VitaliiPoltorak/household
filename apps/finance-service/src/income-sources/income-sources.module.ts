@@ -8,5 +8,6 @@ import { IncomeSourcesController } from './income-sources.controller';
   imports: [TypeOrmModule.forFeature([IncomeSource])],
   controllers: [IncomeSourcesController],
   providers: [IncomeSourcesService],
+  exports: [IncomeSourcesService],
 })
 export class IncomeSourcesModule {}
