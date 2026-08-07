@@ -22,4 +22,7 @@ export class Category extends BaseEntity {
 
   @Column({ name: 'parent_id', type: 'varchar', nullable: true })
   parentId: string | null;
+
+  @Column({ name: 'is_archived', default: false })
+  isArchived: boolean;
 }

@@ -21,9 +21,20 @@ export class CategoriesController {
 
   @Get()
   @ApiQuery({ name: 'type', enum: CategoryType, required: false })
-  findAll(@Headers('x-household-id') hid: string, @Query('type') type?: CategoryType) {
+  @ApiQuery({ name: 'includeArchived', required: false, type: Boolean })
+  findAll(
+    @Headers('x-household-id') hid: string,
+    @Query('type') type?: CategoryType,
+    @Query('includeArchived') includeArchived?: string,
+  ) {
     this.require(hid);
-    return this.svc.findAll(hid, type);
+    return this.svc.findAll(hid, type, includeArchived === 'true');
+  }
+
+  @Post(':id/unarchive')
+  unarchive(@Headers('x-household-id') hid: string, @Param('id') id: string) {
+    this.require(hid);
+    return this.svc.unarchive(id, hid);
   }
 
   @Get(':id')
