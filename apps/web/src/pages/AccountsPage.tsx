@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useHousehold } from '../contexts/HouseholdContext';
-import { financeApi } from '../api/finance';
+import { financeApi, type ExchangeRate } from '../api/finance';
 import type { Account, Category } from '../types/api';
 import { Modal } from '../components/ui/Modal';
 import { Button } from '../components/ui/Button';
@@ -27,20 +27,14 @@ function fmt(n: number, currency = 'UAH') {
 }
 
 // ──────────────────────────────────────────────
-// PrivatBank exchange rates
+// Exchange rates (fetched daily from PrivatBank by finance-service)
 // ──────────────────────────────────────────────
-interface PBRate { ccy: string; base_ccy: string; buy: string; sale: string }
+type PBRate = Pick<ExchangeRate, 'ccy' | 'base_ccy' | 'buy' | 'sale'>;
 
 function useExchangeRates() {
   return useQuery<PBRate[]>({
-    queryKey: ['privatbank-rates'],
-    queryFn: async () => {
-      const res = await fetch(
-        'https://api.privatbank.ua/p24api/pubinfo?json&exchange&coursid=5',
-      );
-      if (!res.ok) throw new Error('PrivatBank API error');
-      return res.json() as Promise<PBRate[]>;
-    },
+    queryKey: ['exchange-rates'],
+    queryFn: () => financeApi.getLatestRates(),
     staleTime: 30 * 60 * 1000, // 30 min
     retry: 1,
   });

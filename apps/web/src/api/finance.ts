@@ -75,4 +75,16 @@ export const financeApi = {
 
   getNetWorth: (hid: string) =>
     api.get<NetWorthReport>('/reports/net-worth', cfg(hid)),
+
+  // Exchange rates (household-agnostic — no cfg needed but header is harmless)
+  getLatestRates: () => api.get<ExchangeRate[]>('/rates/latest'),
 };
+
+export interface ExchangeRate {
+  ccy: string;
+  base_ccy: string;
+  buy: string;
+  sale: string;
+  effective_date: string;
+  source: string;
+}
