@@ -15,7 +15,6 @@ export const InjectRedis = () => Inject(REDIS_CLIENT);
         new Redis({
           host: config.get('REDIS_HOST', 'localhost'),
           port: config.get<number>('REDIS_PORT', 6379),
-          lazyConnect: true,
         }),
       inject: [ConfigService],
     },

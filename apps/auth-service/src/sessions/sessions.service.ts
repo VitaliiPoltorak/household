@@ -19,7 +19,6 @@ export class SessionsService implements OnModuleDestroy {
     this.redis = new Redis({
       host: config.get('REDIS_HOST', 'localhost'),
       port: config.get('REDIS_PORT', 6379),
-      lazyConnect: true,
     });
     this.refreshTtl = config.get<number>('JWT_REFRESH_EXPIRES_DAYS', 30) * 86400;
   }
