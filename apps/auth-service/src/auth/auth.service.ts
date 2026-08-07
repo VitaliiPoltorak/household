@@ -52,17 +52,22 @@ export class AuthService {
     refreshToken: string,
     deviceInfo?: string,
   ): Promise<TokenPair> {
-    const session = await this.sessions.validateRefreshToken(
-      sessionId,
-      refreshToken,
-    );
-    if (!session) {
+    const result = await this.sessions.consumeSession(sessionId, refreshToken);
+
+    if (result.status === 'reused') {
+      // Reuse-after-rotation: same sessionId presented twice. One of the two
+      // callers is an attacker holding a token we already retired. Since we
+      // can't tell which, revoke every session for that user — industry
+      // standard for OAuth 2.0 rotation reuse detection.
+      await this.sessions.deleteAllUserSessions(result.userId);
+      throw new UnauthorizedException('Refresh token reuse detected');
+    }
+
+    if (result.status === 'invalid') {
       throw new UnauthorizedException('Invalid refresh token');
     }
 
-    await this.sessions.deleteSession(sessionId);
-
-    const user = await this.users.findById(session.userId);
+    const user = await this.users.findById(result.session.userId);
     if (!user) {
       throw new UnauthorizedException('User not found');
     }
