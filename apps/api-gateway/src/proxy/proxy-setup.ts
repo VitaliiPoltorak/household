@@ -3,96 +3,17 @@ import { ConfigService } from '@nestjs/config';
 import { createProxyMiddleware } from 'http-proxy-middleware';
 import { ServerResponse } from 'http';
 import { computeSignature, SIGNATURE_HEADER, TIMESTAMP_HEADER } from '@household/common';
-
-interface ProxyRoute {
-  prefix: string;
-  envKey: string;
-  defaultUrl: string;
-  rewrites: Record<string, string>;
-}
+import { loadProxyRoutes } from './routes-loader';
 
 // Express strips the mount prefix before passing req.url to middleware.
 // So app.use('/api/v1/auth', proxy) means the proxy sees '/google', not '/api/v1/auth/google'.
 // pathRewrite must prepend the service-level prefix to the already-stripped path.
-const ROUTES: ProxyRoute[] = [
-  {
-    prefix: '/api/v1/auth',
-    envKey: 'AUTH_SERVICE_URL',
-    defaultUrl: 'http://localhost:3001',
-    rewrites: { '^': '/auth' },
-  },
-  {
-    prefix: '/api/v1/households',
-    envKey: 'HOUSEHOLD_SERVICE_URL',
-    defaultUrl: 'http://localhost:3002',
-    rewrites: { '^': '/households' },
-  },
-  {
-    prefix: '/api/v1/invites',
-    envKey: 'HOUSEHOLD_SERVICE_URL',
-    defaultUrl: 'http://localhost:3002',
-    rewrites: { '^': '/invites' },
-  },
-  {
-    prefix: '/api/v1/accounts',
-    envKey: 'FINANCE_SERVICE_URL',
-    defaultUrl: 'http://localhost:3003',
-    rewrites: { '^': '/accounts' },
-  },
-  {
-    prefix: '/api/v1/transactions',
-    envKey: 'FINANCE_SERVICE_URL',
-    defaultUrl: 'http://localhost:3003',
-    rewrites: { '^': '/transactions' },
-  },
-  {
-    prefix: '/api/v1/categories',
-    envKey: 'FINANCE_SERVICE_URL',
-    defaultUrl: 'http://localhost:3003',
-    rewrites: { '^': '/categories' },
-  },
-  {
-    prefix: '/api/v1/income-sources',
-    envKey: 'FINANCE_SERVICE_URL',
-    defaultUrl: 'http://localhost:3003',
-    rewrites: { '^': '/income-sources' },
-  },
-  {
-    prefix: '/api/v1/recurring-payments',
-    envKey: 'FINANCE_SERVICE_URL',
-    defaultUrl: 'http://localhost:3003',
-    rewrites: { '^': '/recurring-payments' },
-  },
-  {
-    prefix: '/api/v1/reports',
-    envKey: 'FINANCE_SERVICE_URL',
-    defaultUrl: 'http://localhost:3003',
-    rewrites: { '^': '/reports' },
-  },
-  {
-    prefix: '/api/v1/stores',
-    envKey: 'SHOPPING_SERVICE_URL',
-    defaultUrl: 'http://localhost:3004',
-    rewrites: { '^': '/stores' },
-  },
-  {
-    prefix: '/api/v1/products',
-    envKey: 'SHOPPING_SERVICE_URL',
-    defaultUrl: 'http://localhost:3004',
-    rewrites: { '^': '/products' },
-  },
-  {
-    prefix: '/api/v1/shopping-lists',
-    envKey: 'SHOPPING_SERVICE_URL',
-    defaultUrl: 'http://localhost:3004',
-    rewrites: { '^': '/shopping-lists' },
-  },
-];
 
 export function setupProxies(app: INestApplication) {
   const config = app.get(ConfigService);
   const logger = new Logger('Proxy');
   const signingSecret = config.get<string>('GATEWAY_SIGNING_SECRET');
+  const routes = loadProxyRoutes(config);
 
   if (!signingSecret) {
     logger.warn(
@@ -100,7 +21,7 @@ export function setupProxies(app: INestApplication) {
     );
   }
 
-  for (const route of ROUTES) {
+  for (const route of routes) {
     const target = config.get<string>(route.envKey, route.defaultUrl);
 
     app.use(
