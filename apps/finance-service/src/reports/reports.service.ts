@@ -1,17 +1,23 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, Inject } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Transaction, TransactionType } from '../transactions/entities/transaction.entity';
-import { Account } from '../accounts/entities/account.entity';
-import { Category, CategoryType } from '../categories/entities/category.entity';
+import { Category } from '../categories/entities/category.entity';
+import {
+  ACCOUNT_QUERY_REPOSITORY,
+  IAccountQueryRepository,
+} from './query/account-query.repository';
+import {
+  TRANSACTION_QUERY_REPOSITORY,
+  ITransactionQueryRepository,
+} from './query/transaction-query.repository';
 
 @Injectable()
 export class ReportsService {
   constructor(
-    @InjectRepository(Transaction)
-    private readonly txRepo: Repository<Transaction>,
-    @InjectRepository(Account)
-    private readonly accountRepo: Repository<Account>,
+    @Inject(TRANSACTION_QUERY_REPOSITORY)
+    private readonly txQuery: ITransactionQueryRepository,
+    @Inject(ACCOUNT_QUERY_REPOSITORY)
+    private readonly accountQuery: IAccountQueryRepository,
     @InjectRepository(Category)
     private readonly categoryRepo: Repository<Category>,
   ) {}
@@ -24,32 +30,17 @@ export class ReportsService {
     const lastDay = new Date(year, month, 0).getDate();
     const to = `${year}-${pad(month)}-${lastDay}`;
 
-    const rows = await this.txRepo
-      .createQueryBuilder('t')
-      .select('t.date', 'date')
-      .addSelect(`SUM(CASE WHEN t.type = 'income' THEN CAST(t.amount AS FLOAT) ELSE 0 END)`, 'income')
-      .addSelect(`SUM(CASE WHEN t.type = 'expense' THEN CAST(t.amount AS FLOAT) ELSE 0 END)`, 'expense')
-      .where('t."household_id" = :householdId', { householdId })
-      .andWhere('t.date >= :from', { from })
-      .andWhere('t.date <= :to', { to })
-      .andWhere(`t.type IN ('income', 'expense')`)
-      .groupBy('t.date')
-      .orderBy('t.date', 'ASC')
-      .getRawMany<{ date: string; income: string; expense: string }>();
+    const byDay = await this.txQuery.getDailyIncomeExpense(householdId, { from, to });
 
-    const totalIncome = rows.reduce((s, r) => s + Number(r.income), 0);
-    const totalExpense = rows.reduce((s, r) => s + Number(r.expense), 0);
+    const totalIncome = byDay.reduce((s, r) => s + r.income, 0);
+    const totalExpense = byDay.reduce((s, r) => s + r.expense, 0);
 
     return {
       period: `${year}-${pad(month)}`,
       totalIncome,
       totalExpense,
       net: totalIncome - totalExpense,
-      byDay: rows.map((r) => ({
-        date: r.date,
-        income: Number(r.income),
-        expense: Number(r.expense),
-      })),
+      byDay,
     };
   }
 
@@ -61,18 +52,7 @@ export class ReportsService {
   ) {
     if (!from || !to) throw new BadRequestException('from and to are required');
 
-    const rows = await this.txRepo
-      .createQueryBuilder('t')
-      .select('t."category_id"', 'categoryId')
-      .addSelect('SUM(CAST(t.amount AS FLOAT))', 'total')
-      .addSelect('COUNT(*)', 'count')
-      .where('t."household_id" = :householdId', { householdId })
-      .andWhere('t.date >= :from', { from })
-      .andWhere('t.date <= :to', { to })
-      .andWhere('t.type = :type', { type })
-      .groupBy('t."category_id"')
-      .orderBy('total', 'DESC')
-      .getRawMany<{ categoryId: string | null; total: string; count: string }>();
+    const rows = await this.txQuery.getByCategory(householdId, { from, to }, type);
 
     const categoryIds = rows
       .filter((r) => r.categoryId)
@@ -88,27 +68,16 @@ export class ReportsService {
     return rows.map((r) => ({
       categoryId: r.categoryId,
       categoryName: r.categoryId ? (categoryMap.get(r.categoryId) ?? null) : null,
-      total: Number(r.total),
-      count: Number(r.count),
+      total: r.total,
+      count: r.count,
     }));
   }
 
   async getNetWorth(householdId: string) {
-    const accounts = await this.accountRepo.find({
-      where: { householdId, isArchived: false },
-    });
+    const accounts = await this.accountQuery.listActive(householdId);
+    const balances = await this.accountQuery.getBalancesByCurrency(householdId);
 
-    // Aggregate per currency in SQL so DECIMAL precision is preserved through
-    // the sum, instead of N repeated JS float additions per row.
-    const rows = await this.accountRepo
-      .createQueryBuilder('a')
-      .select('a.currency', 'currency')
-      .addSelect('COALESCE(SUM(a.balance), 0)', 'total')
-      .where('a.household_id = :hid AND a.is_archived = false', { hid: householdId })
-      .groupBy('a.currency')
-      .getRawMany<{ currency: string; total: string }>();
-
-    const byCurrency = Object.fromEntries(rows.map((r) => [r.currency, Number(r.total)]));
+    const byCurrency = Object.fromEntries(balances.map((r) => [r.currency, r.total]));
     // NOTE: summing across currencies is arithmetically meaningless — kept for
     // API compatibility. Cross-currency conversion happens on the client.
     const totalBalance = Object.values(byCurrency).reduce((s, v) => s + v, 0);
