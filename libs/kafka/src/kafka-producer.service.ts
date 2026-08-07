@@ -1,11 +1,18 @@
 import { Injectable, OnModuleInit, OnModuleDestroy, Logger, Inject } from '@nestjs/common';
 import { Kafka, Producer } from 'kafkajs';
-import { createEnvelope, EventMeta, kafkaTopic } from '@household/contracts';
+import {
+  createEnvelope,
+  EventMeta,
+  IEventPublisher,
+  kafkaTopic,
+} from '@household/contracts';
 import { KAFKA_MODULE_OPTIONS } from './kafka.constants';
 import { KafkaModuleOptions } from './interfaces/kafka-options.interface';
 
 @Injectable()
-export class KafkaProducerService implements OnModuleInit, OnModuleDestroy {
+export class KafkaProducerService
+  implements OnModuleInit, OnModuleDestroy, IEventPublisher
+{
   private readonly logger = new Logger(KafkaProducerService.name);
   private readonly producer: Producer;
   private connected = false;

@@ -1,7 +1,7 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { KafkaProducerService } from '@household/kafka';
+import { EVENT_PUBLISHER, IEventPublisher } from '@household/contracts';
 import { ShoppingList, ListStatus } from './entities/shopping-list.entity';
 import { ShoppingListItem } from './entities/shopping-list-item.entity';
 import {
@@ -16,7 +16,7 @@ export class ShoppingListsService {
     private readonly listRepo: Repository<ShoppingList>,
     @InjectRepository(ShoppingListItem)
     private readonly itemRepo: Repository<ShoppingListItem>,
-    private readonly kafka: KafkaProducerService,
+    @Inject(EVENT_PUBLISHER) private readonly events: IEventPublisher,
   ) {}
 
   create(householdId: string, userId: string, dto: CreateShoppingListDto): Promise<ShoppingList> {
@@ -61,7 +61,7 @@ export class ShoppingListsService {
     }
     await this.listRepo.update(id, { status: ListStatus.COMPLETED });
     const updated = await this.findOne(id, householdId);
-    await this.kafka.emit(
+    await this.events.emit(
       'shopping.list.completed',
       { listId: id, householdId, itemCount: list.items.length },
       { userId, householdId },
@@ -103,7 +103,7 @@ export class ShoppingListsService {
     await this.itemRepo.update(itemId, dto);
 
     if (!wasPurchased && dto.isPurchased) {
-      await this.kafka.emit(
+      await this.events.emit(
         'shopping.item.purchased',
         { listId, itemId, householdId, name: item.name, price: dto.price ?? null },
         { userId, householdId },
