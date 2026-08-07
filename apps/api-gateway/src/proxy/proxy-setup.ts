@@ -70,6 +70,12 @@ const ROUTES: ProxyRoute[] = [
     rewrites: { '^': '/reports' },
   },
   {
+    prefix: '/api/v1/rates',
+    envKey: 'FINANCE_SERVICE_URL',
+    defaultUrl: 'http://localhost:3003',
+    rewrites: { '^': '/rates' },
+  },
+  {
     prefix: '/api/v1/stores',
     envKey: 'SHOPPING_SERVICE_URL',
     defaultUrl: 'http://localhost:3004',

@@ -9,11 +9,13 @@ import { CategoriesModule } from './categories/categories.module';
 import { IncomeSourcesModule } from './income-sources/income-sources.module';
 import { RecurringPaymentsModule } from './recurring-payments/recurring-payments.module';
 import { ReportsModule } from './reports/reports.module';
+import { RatesModule } from './rates/rates.module';
 import { Account } from './accounts/entities/account.entity';
 import { Transaction } from './transactions/entities/transaction.entity';
 import { Category } from './categories/entities/category.entity';
 import { IncomeSource } from './income-sources/entities/income-source.entity';
 import { RecurringPayment } from './recurring-payments/entities/recurring-payment.entity';
+import { ExchangeRate } from './rates/entities/exchange-rate.entity';
 
 @Module({
   imports: [
@@ -31,7 +33,7 @@ import { RecurringPayment } from './recurring-payments/entities/recurring-paymen
           password: config.get<string>('POSTGRES_PASSWORD', 'household_secret'),
           database: config.get<string>('POSTGRES_DB', 'household'),
           schema: 'finance',
-          entities: [Account, Transaction, Category, IncomeSource, RecurringPayment],
+          entities: [Account, Transaction, Category, IncomeSource, RecurringPayment, ExchangeRate],
           synchronize: config.get('NODE_ENV') === 'development',
         };
       },
@@ -43,6 +45,7 @@ import { RecurringPayment } from './recurring-payments/entities/recurring-paymen
     IncomeSourcesModule,
     RecurringPaymentsModule,
     ReportsModule,
+    RatesModule,
   ],
 })
 export class AppModule {}
