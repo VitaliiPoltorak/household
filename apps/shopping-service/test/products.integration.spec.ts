@@ -61,4 +61,48 @@ describe('Products (integration)', () => {
     const res = await request(app.getHttpServer()).get('/products').set('X-Household-Id', H).expect(200);
     expect(res.body).toHaveLength(1);
   });
+
+  describe('Cross-household reference isolation (#67)', () => {
+    it('rejects POST /products with preferredStoreId from another household', async () => {
+      const foreignStore = await request(app.getHttpServer())
+        .post('/stores').set('X-Household-Id', 'other').send({ name: 'Foreign' });
+
+      await request(app.getHttpServer())
+        .post('/products').set('X-Household-Id', H)
+        .send({ name: 'Milk', preferredStoreId: foreignStore.body.id })
+        .expect(404);
+    });
+
+    it('rejects POST /products with a foreign store in alternativeStoreIds', async () => {
+      const foreignStore = await request(app.getHttpServer())
+        .post('/stores').set('X-Household-Id', 'other').send({ name: 'Foreign' });
+
+      await request(app.getHttpServer())
+        .post('/products').set('X-Household-Id', H)
+        .send({ name: 'Milk', alternativeStoreIds: [storeId, foreignStore.body.id] })
+        .expect(404);
+    });
+
+    it('rejects PATCH /products/:id that swaps in a foreign preferredStoreId', async () => {
+      const created = await request(app.getHttpServer())
+        .post('/products').set('X-Household-Id', H).send({ name: 'Milk' });
+      const foreignStore = await request(app.getHttpServer())
+        .post('/stores').set('X-Household-Id', 'other').send({ name: 'Foreign' });
+
+      await request(app.getHttpServer())
+        .patch(`/products/${created.body.id}`).set('X-Household-Id', H)
+        .send({ preferredStoreId: foreignStore.body.id })
+        .expect(404);
+    });
+  });
+
+  describe('Header enforcement (#81)', () => {
+    it('rejects POST /products without X-Household-Id (401)', async () => {
+      await request(app.getHttpServer()).post('/products').send({ name: 'Milk' }).expect(401);
+    });
+
+    it('rejects GET /products without X-Household-Id (401)', async () => {
+      await request(app.getHttpServer()).get('/products').expect(401);
+    });
+  });
 });

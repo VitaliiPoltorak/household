@@ -143,4 +143,72 @@ describe('Shopping Lists (integration)', () => {
         .expect(404);
     });
   });
+
+  describe('Cross-household reference isolation (#67)', () => {
+    it('rejects POST /shopping-lists with a storeId from another household', async () => {
+      const foreignStore = await auth(app).post('/stores').set('X-Household-Id', 'other').send({ name: 'Foreign' });
+
+      await auth(app).post('/shopping-lists')
+        .set('X-User-Id', U).set('X-Household-Id', H)
+        .send({ name: 'List', storeId: foreignStore.body.id })
+        .expect(404);
+    });
+
+    it('rejects PATCH /shopping-lists/:id that swaps in a foreign storeId', async () => {
+      const list = await createList();
+      const foreignStore = await auth(app).post('/stores').set('X-Household-Id', 'other').send({ name: 'Foreign' });
+
+      await auth(app).patch(`/shopping-lists/${list.id}`)
+        .set('X-User-Id', U).set('X-Household-Id', H)
+        .send({ storeId: foreignStore.body.id })
+        .expect(404);
+    });
+
+    it('rejects POST /shopping-lists/:id/items with foreign productId', async () => {
+      const list = await createList();
+      const foreignProduct = await auth(app).post('/products').set('X-Household-Id', 'other').send({ name: 'Foreign' });
+
+      await auth(app).post(`/shopping-lists/${list.id}/items`)
+        .set('X-User-Id', U).set('X-Household-Id', H)
+        .send({ name: 'Milk', productId: foreignProduct.body.id })
+        .expect(404);
+    });
+
+    it('rejects POST /shopping-lists/:id/items with foreign preferredStoreId', async () => {
+      const list = await createList();
+      const foreignStore = await auth(app).post('/stores').set('X-Household-Id', 'other').send({ name: 'Foreign' });
+
+      await auth(app).post(`/shopping-lists/${list.id}/items`)
+        .set('X-User-Id', U).set('X-Household-Id', H)
+        .send({ name: 'Milk', preferredStoreId: foreignStore.body.id })
+        .expect(404);
+    });
+
+    it('rejects PATCH /shopping-lists/:id/items/:itemId with foreign actualStoreId', async () => {
+      const list = await createList();
+      const item = await addItem(list.id, 'Milk');
+      const foreignStore = await auth(app).post('/stores').set('X-Household-Id', 'other').send({ name: 'Foreign' });
+
+      await auth(app).patch(`/shopping-lists/${list.id}/items/${item.id}`)
+        .set('X-User-Id', U).set('X-Household-Id', H)
+        .send({ actualStoreId: foreignStore.body.id })
+        .expect(404);
+    });
+  });
+
+  describe('Header enforcement (#81)', () => {
+    it('rejects POST /shopping-lists without X-Household-Id (401)', async () => {
+      await auth(app).post('/shopping-lists').set('X-User-Id', U).send({ name: 'X' }).expect(401);
+    });
+
+    it('rejects GET /shopping-lists without X-Household-Id (401)', async () => {
+      await auth(app).get('/shopping-lists').expect(401);
+    });
+
+    it('rejects POST /shopping-lists/:id/items without X-Household-Id (401)', async () => {
+      const list = await createList();
+      await auth(app).post(`/shopping-lists/${list.id}/items`)
+        .set('X-User-Id', U).send({ name: 'X' }).expect(401);
+    });
+  });
 });
