@@ -2,6 +2,7 @@ import type { EachMessagePayload } from 'kafkajs';
 import { KafkaConsumerService } from '../src/kafka-consumer.service';
 import type { KafkaProducerService } from '../src/kafka-producer.service';
 import type { FailedMessageEnvelope, KafkaEventEnvelope } from '@household/contracts';
+import { signMessage, SIGNATURE_HEADER } from '../src/signing';
 
 /**
  * Unit tests for the retry + DLQ behaviour added in #77.
@@ -11,8 +12,11 @@ import type { FailedMessageEnvelope, KafkaEventEnvelope } from '@household/contr
  * each service's integration tests.
  */
 
-function makeService(producer: Partial<KafkaProducerService> = {}): KafkaConsumerService {
-  const options = { clientId: 'test', brokers: ['localhost:9092'] };
+function makeService(
+  producer: Partial<KafkaProducerService> = {},
+  extraOptions: { signingKey?: string; signingKeyPrev?: string } = {},
+): KafkaConsumerService {
+  const options = { clientId: 'test', brokers: ['localhost:9092'], ...extraOptions };
   // The Kafka client is instantiated in the constructor but never used by
   // processMessage. Safe to leave it be.
   return new KafkaConsumerService(options, {
@@ -145,4 +149,86 @@ describe('KafkaConsumerService — retry + DLQ (#77)', () => {
     await expect(service['processMessage'](p, handler)).resolves.toBeUndefined();
     expect(producer.sendRaw).toHaveBeenCalledTimes(1);
   }, 10000);
+
+  describe('signature verification (#63)', () => {
+    const KEY = 'test-signing-key';
+
+    it('accepts a message with a valid signature and dispatches the handler', async () => {
+      const producer = { sendRaw: jest.fn() };
+      const service = makeService(producer, { signingKey: KEY });
+      const handler = jest.fn().mockResolvedValue(undefined);
+      const value = JSON.stringify(goodEnvelope());
+      const p = payload({ value });
+      p.message.headers = { [SIGNATURE_HEADER]: signMessage(value, KEY) };
+
+      await service['processMessage'](p, handler);
+
+      expect(handler).toHaveBeenCalledTimes(1);
+      expect(producer.sendRaw).not.toHaveBeenCalled();
+    });
+
+    it('sends unsigned messages to DLQ without invoking the handler', async () => {
+      const producer = { sendRaw: jest.fn().mockResolvedValue(undefined) };
+      const service = makeService(producer, { signingKey: KEY });
+      const handler = jest.fn();
+      const p = payload({ value: JSON.stringify(goodEnvelope()) });
+      // no headers set
+
+      await service['processMessage'](p, handler);
+
+      expect(handler).not.toHaveBeenCalled();
+      expect(producer.sendRaw).toHaveBeenCalledTimes(1);
+      const [, dlqBodyStr] = producer.sendRaw.mock.calls[0];
+      const dlqBody = JSON.parse(dlqBodyStr) as FailedMessageEnvelope;
+      expect(dlqBody.error).toMatch(/Missing.*signature/);
+    });
+
+    it('sends tampered messages to DLQ (signature no longer matches)', async () => {
+      const producer = { sendRaw: jest.fn().mockResolvedValue(undefined) };
+      const service = makeService(producer, { signingKey: KEY });
+      const handler = jest.fn();
+      const originalValue = JSON.stringify(goodEnvelope());
+      const sig = signMessage(originalValue, KEY);
+      const tampered = originalValue.replace('t-1', 't-999');
+      const p = payload({ value: tampered });
+      p.message.headers = { [SIGNATURE_HEADER]: sig };
+
+      await service['processMessage'](p, handler);
+
+      expect(handler).not.toHaveBeenCalled();
+      const [, dlqBodyStr] = producer.sendRaw.mock.calls[0];
+      const dlqBody = JSON.parse(dlqBodyStr) as FailedMessageEnvelope;
+      expect(dlqBody.error).toMatch(/Invalid.*signature/);
+    });
+
+    it('accepts messages signed with the previous key during rotation', async () => {
+      const producer = { sendRaw: jest.fn() };
+      const PREV = 'previous-key';
+      const service = makeService(producer, { signingKey: KEY, signingKeyPrev: PREV });
+      const handler = jest.fn().mockResolvedValue(undefined);
+      const value = JSON.stringify(goodEnvelope());
+      const p = payload({ value });
+      // Signed with the PREVIOUS key — represents a producer that hasn't yet
+      // rotated to the new primary.
+      p.message.headers = { [SIGNATURE_HEADER]: signMessage(value, PREV) };
+
+      await service['processMessage'](p, handler);
+
+      expect(handler).toHaveBeenCalledTimes(1);
+      expect(producer.sendRaw).not.toHaveBeenCalled();
+    });
+
+    it('skips verification entirely when no signing key is configured (dev/test default)', async () => {
+      const producer = { sendRaw: jest.fn() };
+      const service = makeService(producer); // no signingKey
+      const handler = jest.fn().mockResolvedValue(undefined);
+      const p = payload({ value: JSON.stringify(goodEnvelope()) });
+      // no signature header set
+
+      await service['processMessage'](p, handler);
+
+      expect(handler).toHaveBeenCalledTimes(1);
+      expect(producer.sendRaw).not.toHaveBeenCalled();
+    });
+  });
 });

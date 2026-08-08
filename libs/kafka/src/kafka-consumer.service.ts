@@ -4,6 +4,7 @@ import { FailedMessageEnvelope, KafkaEventEnvelope } from '@household/contracts'
 import { KAFKA_MODULE_OPTIONS } from './kafka.constants';
 import { KafkaModuleOptions } from './interfaces/kafka-options.interface';
 import { KafkaProducerService } from './kafka-producer.service';
+import { SIGNATURE_HEADER, verifyMessage } from './signing';
 
 export type MessageHandler<T = Record<string, unknown>> = (
   envelope: KafkaEventEnvelope<T>,
@@ -62,6 +63,32 @@ export class KafkaConsumerService implements OnModuleDestroy {
   ): Promise<void> {
     const raw = payload.message.value?.toString();
     if (!raw) return;
+
+    // Provenance check (#63). If a signing key is configured, verify the
+    // message header before doing anything else — unauthenticated messages
+    // (missing header, wrong key, tampered payload) go straight to DLQ.
+    // When no key is configured (dev / test), signing is skipped entirely
+    // to preserve the existing zero-config workflow.
+    if (this.options.signingKey) {
+      const sigHeader = payload.message.headers?.[SIGNATURE_HEADER];
+      const signature = typeof sigHeader === 'string' ? sigHeader : sigHeader?.toString();
+      const matched = signature
+        ? verifyMessage(raw, signature, this.options.signingKey, this.options.signingKeyPrev)
+        : null;
+      if (!matched) {
+        this.logger.error(
+          `Signature check failed on ${payload.topic}@${payload.partition}:${payload.message.offset} — sending to DLQ`,
+        );
+        await this.publishToDLQ(
+          payload,
+          raw,
+          null,
+          new Error(signature ? 'Invalid Kafka message signature' : 'Missing Kafka message signature'),
+          0,
+        );
+        return;
+      }
+    }
 
     // Parse errors are terminal — no point retrying a message we can't even
     // deserialize. Straight to DLQ so a human can inspect the bad payload.

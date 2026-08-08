@@ -41,6 +41,8 @@ export class KafkaModule {
           useFactory: (config: ConfigService): KafkaModuleOptions => ({
             clientId,
             brokers: config.get<string>('KAFKA_BROKERS', 'localhost:9092').split(','),
+            signingKey: config.get<string>('KAFKA_SIGNING_KEY'),
+            signingKeyPrev: config.get<string>('KAFKA_SIGNING_KEY_PREV'),
           }),
           inject: [ConfigService],
         },
