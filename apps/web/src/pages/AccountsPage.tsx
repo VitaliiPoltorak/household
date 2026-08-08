@@ -170,8 +170,10 @@ export function AccountsPage() {
     enabled: !!hid,
   });
 
-  // Sort A-Z client-side — prevents visual jumps after revalidation
-  const sortedAccounts = [...accounts].sort((a, b) => a.name.localeCompare(b.name));
+  // Backend already sorts by name (accounts.service.ts findAll). Re-sorting
+  // client-side with the browser locale drifted from PostgreSQL's collation
+  // (#79) — same list looked different across browsers. Rely on server order.
+  const sortedAccounts = accounts;
 
   const ratesNeeded = sortedAccounts.some(a => a.currency !== baseCurrency);
   const ratesState = useRatesState(ratesNeeded);

@@ -59,7 +59,10 @@ export class ShoppingListsService {
   findAll(householdId: string, status?: ListStatus): Promise<ShoppingList[]> {
     const where: Record<string, unknown> = { householdId };
     if (status) where['status'] = status;
-    return this.listRepo.find({ where, order: { createdAt: 'DESC' } });
+    // Sort by name to keep a single source of truth (#79). Web used to
+    // re-sort client-side which caused cross-browser inconsistencies when
+    // the browser's collation disagreed with PostgreSQL's default.
+    return this.listRepo.find({ where, order: { name: 'ASC' } });
   }
 
   async findOne(id: string, householdId: string): Promise<ShoppingList> {

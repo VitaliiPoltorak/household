@@ -23,12 +23,14 @@ export function ShoppingPage() {
   const [selectedList, setSelectedList] = useState<ShoppingList | null>(null);
   const [showCreate, setShowCreate] = useState(false);
 
-  const { data: rawLists = [], isLoading } = useQuery({
+  const { data: lists = [], isLoading } = useQuery({
     queryKey: ['shopping-lists', hid, statusFilter],
     queryFn: () => shoppingApi.getLists(hid, statusFilter),
     enabled: !!hid,
   });
-  const lists = [...rawLists].sort((a, b) => a.name.localeCompare(b.name));
+  // Backend now sorts alphabetically (matches the earlier client-side intent).
+  // Sorting in one place only prevents the browser-locale vs SQL-collation
+  // mismatch we had before #79.
 
   const { data: openList } = useQuery({
     queryKey: ['shopping-list', selectedList?.id, hid],
