@@ -41,6 +41,25 @@ export class KafkaProducerService
     if (this.connected) await this.producer.disconnect();
   }
 
+  // Raw publish for cases where the caller has already serialized the
+  // payload — currently only the DLQ path in KafkaConsumerService. Do not
+  // reach for this from application code; use emit() so events go through
+  // the shared envelope contract.
+  async sendRaw(topic: string, value: string, key?: string): Promise<void> {
+    if (!this.connected) {
+      this.logger.warn(`Kafka not connected, skipping raw send to ${topic}`);
+      return;
+    }
+    try {
+      await this.producer.send({
+        topic,
+        messages: [{ key: key ?? null, value }],
+      });
+    } catch (err) {
+      this.logger.error(`Failed raw send to ${topic}: ${(err as Error).message}`);
+    }
+  }
+
   async emit<T extends Record<string, unknown>>(
     eventType: string,
     payload: T,
