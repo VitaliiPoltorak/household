@@ -184,7 +184,12 @@
     "confirmEmail": "Geben Sie Ihre E-Mail zur Bestätigung ein",
     "saved": "Gespeichert",
     "saving": "Speichert…",
-    "manage": "Verwalten"
+    "manage": "Verwalten",
+    "security": "Sicherheit",
+    "logoutAll": "Von allen Geräten abmelden",
+    "logoutAllDesc": "Beendet jede aktive Sitzung Ihres Kontos in allen Browsern und auf allen Geräten. Nützlich, wenn Sie einen gestohlenen Refresh-Token vermuten.",
+    "logoutAllWarning": "Sie werden auch hier abgemeldet und müssen sich neu anmelden.",
+    "logoutAllConfirm": "Überall abmelden"
   },
   "categoryMgmt": {
     "title": "Kategorien",

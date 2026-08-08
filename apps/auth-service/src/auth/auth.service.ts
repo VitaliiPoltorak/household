@@ -79,6 +79,12 @@ export class AuthService {
     await this.sessions.deleteSession(sessionId);
   }
 
+  // Revokes every session for the user (all devices). Used both by the
+  // logout-all endpoint and by refresh-token-reuse detection above.
+  async logoutAll(userId: string): Promise<void> {
+    await this.sessions.deleteAllUserSessions(userId);
+  }
+
   async getProfile(userId: string): Promise<User> {
     const user = await this.users.findById(userId);
     if (!user) throw new UnauthorizedException('User not found');
