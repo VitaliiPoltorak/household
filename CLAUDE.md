@@ -77,6 +77,15 @@ Routes decorated with `@Public()` skip the JWT guard.
 
 Uses **TypeORM** (not Prisma). OAuth strategies for Google, Apple, Facebook live in `src/auth/strategies/`. Issues short-lived JWT access tokens (15 min) and stores refresh tokens in Redis under `session:{userId}`. Publishes `auth.user.created` / `auth.user.deleted` to Kafka.
 
+**Token flow (post-#60):**
+- **Access token** — returned in login/refresh response body. Web keeps it in memory only (never localStorage) — see `apps/web/src/api/client.ts` `setAccessToken/getAccessToken`. Sent as `Authorization: Bearer` on every API call.
+- **Refresh token + session id** — packed as `base64(sessionId.refreshToken)` and set as `household_refresh` HttpOnly, Secure, SameSite=None cookie scoped to `Path=/api/v1/auth`. XSS cannot read it (HttpOnly).
+- **CSRF token** — `household_csrf` cookie (readable by JS, deliberately) set alongside refresh cookie. The SPA echoes it in the `X-CSRF-Token` header on `/auth/refresh` — double-submit CSRF pattern.
+- **On page load**, `AuthContext` reads the CSRF cookie as a cheap "is logged in?" probe. If present, it POSTs `/auth/refresh` (cookies auto-attached), gets a new access token, then loads `/auth/me`. Cookies auto-rotate.
+- **Legacy migration** (from pre-#60 localStorage tokens): `MigrationBanner` gates the whole app when it detects remnants in localStorage. User re-authenticates once, banner disappears permanently after `MigrationBanner` clears the legacy keys.
+
+Env: `AUTH_COOKIE_SECURE=true` (default). Set to `false` only for http:// dev on non-localhost.
+
 ### Kafka event envelope
 
 All inter-service events use this schema (defined in `libs/contracts` when built):

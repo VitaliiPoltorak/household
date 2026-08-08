@@ -12,10 +12,12 @@ export const MOCK_USER = {
   createdAt: '2026-01-01T00:00:00Z',
 };
 
-export const MOCK_TOKENS = {
+// Post-#60 login response shape (LoginResponse in types/api.ts).
+// refreshToken + sessionId are no longer returned in the body — they're set
+// as HttpOnly cookies which MSW isn't wired to inspect. Tests exercise the
+// endpoints through the api/client layer which handles cookies via fetch.
+export const MOCK_LOGIN_RESPONSE = {
   accessToken: 'mock-access-token',
-  refreshToken: 'mock-refresh-token',
-  sessionId: 'mock-session-id',
   expiresIn: 900,
 };
 
@@ -56,9 +58,10 @@ export const MOCK_TRANSACTION = {
 // --- Handlers ---
 export const handlers = [
   // Auth
-  http.post(`${BASE}/auth/google`, () => HttpResponse.json(MOCK_TOKENS)),
-  http.post(`${BASE}/auth/refresh`, () => HttpResponse.json(MOCK_TOKENS)),
+  http.post(`${BASE}/auth/google`, () => HttpResponse.json(MOCK_LOGIN_RESPONSE)),
+  http.post(`${BASE}/auth/refresh`, () => HttpResponse.json(MOCK_LOGIN_RESPONSE)),
   http.post(`${BASE}/auth/logout`, () => new HttpResponse(null, { status: 204 })),
+  http.post(`${BASE}/auth/logout-all`, () => new HttpResponse(null, { status: 204 })),
   http.get(`${BASE}/auth/me`, () => HttpResponse.json(MOCK_USER)),
   http.patch(`${BASE}/auth/me`, () => HttpResponse.json(MOCK_USER)),
 

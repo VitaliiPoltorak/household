@@ -11,6 +11,7 @@ import {
 } from '../lib/socket';
 import { useAuth } from './AuthContext';
 import { useHousehold } from './HouseholdContext';
+import { getAccessToken } from '../api/client';
 
 // Map entity type → TanStack query keys to invalidate
 const ENTITY_KEYS: Record<string, string[]> = {
@@ -32,7 +33,7 @@ interface SocketContextValue {
 const SocketContext = createContext<SocketContextValue | null>(null);
 
 export function SocketProvider({ children }: { children: ReactNode }) {
-  const { user, accessToken } = useAuth();
+  const { user } = useAuth();
   const { activeHousehold } = useHousehold();
   const qc = useQueryClient();
 
@@ -42,8 +43,11 @@ export function SocketProvider({ children }: { children: ReactNode }) {
   const activeRoomRef = useRef<string | null>(null);
   const heartbeatRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Connect / disconnect based on auth state
+  // Connect / disconnect based on auth state. Access token lives in the
+  // api/client module after #60; we snapshot it here — a fresh token from
+  // refresh will trigger a re-render via `user` change so we reconnect.
   useEffect(() => {
+    const accessToken = getAccessToken();
     if (!user || !accessToken) {
       disconnectSocket();
       setIsConnected(false);
@@ -97,7 +101,7 @@ export function SocketProvider({ children }: { children: ReactNode }) {
       s.off(ServerEvents.PRESENCE_SNAPSHOT);
       s.off(ServerEvents.PRESENCE_UPDATE);
     };
-  }, [user, accessToken, qc]);
+  }, [user, qc]);
 
   // Join / leave household room
   useEffect(() => {

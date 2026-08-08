@@ -7,8 +7,11 @@ const PUBLIC_PATHS = [
   '/api/v1/auth/google',
   '/api/v1/auth/apple',
   '/api/v1/auth/facebook',
-  '/api/v1/auth/refresh',
-  '/api/v1/auth/logout',
+  '/api/v1/auth/oauth',   // canonical /auth/oauth/:provider
+  '/api/v1/auth/refresh', // cookie-authenticated after #60
+  '/api/v1/auth/logout',  // cookie-authenticated after #60
+  // NOTE: /api/v1/auth/logout-all is intentionally NOT here — it needs the
+  // JWT so the gateway can populate X-User-Id for the auth service.
 ];
 
 export function createJwtMiddleware(secret: string) {

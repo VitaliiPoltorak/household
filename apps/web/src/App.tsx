@@ -5,6 +5,7 @@ import { GoogleOAuthProvider } from '@react-oauth/google';
 import { AuthProvider } from './contexts/AuthContext';
 import { HouseholdProvider } from './contexts/HouseholdContext';
 import { SocketProvider } from './contexts/SocketContext';
+import { MigrationBanner } from './components/auth/MigrationBanner';
 import { router } from './router';
 
 const queryClient = new QueryClient({
@@ -20,11 +21,13 @@ export function App() {
     <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
-          <HouseholdProvider>
-            <SocketProvider>
-              <RouterProvider router={router} />
-            </SocketProvider>
-          </HouseholdProvider>
+          <MigrationBanner>
+            <HouseholdProvider>
+              <SocketProvider>
+                <RouterProvider router={router} />
+              </SocketProvider>
+            </HouseholdProvider>
+          </MigrationBanner>
         </AuthProvider>
         <ReactQueryDevtools initialIsOpen={false} />
       </QueryClientProvider>

@@ -19,6 +19,28 @@ export class ApiError extends Error {
   }
 }
 
+// Access token is kept in memory only (#60) — never localStorage. AuthContext
+// sets it on login and after successful refresh; api/client.ts reads it here.
+// A module-level ref keeps client.ts free of React imports (no circular dep
+// via AuthContext).
+let accessToken: string | null = null;
+
+export function setAccessToken(token: string | null): void {
+  accessToken = token;
+}
+
+export function getAccessToken(): string | null {
+  return accessToken;
+}
+
+// The CSRF cookie is deliberately NOT HttpOnly so we can read it here and
+// echo it back in the X-CSRF-Token header on the refresh call — that's the
+// entire double-submit CSRF pattern (#61).
+export function readCsrfCookie(): string | null {
+  const match = document.cookie.match(/(?:^|;\s*)household_csrf=([^;]*)/);
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
 async function request<T>(
   method: string,
   path: string,
@@ -39,30 +61,43 @@ async function request<T>(
 
   // Build headers
   const reqHeaders: Record<string, string> = { 'Content-Type': 'application/json', ...headers };
-  const token = localStorage.getItem('accessToken');
-  if (token) reqHeaders['Authorization'] = `Bearer ${token}`;
+  if (accessToken) reqHeaders['Authorization'] = `Bearer ${accessToken}`;
+
+  // Automatically attach CSRF token to the cookie-authenticated refresh call.
+  // Callers don't need to remember — the token is a defence against forged
+  // cross-origin POSTs, not a semantic parameter of the operation.
+  if (path === '/auth/refresh') {
+    const csrf = readCsrfCookie();
+    if (csrf) reqHeaders['X-CSRF-Token'] = csrf;
+  }
 
   const res = await fetch(url, {
     method,
     headers: reqHeaders,
     body: body !== undefined ? JSON.stringify(body) : undefined,
+    // Cookies must ride with every request so the cookie-based /auth/refresh
+    // and /auth/logout can find them. Regular endpoints don't rely on cookies
+    // (they use Authorization Bearer) but sending credentials doesn't hurt.
+    credentials: 'include',
   });
 
   // 401 → try refresh once, retry
   if (res.status === 401 && !_retry) {
-    const sessionId = localStorage.getItem('sessionId');
-    const refreshToken = localStorage.getItem('refreshToken');
-
-    if (sessionId && refreshToken) {
+    // Only attempt refresh if we appear to have a session (CSRF cookie present).
+    // Without it, the refresh call itself would 401/403 — skip the round trip.
+    if (readCsrfCookie()) {
       try {
         const refreshRes = await fetch(`${API_URL}/auth/refresh`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ sessionId, refreshToken }),
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-Token': readCsrfCookie() ?? '',
+          },
+          credentials: 'include',
         });
         if (refreshRes.ok) {
           const data = (await refreshRes.json()) as { accessToken: string };
-          localStorage.setItem('accessToken', data.accessToken);
+          accessToken = data.accessToken;
           return request<T>(method, path, { ...options, _retry: true });
         }
       } catch {
@@ -92,6 +127,10 @@ async function request<T>(
 }
 
 export function clearSession() {
+  accessToken = null;
+  // Legacy keys from the pre-#60 localStorage flow. Users who complete
+  // migration land here — clean up so a stale key doesn't re-trigger the
+  // migration banner on the next visit.
   localStorage.removeItem('accessToken');
   localStorage.removeItem('refreshToken');
   localStorage.removeItem('sessionId');

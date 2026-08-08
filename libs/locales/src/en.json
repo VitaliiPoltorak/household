@@ -37,7 +37,12 @@
     "subtitle": "Family finance & shopping",
     "signInWithGoogle": "Sign in with Google",
     "loginError": "Login failed. Please try again.",
-    "logout": "Sign out"
+    "logout": "Sign out",
+    "migration": {
+      "title": "Security update",
+      "body": "We've improved how your account keeps you signed in. Please sign in one more time — it takes a few seconds and we'll bring you back to where you were.",
+      "cta": "Sign in again"
+    }
   },
   "dashboard": {
     "totalBalance": "Total balance",

@@ -37,7 +37,12 @@
     "subtitle": "Finanzas familiares y compras",
     "signInWithGoogle": "Iniciar sesión con Google",
     "loginError": "Error al iniciar sesión. Inténtalo de nuevo.",
-    "logout": "Cerrar sesión"
+    "logout": "Cerrar sesión",
+    "migration": {
+      "title": "Actualización de seguridad",
+      "body": "Hemos mejorado cómo mantenemos tu sesión iniciada. Por favor, inicia sesión una vez más — solo tomará unos segundos y te llevaremos de vuelta a donde estabas.",
+      "cta": "Iniciar sesión de nuevo"
+    }
   },
   "dashboard": {
     "totalBalance": "Balance total",

@@ -47,30 +47,6 @@ export class FacebookAuthDto {
   deviceInfo?: string;
 }
 
-export class RefreshTokenDto {
-  @ApiProperty()
-  @IsString()
-  @IsNotEmpty()
-  sessionId: string;
-
-  @ApiProperty()
-  @IsString()
-  @IsNotEmpty()
-  refreshToken: string;
-
-  @ApiPropertyOptional()
-  @IsString()
-  @IsOptional()
-  deviceInfo?: string;
-}
-
-export class LogoutDto {
-  @ApiProperty()
-  @IsString()
-  @IsNotEmpty()
-  sessionId: string;
-}
-
 /**
  * Canonical body for the provider-agnostic `POST /auth/oauth/:provider`
  * endpoint. The `meta` field is forwarded verbatim to the strategy for
