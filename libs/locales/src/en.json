@@ -82,6 +82,11 @@
       "hint": "This creates an adjustment transaction so balance history stays consistent.",
       "invalidNumber": "Enter a valid number.",
       "noChange": "New balance is the same as the current balance."
+    },
+    "rates": {
+      "unavailable": "Exchange rates unavailable",
+      "unavailableDesc": "PrivatBank rates couldn't be fetched. The estimated total is hidden to avoid showing a wrong number.",
+      "cached": "cached"
     }
   },
   "transactions": {

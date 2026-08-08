@@ -71,4 +71,106 @@ describe('AccountsPage', () => {
 
     await waitFor(() => expect(screen.queryByText('Mono Card')).not.toBeInTheDocument(), { timeout: 3000 });
   });
+
+  describe('Multi-currency estimated total (#80)', () => {
+    const UAH_ACCOUNT = { ...MOCK_ACCOUNT, id: 'acc-uah', name: 'UAH Bank', currency: 'UAH', balance: 5000 };
+    const USD_ACCOUNT = { ...MOCK_ACCOUNT, id: 'acc-usd', name: 'USD Savings', currency: 'USD', balance: 100 };
+
+    beforeEach(() => {
+      // Clean slate — the cache key is a shared side-channel we control.
+      localStorage.removeItem('accounts:ratesCache');
+      localStorage.setItem('accounts:baseCurrency', 'UAH');
+    });
+
+    it('shows the estimated total using live PrivatBank rates', async () => {
+      server.use(
+        http.get('/api/v1/accounts', () => HttpResponse.json([UAH_ACCOUNT, USD_ACCOUNT])),
+        http.get('https://api.privatbank.ua/p24api/pubinfo', () =>
+          HttpResponse.json([{ ccy: 'USD', base_ccy: 'UAH', buy: '41.50', sale: '42.00' }]),
+        ),
+      );
+
+      renderWithProviders(<AccountsPage />);
+      // Live total: 5000 + (100 * 41.50) = 9150 UAH
+      await waitFor(() => expect(screen.getByText(/9,150\.00/)).toBeInTheDocument(), { timeout: 3000 });
+      expect(screen.queryByText(/Exchange rates unavailable/)).not.toBeInTheDocument();
+    });
+
+    it('shows unavailable banner when PrivatBank fails and no cache exists', async () => {
+      server.use(
+        http.get('/api/v1/accounts', () => HttpResponse.json([UAH_ACCOUNT, USD_ACCOUNT])),
+        http.get('https://api.privatbank.ua/p24api/pubinfo', () =>
+          new HttpResponse(null, { status: 503 }),
+        ),
+      );
+
+      renderWithProviders(<AccountsPage />);
+      await waitFor(
+        () => expect(screen.getByText('Exchange rates unavailable')).toBeInTheDocument(),
+        { timeout: 3000 },
+      );
+      // Critically: the aggregate is NOT rendered as ₴100 (silent 1:1 fallback).
+      // Look for any UAH-formatted number matching a wrong value. Per-currency
+      // breakdown still shows ($100.00 and ₴5,000.00) — but no bogus total.
+      expect(screen.queryByText(/5,100/)).not.toBeInTheDocument();
+    });
+
+    it('falls back to cached rates when live fetch fails', async () => {
+      // Prime the cache as if a previous successful fetch had written it.
+      localStorage.setItem(
+        'accounts:ratesCache',
+        JSON.stringify({ rates: { UAH: 1, USD: 40 }, at: Date.now() - 60_000 }),
+      );
+
+      server.use(
+        http.get('/api/v1/accounts', () => HttpResponse.json([UAH_ACCOUNT, USD_ACCOUNT])),
+        http.get('https://api.privatbank.ua/p24api/pubinfo', () =>
+          new HttpResponse(null, { status: 503 }),
+        ),
+      );
+
+      renderWithProviders(<AccountsPage />);
+      // Cached total: 5000 + (100 * 40) = 9000 UAH, tagged "cached"
+      await waitFor(() => expect(screen.getByText(/9,000\.00/)).toBeInTheDocument(), { timeout: 3000 });
+      expect(screen.getByText(/cached/)).toBeInTheDocument();
+    });
+
+    it('ignores stale cache older than 7 days and shows unavailable', async () => {
+      const EIGHT_DAYS_AGO = Date.now() - 8 * 24 * 60 * 60 * 1000;
+      localStorage.setItem(
+        'accounts:ratesCache',
+        JSON.stringify({ rates: { UAH: 1, USD: 40 }, at: EIGHT_DAYS_AGO }),
+      );
+
+      server.use(
+        http.get('/api/v1/accounts', () => HttpResponse.json([UAH_ACCOUNT, USD_ACCOUNT])),
+        http.get('https://api.privatbank.ua/p24api/pubinfo', () =>
+          new HttpResponse(null, { status: 503 }),
+        ),
+      );
+
+      renderWithProviders(<AccountsPage />);
+      await waitFor(
+        () => expect(screen.getByText('Exchange rates unavailable')).toBeInTheDocument(),
+        { timeout: 3000 },
+      );
+    });
+
+    it('does not fetch rates when all accounts share the base currency', async () => {
+      let pbCalls = 0;
+      server.use(
+        http.get('/api/v1/accounts', () => HttpResponse.json([UAH_ACCOUNT])),
+        http.get('https://api.privatbank.ua/p24api/pubinfo', () => {
+          pbCalls++;
+          return HttpResponse.json([]);
+        }),
+      );
+
+      renderWithProviders(<AccountsPage />);
+      await waitFor(() => screen.getByText('UAH Bank'), { timeout: 3000 });
+      // Simple total renders, no banner, no rates request
+      expect(screen.queryByText(/Exchange rates unavailable/)).not.toBeInTheDocument();
+      expect(pbCalls).toBe(0);
+    });
+  });
 });

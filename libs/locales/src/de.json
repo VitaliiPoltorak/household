@@ -82,6 +82,11 @@
       "hint": "Erstellt eine Ausgleichsbuchung, damit die Saldenhistorie konsistent bleibt.",
       "invalidNumber": "Bitte gültige Zahl eingeben.",
       "noChange": "Neuer Saldo entspricht dem aktuellen."
+    },
+    "rates": {
+      "unavailable": "Wechselkurse nicht verfügbar",
+      "unavailableDesc": "PrivatBank-Kurse konnten nicht geladen werden. Die geschätzte Summe ist ausgeblendet, um keine falsche Zahl anzuzeigen.",
+      "cached": "aus Cache"
     }
   },
   "transactions": {
