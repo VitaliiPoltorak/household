@@ -11,6 +11,8 @@ export const authApi = {
   logout: (sessionId: string) =>
     api.post('/auth/logout', { sessionId }),
 
+  logoutAll: () => api.post('/auth/logout-all', {}),
+
   getMe: () => api.get<User>('/auth/me'),
 
   updateProfile: (data: { displayName?: string; locale?: string }) =>

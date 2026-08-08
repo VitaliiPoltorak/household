@@ -93,6 +93,15 @@ export class AuthController {
     await this.auth.logout(dto.sessionId);
   }
 
+  @Post('logout-all')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Sign out from all devices — revokes every session for this user' })
+  @ApiHeader({ name: 'x-user-id', required: true })
+  async logoutAll(@Headers('x-user-id') userId: string) {
+    this.requireUserId(userId);
+    await this.auth.logoutAll(userId);
+  }
+
   @Get('me')
   @ApiOperation({ summary: 'Get current user profile' })
   @ApiHeader({ name: 'x-user-id', required: true })

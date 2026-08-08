@@ -184,7 +184,12 @@
     "confirmEmail": "Type your email to confirm",
     "saved": "Saved",
     "saving": "Saving…",
-    "manage": "Manage"
+    "manage": "Manage",
+    "security": "Security",
+    "logoutAll": "Sign out from all devices",
+    "logoutAllDesc": "End every active session for your account across all browsers and devices. Useful if you suspect a stolen refresh token.",
+    "logoutAllWarning": "You'll be signed out here too. You'll need to sign in again.",
+    "logoutAllConfirm": "Sign out everywhere"
   },
   "categoryMgmt": {
     "title": "Categories",

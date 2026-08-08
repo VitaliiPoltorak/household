@@ -184,7 +184,12 @@
     "confirmEmail": "Escribe tu correo para confirmar",
     "saved": "Guardado",
     "saving": "Guardando…",
-    "manage": "Gestionar"
+    "manage": "Gestionar",
+    "security": "Seguridad",
+    "logoutAll": "Cerrar sesión en todos los dispositivos",
+    "logoutAllDesc": "Finaliza todas las sesiones activas de tu cuenta en todos los navegadores y dispositivos. Útil si sospechas que te robaron un token de refresco.",
+    "logoutAllWarning": "También se cerrará tu sesión aquí. Tendrás que iniciar sesión de nuevo.",
+    "logoutAllConfirm": "Cerrar sesión en todas partes"
   },
   "categoryMgmt": {
     "title": "Categorías",

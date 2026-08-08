@@ -24,8 +24,72 @@ export function SettingsPage() {
       <ProfileSection user={user} />
       <PreferencesSection i18n={i18n} />
       <ManageSection />
+      <SecuritySection logout={logout} navigate={navigate} />
       <DangerSection user={user} logout={logout} navigate={navigate} />
     </div>
+  );
+}
+
+// ──────────────────────────────────────────────
+// Security section
+// ──────────────────────────────────────────────
+function SecuritySection({
+  logout,
+  navigate,
+}: {
+  logout: () => Promise<void>;
+  navigate: ReturnType<typeof useNavigate>;
+}) {
+  const { t } = useTranslation();
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
+
+  const handleLogoutAll = async () => {
+    setSigningOut(true);
+    try {
+      // Server invalidates every session for this user, including the one we
+      // just used to make the request. Then clear local state and go to login.
+      await authApi.logoutAll();
+      await logout();
+      navigate('/login');
+    } catch {
+      setSigningOut(false);
+    }
+  };
+
+  return (
+    <Section title={t('settings.security')}>
+      <div className="rounded-xl border border-gray-200 bg-white p-4 space-y-3">
+        <p className="text-sm text-gray-600">{t('settings.logoutAllDesc')}</p>
+        {!showConfirm ? (
+          <Button variant="secondary" size="sm" onClick={() => setShowConfirm(true)}>
+            {t('settings.logoutAll')}
+          </Button>
+        ) : (
+          <div className="space-y-2">
+            <p className="text-sm text-amber-700">{t('settings.logoutAllWarning')}</p>
+            <div className="flex gap-2">
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={signingOut}
+                onClick={() => setShowConfirm(false)}
+              >
+                {t('common.cancel')}
+              </Button>
+              <Button
+                variant="danger"
+                size="sm"
+                disabled={signingOut}
+                onClick={handleLogoutAll}
+              >
+                {signingOut ? '…' : t('settings.logoutAllConfirm')}
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
+    </Section>
   );
 }
 
