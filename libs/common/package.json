@@ -2,6 +2,9 @@
   "name": "@household/common",
   "version": "0.0.1",
   "private": true,
+  "scripts": {
+    "test:unit": "jest --config jest.unit.config.js"
+  },
   "dependencies": {
     "@nestjs/config": "^3.2.0",
     "jsonwebtoken": "^9.0.2"

@@ -9,6 +9,7 @@ import {
 } from '@nestjs/websockets';
 import { Logger } from '@nestjs/common';
 import { Server, Socket } from 'socket.io';
+import { maskId } from '@household/common';
 import { PresenceService } from '../presence/presence.service';
 import { MembershipService } from '../membership/membership.service';
 import {
@@ -39,7 +40,7 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
     }
     // Store household IDs joined by this socket for reliable disconnect cleanup
     client.data.householdIds = new Set<string>();
-    this.logger.debug(`Connected: ${userId} (${client.id})`);
+    this.logger.debug(`Connected: user=${maskId(userId)} sock=${maskId(client.id)}`);
   }
 
   async handleDisconnect(client: Socket): Promise<void> {
@@ -60,8 +61,8 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
     }
 
     this.logger.debug(
-      `Disconnected: ${userId} (${client.id})` +
-        (offlineInHouseholds.length ? ` — offline in: ${offlineInHouseholds.join(', ')}` : ''),
+      `Disconnected: user=${maskId(userId)} sock=${maskId(client.id)}` +
+        (offlineInHouseholds.length ? ` — offline in ${offlineInHouseholds.length} household(s)` : ''),
     );
   }
 
@@ -75,7 +76,7 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
     if (payload.roomName.startsWith('household:')) {
       const householdId = payload.roomName.replace('household:', '');
       if (!(await this.membership.isMember(userId, householdId))) {
-        this.logger.warn(`User ${userId} denied join for household ${householdId}`);
+        this.logger.warn(`User ${maskId(userId)} denied join for household ${maskId(householdId)}`);
         client.emit('error', { message: 'Not a member of this household' });
         return;
       }

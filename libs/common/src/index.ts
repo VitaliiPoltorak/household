@@ -4,3 +4,4 @@ export * from './gateway-signature/gateway-signature';
 export * from './gateway-signature/gateway-signature.middleware';
 export * from './jwt/verify';
 export * from './jwt/token-ttl';
+export * from './logging/redact';
