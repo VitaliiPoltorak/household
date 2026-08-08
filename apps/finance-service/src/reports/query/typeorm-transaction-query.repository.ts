@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { nextDayIso } from '@household/common';
 import { Transaction } from '../../transactions/entities/transaction.entity';
 import type {
   CategoryAggregate,
@@ -27,7 +28,8 @@ export class TypeormTransactionQueryRepository implements ITransactionQueryRepos
       .addSelect(`SUM(CASE WHEN t.type = 'expense' THEN CAST(t.amount AS FLOAT) ELSE 0 END)`, 'expense')
       .where('t."household_id" = :householdId', { householdId })
       .andWhere('t.date >= :from', { from: range.from })
-      .andWhere('t.date <= :to', { to: range.to })
+      // Half-open upper bound so this stays correct if the column becomes TIMESTAMP (#82).
+      .andWhere('t.date < :toExclusive', { toExclusive: nextDayIso(range.to) })
       .andWhere(`t.type IN ('income', 'expense')`)
       .groupBy('t.date')
       .orderBy('t.date', 'ASC')
@@ -52,7 +54,8 @@ export class TypeormTransactionQueryRepository implements ITransactionQueryRepos
       .addSelect('COUNT(*)', 'count')
       .where('t."household_id" = :householdId', { householdId })
       .andWhere('t.date >= :from', { from: range.from })
-      .andWhere('t.date <= :to', { to: range.to })
+      // Half-open upper bound so this stays correct if the column becomes TIMESTAMP (#82).
+      .andWhere('t.date < :toExclusive', { toExclusive: nextDayIso(range.to) })
       .andWhere('t.type = :type', { type })
       .groupBy('t."category_id"')
       .orderBy('total', 'DESC')

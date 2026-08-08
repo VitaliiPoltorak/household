@@ -426,6 +426,29 @@ describe('Transactions (integration)', () => {
       expect(res.body).toHaveLength(1);
       expect(res.body[0].date).toBe('2026-07-15');
     });
+
+    it('includes transactions on the exact boundary date (#82 regression)', async () => {
+      // Before #82 the filter was `date <= :to`. That works while the column
+      // is DATE but silently drops rows dated exactly `to` if it becomes
+      // TIMESTAMP. Half-open interval keeps this test green either way.
+      const accountId = await createAccount(app, 'Bank');
+      await request(app.getHttpServer())
+        .post('/transactions')
+        .set('X-User-Id', U).set('X-Household-Id', H)
+        .send({ accountId, type: 'income', amount: 100, currency: 'UAH', date: '2026-07-31' });
+      await request(app.getHttpServer())
+        .post('/transactions')
+        .set('X-User-Id', U).set('X-Household-Id', H)
+        .send({ accountId, type: 'income', amount: 200, currency: 'UAH', date: '2026-08-01' });
+
+      const res = await request(app.getHttpServer())
+        .get('/transactions?from=2026-07-01&to=2026-07-31')
+        .set('X-User-Id', U).set('X-Household-Id', H)
+        .expect(200);
+
+      expect(res.body).toHaveLength(1);
+      expect(res.body[0].date).toBe('2026-07-31');
+    });
   });
 
   describe('Validation', () => {

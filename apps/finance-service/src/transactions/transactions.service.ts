@@ -2,6 +2,7 @@ import { Inject, Injectable, NotFoundException, BadRequestException } from '@nes
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { EVENT_PUBLISHER, IEventPublisher } from '@household/contracts';
+import { nextDayIso } from '@household/common';
 import { AccountsService } from '../accounts/accounts.service';
 import { CategoriesService } from '../categories/categories.service';
 import { IncomeSourcesService } from '../income-sources/income-sources.service';
@@ -102,8 +103,10 @@ export class TransactionsService {
 
     const qb = this.repo.createQueryBuilder('t').where(where);
 
+    // Half-open interval on the upper bound so the query stays correct if
+    // Transaction.date is ever migrated from DATE to TIMESTAMP (#82).
     if (query.from) qb.andWhere('t.date >= :from', { from: query.from });
-    if (query.to) qb.andWhere('t.date <= :to', { to: query.to });
+    if (query.to) qb.andWhere('t.date < :toExclusive', { toExclusive: nextDayIso(query.to) });
 
     return qb.orderBy('t.date', 'DESC').getMany();
   }
