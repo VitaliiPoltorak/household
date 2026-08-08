@@ -33,7 +33,7 @@ export class KafkaConsumerService implements OnModuleDestroy {
   }
 
   async subscribe<T extends Record<string, unknown>>(
-    topics: string[],
+    topics: Array<string | RegExp>,
     groupId: string,
     handler: MessageHandler<T>,
     fromBeginning = false,
@@ -43,6 +43,9 @@ export class KafkaConsumerService implements OnModuleDestroy {
     try {
       await consumer.connect();
       for (const topic of topics) {
+        // KafkaJS accepts string | RegExp. Regex enables convention-based
+        // subscription (#94) so new event types auto-bridge without editing
+        // the subscriber list. Existing string usage keeps working.
         await consumer.subscribe({ topic, fromBeginning });
       }
 
@@ -51,7 +54,7 @@ export class KafkaConsumerService implements OnModuleDestroy {
       });
 
       this.consumers.push(consumer);
-      this.logger.log(`Subscribed to [${topics.join(', ')}] as group "${groupId}"`);
+      this.logger.log(`Subscribed to [${topics.map(String).join(', ')}] as group "${groupId}"`);
     } catch (err) {
       this.logger.warn(`Consumer subscribe issue (will retry): ${(err as Error).message}`);
     }

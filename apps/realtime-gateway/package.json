@@ -6,7 +6,8 @@
     "build": "nest build",
     "dev": "ts-node-dev -r tsconfig-paths/register --respawn --transpile-only src/main.ts",
     "start:prod": "node dist/main",
-    "lint": "eslint \"{src,test}/**/*.ts\""
+    "lint": "eslint \"{src,test}/**/*.ts\"",
+    "test:unit": "jest --config jest.unit.config.js"
   },
   "dependencies": {
     "@nestjs/common": "^10.0.0",
