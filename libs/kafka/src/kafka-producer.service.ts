@@ -8,6 +8,7 @@ import {
 } from '@household/contracts';
 import { KAFKA_MODULE_OPTIONS } from './kafka.constants';
 import { KafkaModuleOptions } from './interfaces/kafka-options.interface';
+import { signMessage, SIGNATURE_HEADER, SIGNATURE_KEY_ID_HEADER } from './signing';
 
 @Injectable()
 export class KafkaProducerService
@@ -53,7 +54,7 @@ export class KafkaProducerService
     try {
       await this.producer.send({
         topic,
-        messages: [{ key: key ?? null, value }],
+        messages: [{ key: key ?? null, value, headers: this.signatureHeaders(value) }],
       });
     } catch (err) {
       this.logger.error(`Failed raw send to ${topic}: ${(err as Error).message}`);
@@ -71,6 +72,7 @@ export class KafkaProducerService
     }
 
     const envelope = createEnvelope(eventType, payload, meta);
+    const value = JSON.stringify(envelope);
 
     try {
       await this.producer.send({
@@ -78,7 +80,8 @@ export class KafkaProducerService
         messages: [
           {
             key: meta?.userId ?? envelope.eventId,
-            value: JSON.stringify(envelope),
+            value,
+            headers: this.signatureHeaders(value),
           },
         ],
       });
@@ -86,5 +89,16 @@ export class KafkaProducerService
     } catch (err) {
       this.logger.error(`Failed to emit ${eventType}: ${(err as Error).message}`);
     }
+  }
+
+  // Signs the outgoing wire bytes when a signing key is configured (#63).
+  // No key → returns undefined so headers stay empty and dev/test workflows
+  // (which don't set KAFKA_SIGNING_KEY) keep working unchanged.
+  private signatureHeaders(rawValue: string): Record<string, string> | undefined {
+    if (!this.options.signingKey) return undefined;
+    return {
+      [SIGNATURE_HEADER]: signMessage(rawValue, this.options.signingKey),
+      [SIGNATURE_KEY_ID_HEADER]: 'primary',
+    };
   }
 }
