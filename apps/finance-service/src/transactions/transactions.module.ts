@@ -14,5 +14,6 @@ import { TransferDomainService } from './transfer-domain.service';
   imports: [TypeOrmModule.forFeature([Transaction]), AccountsModule, CategoriesModule, IncomeSourcesModule],
   controllers: [TransactionsController, AccountBalanceController],
   providers: [TransactionsService, BalanceAdjustmentService, TransferDomainService],
+  exports: [TransactionsService],
 })
 export class TransactionsModule {}
