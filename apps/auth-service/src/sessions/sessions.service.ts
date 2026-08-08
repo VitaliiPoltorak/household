@@ -2,7 +2,7 @@ import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Redis from 'ioredis';
 import { randomUUID, createHash } from 'crypto';
-import { getRefreshTtlSeconds } from '@household/common';
+import { getRefreshTtlSeconds, maskId } from '@household/common';
 
 export interface Session {
   userId: string;
@@ -87,7 +87,7 @@ export class SessionsService implements OnModuleDestroy {
         // possible if someone already consumed it. Someone else now holds a
         // token we've already retired — treat as compromise.
         this.logger.warn(
-          `Refresh-token reuse detected for session ${sessionId} (user ${ownerUserId}). Revoking all user sessions.`,
+          `Refresh-token reuse detected for session ${maskId(sessionId)} (user ${maskId(ownerUserId)}). Revoking all user sessions.`,
         );
         return { status: 'reused', userId: ownerUserId };
       }

@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { signHeaders, SIGNATURE_HEADER, TIMESTAMP_HEADER } from '@household/common';
+import { maskId, signHeaders, SIGNATURE_HEADER, TIMESTAMP_HEADER } from '@household/common';
 
 /**
  * Maintains a per-user set of household IDs the user is a member of.
@@ -48,13 +48,13 @@ export class MembershipService {
         headers: this.buildHeaders(userId),
       });
       if (!res.ok) {
-        this.logger.warn(`household-service returned ${res.status} for user ${userId}`);
+        this.logger.warn(`household-service returned ${res.status} for user ${maskId(userId)}`);
         return new Set();
       }
       const list = (await res.json()) as Array<{ id: string }>;
       return new Set(list.map((h) => h.id));
     } catch (err) {
-      this.logger.error(`Failed to fetch memberships for user ${userId}: ${(err as Error).message}`);
+      this.logger.error(`Failed to fetch memberships for user ${maskId(userId)}: ${(err as Error).message}`);
       return new Set();
     }
   }

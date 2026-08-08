@@ -2,6 +2,7 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { KafkaConsumerService } from '@household/kafka';
+import { maskId } from '@household/common';
 import { HouseholdMember } from '../households/entities/household-member.entity';
 
 @Injectable()
@@ -21,7 +22,7 @@ export class AuthEventsConsumer implements OnModuleInit {
       async (envelope) => {
         const { userId } = envelope.payload;
         const result = await this.memberRepo.delete({ userId });
-        this.logger.log(`Cleaned up ${result.affected ?? 0} memberships for deleted user ${userId}`);
+        this.logger.log(`Cleaned up ${result.affected ?? 0} memberships for deleted user ${maskId(userId)}`);
       },
     );
   }
