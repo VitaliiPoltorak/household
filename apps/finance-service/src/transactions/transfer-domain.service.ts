@@ -114,16 +114,14 @@ export class TransferDomainService {
       });
       if (legs.length === 0) return;
 
-      const resolveDirection = (leg: Transaction, index: number): TransferDirection =>
-        leg.transferDirection ?? (index === 0 ? TransferDirection.DEBIT : TransferDirection.CREDIT);
-
       for (let i = 0; i < legs.length; i++) {
         const leg = legs[i];
-        const direction = resolveDirection(leg, i);
-        // debit leg had -amount applied to its account → reverse with +amount
-        // credit leg had +amount applied to its account → reverse with -amount
-        const reverse = direction === TransferDirection.DEBIT ? Number(leg.amount) : -Number(leg.amount);
-        await this.accountsService.adjustBalance(leg.accountId, reverse, manager);
+        // For rows with transferDirection set, use the entity method.
+        // For legacy rows without direction, fall back to insertion order:
+        // older leg = DEBIT (originally -amount), newer = CREDIT (+amount).
+        const applied = leg.getTransferLegSignedAmount()
+          ?? (i === 0 ? -Number(leg.amount) : Number(leg.amount));
+        await this.accountsService.adjustBalance(leg.accountId, -applied, manager);
       }
 
       await txRepo.delete({ transferPairId });
