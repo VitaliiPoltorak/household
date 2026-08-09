@@ -37,7 +37,12 @@
     "subtitle": "Familienfinanzen & Einkaufen",
     "signInWithGoogle": "Mit Google anmelden",
     "loginError": "Anmeldung fehlgeschlagen. Bitte erneut versuchen.",
-    "logout": "Abmelden"
+    "logout": "Abmelden",
+    "migration": {
+      "title": "Sicherheitsupdate",
+      "body": "Wir haben die Sitzungsverwaltung verbessert. Bitte melden Sie sich noch einmal an — es dauert nur wenige Sekunden, und Sie landen wieder dort, wo Sie waren.",
+      "cta": "Erneut anmelden"
+    }
   },
   "dashboard": {
     "totalBalance": "Gesamtguthaben",

@@ -1,8 +1,8 @@
 import { createContext, useContext, useState, useCallback, ReactNode, useEffect } from 'react';
 import i18n from '../i18n';
-import type { User, TokenPair } from '../types/api';
+import type { User, LoginResponse } from '../types/api';
 import { authApi } from '../api/auth';
-import { clearSession } from '../api/client';
+import { clearSession, readCsrfCookie, setAccessToken } from '../api/client';
 import type { SupportedLng } from '@household/locales';
 
 function applyLocale(locale: string) {
@@ -13,52 +13,85 @@ function applyLocale(locale: string) {
 
 interface AuthState {
   user: User | null;
-  accessToken: string | null;
-  sessionId: string | null;
 }
 
 interface AuthContextValue extends AuthState {
   isLoading: boolean;
-  login: (tokens: TokenPair) => Promise<void>;
+  // True if the user has legacy localStorage tokens from before the #60
+  // migration. UI shows a full-screen banner asking them to re-log in.
+  migrationNeeded: boolean;
+  login: (tokens: LoginResponse) => Promise<void>;
   logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+/**
+ * Detects users who still have refresh tokens in localStorage from the
+ * pre-#60 flow. They can't be silently migrated (the server never got a
+ * cookie), so we show a banner asking them to re-authenticate. Cleaned up
+ * as soon as they either re-login or manually clear the key.
+ */
+function hasLegacyLocalStorageAuth(): boolean {
+  return localStorage.getItem('refreshToken') !== null || localStorage.getItem('sessionId') !== null;
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<AuthState>({
-    user: null,
-    accessToken: localStorage.getItem('accessToken'),
-    sessionId: localStorage.getItem('sessionId'),
-  });
-  const [isLoading, setIsLoading] = useState(!!localStorage.getItem('accessToken'));
+  const [state, setState] = useState<AuthState>({ user: null });
+  const [isLoading, setIsLoading] = useState(true);
+  const [migrationNeeded, setMigrationNeeded] = useState(false);
 
   useEffect(() => {
-    if (!state.accessToken) { setIsLoading(false); return; }
-    authApi.getMe()
-      .then((user) => { applyLocale(user.locale); setState((s) => ({ ...s, user })); })
-      .catch(() => { clearSession(); setState({ user: null, accessToken: null, sessionId: null }); })
-      .finally(() => setIsLoading(false));
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    // Migration path takes precedence: if legacy localStorage exists, don't
+    // touch the network. The banner UX handles re-auth explicitly.
+    if (hasLegacyLocalStorageAuth()) {
+      setMigrationNeeded(true);
+      setIsLoading(false);
+      return;
+    }
 
-  const login = useCallback(async (tokens: TokenPair) => {
-    localStorage.setItem('accessToken', tokens.accessToken);
-    localStorage.setItem('refreshToken', tokens.refreshToken);
-    localStorage.setItem('sessionId', tokens.sessionId);
+    // Fresh visit or no session — check the CSRF cookie as a cheap "is
+    // logged in?" signal without an unnecessary network round trip. The
+    // real refresh token lives in an HttpOnly cookie we can't inspect;
+    // the CSRF cookie is set alongside it so its presence is a reliable
+    // proxy for "there's probably a session".
+    if (!readCsrfCookie()) {
+      setIsLoading(false);
+      return;
+    }
+
+    // Try to bootstrap: refresh with the cookie, then load profile.
+    authApi.refresh()
+      .then(({ accessToken }) => {
+        setAccessToken(accessToken);
+        return authApi.getMe();
+      })
+      .then((user) => {
+        applyLocale(user.locale);
+        setState({ user });
+      })
+      .catch(() => {
+        // Cookie was stale / server rejected — clean slate.
+        clearSession();
+      })
+      .finally(() => setIsLoading(false));
+  }, []);
+
+  const login = useCallback(async (tokens: LoginResponse) => {
+    setAccessToken(tokens.accessToken);
     const user = await authApi.getMe();
     applyLocale(user.locale);
-    setState({ user, accessToken: tokens.accessToken, sessionId: tokens.sessionId });
+    setState({ user });
   }, []);
 
   const logout = useCallback(async () => {
-    const sessionId = localStorage.getItem('sessionId');
-    if (sessionId) await authApi.logout(sessionId).catch(() => null);
+    await authApi.logout().catch(() => null);
     clearSession();
-    setState({ user: null, accessToken: null, sessionId: null });
+    setState({ user: null });
   }, []);
 
   return (
-    <AuthContext.Provider value={{ ...state, isLoading, login, logout }}>
+    <AuthContext.Provider value={{ ...state, isLoading, migrationNeeded, login, logout }}>
       {children}
     </AuthContext.Provider>
   );

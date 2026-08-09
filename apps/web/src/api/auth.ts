@@ -1,15 +1,16 @@
 import { api } from './client';
-import type { TokenPair, User } from '../types/api';
+import type { LoginResponse, User } from '../types/api';
 
 export const authApi = {
   loginWithGoogle: (idToken: string) =>
-    api.post<TokenPair>('/auth/google', { idToken, deviceInfo: 'Web' }),
+    api.post<LoginResponse>('/auth/google', { idToken, deviceInfo: 'Web' }),
 
-  refresh: (sessionId: string, refreshToken: string) =>
-    api.post<TokenPair>('/auth/refresh', { sessionId, refreshToken }),
+  // No arguments — refresh cookie rides via credentials: 'include' and the
+  // CSRF header is attached automatically by client.ts (#60/#61).
+  refresh: () => api.post<LoginResponse>('/auth/refresh'),
 
-  logout: (sessionId: string) =>
-    api.post('/auth/logout', { sessionId }),
+  // No body — server reads the session id from the refresh cookie.
+  logout: () => api.post('/auth/logout'),
 
   logoutAll: () => api.post('/auth/logout-all', {}),
 

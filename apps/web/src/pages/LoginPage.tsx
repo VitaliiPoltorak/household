@@ -5,6 +5,11 @@ import { useAuth } from '../contexts/AuthContext';
 import { authApi } from '../api/auth';
 import { useState } from 'react';
 
+// Session-storage key the MigrationBanner writes to before redirecting a
+// legacy user through the OAuth flow. Consumed here to send them back to
+// the page they were originally trying to reach.
+const RETURN_TO_KEY = 'auth:return_to';
+
 export function LoginPage() {
   const { t } = useTranslation();
   const { login, user } = useAuth();
@@ -12,6 +17,15 @@ export function LoginPage() {
   const [error, setError] = useState('');
 
   if (user) { navigate('/dashboard', { replace: true }); return null; }
+
+  const redirectAfterLogin = () => {
+    const returnTo = sessionStorage.getItem(RETURN_TO_KEY);
+    sessionStorage.removeItem(RETURN_TO_KEY);
+    // Only accept in-app paths (starting with '/') — prevents open-redirect
+    // if the value is somehow tampered.
+    const target = returnTo && returnTo.startsWith('/') ? returnTo : '/dashboard';
+    navigate(target, { replace: true });
+  };
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gray-50">
@@ -33,7 +47,7 @@ export function LoginPage() {
                 setError('');
                 const tokens = await authApi.loginWithGoogle(cred.credential);
                 await login(tokens);
-                navigate('/dashboard', { replace: true });
+                redirectAfterLogin();
               } catch {
                 setError(t('auth.loginError'));
               }

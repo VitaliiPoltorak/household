@@ -3,6 +3,7 @@ import { ValidationPipe, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
+import cookieParser from 'cookie-parser';
 import {
   createGatewaySignatureMiddleware,
   HttpExceptionFilter,
@@ -23,6 +24,9 @@ async function bootstrap() {
   const logger = new Logger('Bootstrap');
 
   app.use(helmet());
+  // Needed by cookie-based refresh flow (#60). Runs BEFORE the gateway
+  // signature middleware so downstream handlers can read req.cookies.
+  app.use(cookieParser());
   app.use(createGatewaySignatureMiddleware(config));
   app.useGlobalFilters(new HttpExceptionFilter());
   app.useGlobalPipes(

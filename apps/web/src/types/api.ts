@@ -1,8 +1,9 @@
 // Auth
-export interface TokenPair {
+// Post-#60 login/refresh return only the access token in the response body.
+// The refresh token and session id live in an HttpOnly cookie set by the
+// server. `refreshToken` and `sessionId` are intentionally NOT in this shape.
+export interface LoginResponse {
   accessToken: string;
-  refreshToken: string;
-  sessionId: string;
   expiresIn: number;
 }
 
