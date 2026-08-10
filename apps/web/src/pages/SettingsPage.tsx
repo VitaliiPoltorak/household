@@ -117,7 +117,6 @@ function ManageSection() {
 // ──────────────────────────────────────────────
 function ProfileSection({ user }: { user: ReturnType<typeof useAuth>['user'] }) {
   const { t, i18n } = useTranslation();
-  const { login } = useAuth();
   const [displayName, setDisplayName] = useState(user?.displayName ?? '');
   const [avatarUrl, setAvatarUrl] = useState(user?.avatarUrl ?? '');
   const [status, setStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
