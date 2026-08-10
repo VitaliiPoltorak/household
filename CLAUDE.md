@@ -204,6 +204,15 @@ Socket.IO is mocked globally in `setup.ts` — no WebSocket connections in tests
 
 Swagger at `/docs` per service is for endpoint reference during development only.
 
+## Documentation policy
+
+**Every PR must leave `README.md` and `docs/PLAN.md` accurate.** Before opening a PR, check whether your change invalidates anything in either file — new/removed service or port, new env var or command, changed architecture, completed/moved phase, new API endpoint category, changed dev workflow. If it does, update the docs in the **same PR**, not a follow-up.
+
+- `README.md` — user-facing overview: stack table, service+port table, prerequisites, quick-start commands, top-level features. Update when any of those change.
+- `docs/PLAN.md` — the roadmap: phases, milestones, MVP scope, deploy notes, section-by-section design. Update when a phase advances, a milestone completes, or a design decision from the plan changes in code.
+
+If a PR truly changes nothing user-visible or plan-relevant (e.g. an internal refactor with identical behaviour and no new deps), state that explicitly in the PR description — don't just skip the check silently.
+
 ## Rules from past audits (apply while writing code, not just in review)
 
 Three completed audits — Security (milestone 9), Bugs (milestone 10), Architecture/SOLID+GRASP (milestone 11) — found ~60 issues, almost all of them the same handful of mistakes repeated across services. The full checklist with rationale lives in the `backend-hardening-checklist` skill (auto-loads for backend/auth/financial/Kafka work). The rules that caused the most churn (each was found and re-fixed in 2-5 places because the first fix wasn't generalized):
