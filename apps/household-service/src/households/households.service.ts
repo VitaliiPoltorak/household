@@ -61,6 +61,14 @@ export class HouseholdsService {
   async remove(householdId: string, userId: string): Promise<void> {
     await this.members.requireRole(householdId, userId, [MemberRole.OWNER]);
     await this.householdRepo.delete(householdId);
+    // Broadcast so finance/shopping (and any future domain schemas) can
+    // clean up their rows for this household. Consumers must be idempotent —
+    // Kafka delivery is at-least-once and a re-delete is a no-op.
+    await this.events.emit(
+      'household.deleted',
+      { householdId },
+      { userId, householdId },
+    );
   }
 
   private async uniqueSlug(name: string): Promise<string> {
