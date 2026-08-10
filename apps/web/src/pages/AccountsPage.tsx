@@ -8,6 +8,7 @@ import { Modal } from '../components/ui/Modal';
 import { Button } from '../components/ui/Button';
 import { Input, Select } from '../components/ui/Input';
 import { Badge } from '../components/ui/Badge';
+import { formatMoney } from '../lib/money';
 
 type QuickTxType = 'income' | 'expense' | 'transfer';
 
@@ -23,13 +24,7 @@ const RATES_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 // ──────────────────────────────────────────────
 // Formatting
 // ──────────────────────────────────────────────
-function fmt(n: number, currency = 'UAH') {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency,
-    maximumFractionDigits: 2,
-  }).format(n);
-}
+const fmt = (n: number, currency = 'UAH') => formatMoney(n, currency);
 
 // ──────────────────────────────────────────────
 // PrivatBank exchange rates
@@ -186,7 +181,11 @@ export function AccountsPage() {
   const updateAccount = useMutation({
     mutationFn: ({ id, data }: { id: string; data: object }) =>
       financeApi.updateAccount(id, hid, data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['accounts', hid] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['accounts', hid] });
+      // Currency changes affect transaction display totals; refresh both lists.
+      qc.invalidateQueries({ queryKey: ['transactions', hid] });
+    },
   });
 
   // Per-currency totals
@@ -331,6 +330,7 @@ export function AccountsPage() {
           onClose={() => setEditAccount(null)}
           onSaved={() => {
             qc.invalidateQueries({ queryKey: ['accounts', hid] });
+            qc.invalidateQueries({ queryKey: ['transactions', hid] });
             setEditAccount(null);
           }}
         />

@@ -63,7 +63,10 @@ describe('TransactionsPage', () => {
   });
 
   it('opens transfer modal', async () => {
-    server.use(http.get('/api/v1/accounts', () => HttpResponse.json([MOCK_ACCOUNT])));
+    server.use(http.get('/api/v1/accounts', () => HttpResponse.json([
+      MOCK_ACCOUNT,
+      { ...MOCK_ACCOUNT, id: 'acc-2', name: 'Cash' },
+    ])));
     renderWithProviders(<TransactionsPage />);
 
     await waitFor(() => screen.getByText('⇄ Transfer'), { timeout: 3000 });
@@ -71,6 +74,17 @@ describe('TransactionsPage', () => {
 
     expect(screen.getByText('Transfer between accounts')).toBeInTheDocument();
     expect(screen.getByLabelText('From')).toBeInTheDocument();
+  });
+
+  it('shows warning when only 1 account available for transfer', async () => {
+    server.use(http.get('/api/v1/accounts', () => HttpResponse.json([MOCK_ACCOUNT])));
+    renderWithProviders(<TransactionsPage />);
+
+    await waitFor(() => screen.getByText('⇄ Transfer'), { timeout: 3000 });
+    await userEvent.click(screen.getByText('⇄ Transfer'));
+
+    expect(screen.getByText('You need at least 2 accounts to make a transfer.')).toBeInTheDocument();
+    expect(screen.queryByLabelText('From')).not.toBeInTheDocument();
   });
 
   it('filters by type: selecting expense shows no income transactions', async () => {

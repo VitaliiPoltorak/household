@@ -121,6 +121,7 @@
       "adjustment": "Корекція"
     },
     "transferring": "Переказуємо…",
+    "transferNeedsTwoAccounts": "Для переказу потрібно щонайменше 2 рахунки.",
     "selectType": "Оберіть тип…",
     "editTitle": "Редагувати транзакцію",
     "fromDate": "Від дати",

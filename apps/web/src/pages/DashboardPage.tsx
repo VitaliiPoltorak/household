@@ -6,10 +6,9 @@ import { financeApi } from '../api/finance';
 import { CreateHouseholdModal } from '../components/households/CreateHouseholdModal';
 import { StatCard } from '../components/dashboard/StatCard';
 import { Section } from '../components/dashboard/Section';
+import { formatMoney } from '../lib/money';
 
-function fmt(n: number, currency = 'UAH') {
-  return new Intl.NumberFormat('uk-UA', { style: 'currency', currency }).format(n);
-}
+const fmt = (n: number, currency = 'UAH') => formatMoney(n, currency, 'uk-UA');
 
 export function DashboardPage() {
   const { t } = useTranslation();

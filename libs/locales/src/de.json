@@ -121,6 +121,7 @@
       "adjustment": "Anpassung"
     },
     "transferring": "Wird überwiesen…",
+    "transferNeedsTwoAccounts": "Für eine Überweisung werden mindestens 2 Konten benötigt.",
     "selectType": "Typ auswählen…",
     "editTitle": "Transaktion bearbeiten",
     "fromDate": "Von Datum",

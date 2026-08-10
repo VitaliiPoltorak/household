@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useCallback, ReactNode } from 'rea
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { Household } from '../types/api';
 import { householdsApi } from '../api/households';
+import { storage } from '../lib/storage';
 import { useAuth } from './AuthContext';
 
 interface HouseholdContextValue {
@@ -27,7 +28,7 @@ export function HouseholdProvider({ children }: { children: ReactNode }) {
   });
 
   const [activeId, setActiveId] = useState<string | null>(
-    localStorage.getItem(ACTIVE_KEY),
+    storage.get(ACTIVE_KEY),
   );
 
   const activeHousehold =
@@ -35,7 +36,7 @@ export function HouseholdProvider({ children }: { children: ReactNode }) {
 
   const setActiveHousehold = useCallback((h: Household) => {
     setActiveId(h.id);
-    localStorage.setItem(ACTIVE_KEY, h.id);
+    storage.set(ACTIVE_KEY, h.id);
     queryClient.invalidateQueries({ queryKey: ['household'] });
   }, [queryClient]);
 
