@@ -36,6 +36,9 @@ describe('TransactionsPage', () => {
     await waitFor(() => screen.getByText('+ New'), { timeout: 3000 });
     await userEvent.click(screen.getByText('+ New'));
 
+    // Post-#92 refactor CreateTxModal starts with no default type — the user
+    // must pick explicitly before Add is enabled. Reflect that here.
+    await userEvent.selectOptions(screen.getByLabelText('Type'), 'income');
     await userEvent.type(screen.getByLabelText('Amount'), '1500');
     await userEvent.click(screen.getByRole('button', { name: 'Add' }));
 
