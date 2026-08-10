@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useHousehold } from '../contexts/HouseholdContext';
 import { financeApi } from '../api/finance';
-import type { Account, Category } from '../types/api';
+import type { Account, AccountType, Category } from '../types/api';
 import { Modal } from '../components/ui/Modal';
 import { Button } from '../components/ui/Button';
 import { Input, Select } from '../components/ui/Input';
@@ -11,7 +11,7 @@ import { Badge } from '../components/ui/Badge';
 
 type QuickTxType = 'income' | 'expense' | 'transfer';
 
-const ACCOUNT_TYPES = ['cash', 'bank', 'crypto', 'investment', 'deposit'] as const;
+const ACCOUNT_TYPES: readonly AccountType[] = ['cash', 'bank', 'crypto', 'investment', 'deposit'];
 const CURRENCIES = ['UAH', 'USD', 'EUR'];
 const BASE_CURRENCY_KEY = 'accounts:baseCurrency';
 const RATES_CACHE_KEY = 'accounts:ratesCache';
@@ -517,7 +517,7 @@ function CreateAccountModal({ hid, onClose, onCreated }: {
 }) {
   const { t } = useTranslation();
   const [name, setName] = useState('');
-  const [type, setType] = useState('bank');
+  const [type, setType] = useState<AccountType>('bank');
   const [currency, setCurrency] = useState('UAH');
   const [saving, setSaving] = useState(false);
 
@@ -536,8 +536,8 @@ function CreateAccountModal({ hid, onClose, onCreated }: {
       <form onSubmit={submit} className="space-y-4">
         <Input label={t('accounts.name')} value={name} onChange={(e) => setName(e.target.value)}
           placeholder={t('accounts.namePlaceholder')} required autoFocus />
-        <Select label={t('accounts.type')} value={type} onChange={(e) => setType(e.target.value)}>
-          {ACCOUNT_TYPES.map((tp) => <option key={tp} value={tp}>{t(`accounts.types.${tp}`)}</option>)}
+        <Select label={t('accounts.type')} value={type} onChange={(e) => setType(e.target.value as AccountType)}>
+          {ACCOUNT_TYPES.map((tp) => <option key={tp} value={tp}>{t(`accounts.types.${tp}` as never)}</option>)}
         </Select>
         <Select label={t('accounts.currency')} value={currency} onChange={(e) => setCurrency(e.target.value)}>
           {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
@@ -582,8 +582,8 @@ function EditAccountModal({ account, hid, onClose, onSaved }: {
       <form onSubmit={submit} className="space-y-4">
         <Input label={t('accounts.name')} value={name} onChange={(e) => setName(e.target.value)}
           required autoFocus />
-        <Select label={t('accounts.type')} value={type} onChange={(e) => setType(e.target.value)}>
-          {ACCOUNT_TYPES.map((tp) => <option key={tp} value={tp}>{t(`accounts.types.${tp}`)}</option>)}
+        <Select label={t('accounts.type')} value={type} onChange={(e) => setType(e.target.value as AccountType)}>
+          {ACCOUNT_TYPES.map((tp) => <option key={tp} value={tp}>{t(`accounts.types.${tp}` as never)}</option>)}
         </Select>
         <Select label={t('accounts.currency')} value={currency} onChange={(e) => setCurrency(e.target.value)}>
           {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
@@ -622,10 +622,12 @@ function QuickTxModal({ account, txType, hid, accounts, categories, onClose, onC
   const [saving, setSaving] = useState(false);
 
   const isTransfer = txType === 'transfer';
-  const filteredCategories = categories.filter((c) => c.type === txType && txType !== 'transfer');
+  // Only income/expense have categories; transfers don't. Ternary lets TS
+  // narrow txType so the equality check compiles.
+  const filteredCategories = isTransfer ? [] : categories.filter((c) => c.type === txType);
   const otherAccounts = accounts.filter((a) => a.id !== account.id);
 
-  const titleKey = `transactions.types.${txType}`;
+  const titleKey = `transactions.types.${txType}` as const;
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -657,7 +659,7 @@ function QuickTxModal({ account, txType, hid, accounts, categories, onClose, onC
   };
 
   return (
-    <Modal title={`${t(titleKey)} — ${account.name}`} onClose={onClose}>
+    <Modal title={`${t(titleKey as never)} — ${account.name}`} onClose={onClose}>
       <form onSubmit={submit} className="space-y-3">
         {/* From account — read-only info */}
         <div className="rounded-lg bg-gray-50 px-3 py-2 text-sm text-gray-500">

@@ -16,7 +16,7 @@ export const authApi = {
 
   getMe: () => api.get<User>('/auth/me'),
 
-  updateProfile: (data: { displayName?: string; locale?: string }) =>
+  updateProfile: (data: { displayName?: string; avatarUrl?: string; locale?: string }) =>
     api.patch<User>('/auth/me', data),
 
   deleteAccount: () => api.delete('/auth/me'),
