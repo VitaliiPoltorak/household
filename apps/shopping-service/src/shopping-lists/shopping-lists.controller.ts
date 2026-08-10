@@ -4,6 +4,7 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiHeader, ApiQuery } from '@nestjs/swagger';
 import { ShoppingListsService } from './shopping-lists.service';
+import { ShoppingListItemsService } from './shopping-list-items.service';
 import { ListStatus } from './entities/shopping-list.entity';
 import {
   CreateShoppingListDto, UpdateShoppingListDto,
@@ -15,7 +16,10 @@ import {
 @ApiHeader({ name: 'x-household-id', required: true })
 @Controller('shopping-lists')
 export class ShoppingListsController {
-  constructor(private readonly svc: ShoppingListsService) {}
+  constructor(
+    private readonly svc: ShoppingListsService,
+    private readonly itemsSvc: ShoppingListItemsService,
+  ) {}
 
   @Post()
   create(
@@ -78,7 +82,7 @@ export class ShoppingListsController {
     @Body() dto: CreateItemDto,
   ) {
     this.require(uid, hid);
-    return this.svc.addItem(id, hid, dto);
+    return this.itemsSvc.addItem(id, hid, dto);
   }
 
   @Patch(':id/items/:itemId')
@@ -90,7 +94,7 @@ export class ShoppingListsController {
     @Body() dto: UpdateItemDto,
   ) {
     this.require(uid, hid);
-    return this.svc.updateItem(id, itemId, hid, dto, uid);
+    return this.itemsSvc.updateItem(id, itemId, hid, dto, uid);
   }
 
   @Delete(':id/items/:itemId')
@@ -101,7 +105,7 @@ export class ShoppingListsController {
     @Param('itemId') itemId: string,
   ) {
     if (!hid) throw new UnauthorizedException('Missing X-Household-Id');
-    return this.svc.removeItem(id, itemId, hid);
+    return this.itemsSvc.removeItem(id, itemId, hid);
   }
 
   private require(uid: string, hid: string): void {
