@@ -3,6 +3,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { KafkaModule } from '@household/kafka';
 import { ensureSchema } from '@household/database';
+import { AuditLog, AuditModule } from '@household/audit';
 import { RedisModule } from './redis/redis.module';
 import { HouseholdsModule } from './households/households.module';
 import { EventsModule } from './events/events.module';
@@ -26,12 +27,13 @@ import { HouseholdInvite } from './households/entities/household-invite.entity';
           password: config.get<string>('POSTGRES_PASSWORD', 'household_secret'),
           database: config.get<string>('POSTGRES_DB', 'household'),
           schema: 'household',
-          entities: [Household, HouseholdMember, HouseholdInvite],
+          entities: [Household, HouseholdMember, HouseholdInvite, AuditLog],
           synchronize: config.get('NODE_ENV') === 'development',
         };
       },
     }),
     KafkaModule.forRootAsync('household-service'),
+    AuditModule.register(),
     RedisModule,
     HouseholdsModule,
     EventsModule,

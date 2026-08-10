@@ -1,5 +1,6 @@
 import { Controller, Post, Param, Headers, UnauthorizedException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiHeader } from '@nestjs/swagger';
+import { Audit } from '@household/audit';
 import { InvitesService } from '../households/invites.service';
 
 @ApiTags('Invites')
@@ -10,6 +11,7 @@ export class InvitesController {
   constructor(private readonly svc: InvitesService) {}
 
   @Post(':token/accept')
+  @Audit({ action: 'household.invite.accept', resourceType: 'invite' })
   @ApiOperation({ summary: 'Accept household invite' })
   accept(
     @Headers('x-user-id') userId: string,

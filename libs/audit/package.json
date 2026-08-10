@@ -1,0 +1,15 @@
+{
+  "name": "@household/audit",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "test:unit": "jest --config jest.unit.config.js"
+  },
+  "dependencies": {
+    "@nestjs/common": "^10.0.0",
+    "@nestjs/core": "^10.0.0",
+    "@nestjs/typeorm": "^10.0.2",
+    "rxjs": "^7.8.1",
+    "typeorm": "^0.3.20"
+  }
+}

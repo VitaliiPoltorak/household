@@ -3,6 +3,7 @@ import {
   Param, Body, Headers, HttpCode, HttpStatus, UnauthorizedException,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiHeader } from '@nestjs/swagger';
+import { Audit } from '@household/audit';
 import { HouseholdsService } from './households.service';
 import { MembersService } from './members.service';
 import { InvitesService } from './invites.service';
@@ -55,6 +56,7 @@ export class HouseholdsController {
 
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
+  @Audit({ action: 'household.delete', resourceType: 'household', resourceIdParam: 'id' })
   @ApiOperation({ summary: 'Delete household (owner only)' })
   remove(@Headers('x-user-id') userId: string, @Param('id') id: string) {
     this.requireUser(userId);
@@ -71,6 +73,7 @@ export class HouseholdsController {
   }
 
   @Patch(':id/members/:memberId')
+  @Audit({ action: 'household.member.role_change', resourceType: 'member', resourceIdParam: 'memberId' })
   @ApiOperation({ summary: 'Update member role (admin+)' })
   updateMemberRole(
     @Headers('x-user-id') userId: string,
@@ -84,6 +87,7 @@ export class HouseholdsController {
 
   @Delete(':id/members/:memberId')
   @HttpCode(HttpStatus.NO_CONTENT)
+  @Audit({ action: 'household.member.remove', resourceType: 'member', resourceIdParam: 'memberId' })
   @ApiOperation({ summary: 'Remove member (admin+)' })
   removeMember(
     @Headers('x-user-id') userId: string,
@@ -97,6 +101,7 @@ export class HouseholdsController {
   // --- Invites ---
 
   @Post(':id/invites')
+  @Audit({ action: 'household.invite.create', resourceType: 'invite' })
   @ApiOperation({ summary: 'Invite member by email (admin+)' })
   createInvite(
     @Headers('x-user-id') userId: string,
@@ -116,6 +121,7 @@ export class HouseholdsController {
 
   @Delete(':id/invites/:inviteId')
   @HttpCode(HttpStatus.NO_CONTENT)
+  @Audit({ action: 'household.invite.revoke', resourceType: 'invite', resourceIdParam: 'inviteId' })
   @ApiOperation({ summary: 'Revoke invite (admin+)' })
   deleteInvite(
     @Headers('x-user-id') userId: string,

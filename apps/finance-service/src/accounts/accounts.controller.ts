@@ -3,6 +3,7 @@ import {
   Param, Body, Headers, HttpCode, HttpStatus, UnauthorizedException,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiHeader } from '@nestjs/swagger';
+import { Audit } from '@household/audit';
 import { AccountsService } from './accounts.service';
 import { CreateAccountDto, UpdateAccountDto } from './dto/account.dto';
 
@@ -69,6 +70,7 @@ export class AccountsController {
 
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
+  @Audit({ action: 'finance.account.delete', resourceType: 'account', resourceIdParam: 'id' })
   @ApiOperation({ summary: 'Archive account (soft delete)' })
   remove(
     @Headers('x-user-id') userId: string,
