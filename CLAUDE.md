@@ -28,8 +28,9 @@ pnpm --filter @household/auth-service migration:run
 # Replace auth-service with: household-service, finance-service, shopping-service, integration-service
 
 # Infrastructure
-docker compose up -d        # Start postgres, redis, kafka, kafka-ui, adminer
-docker compose down         # Stop all infrastructure
+docker compose up -d                          # Start postgres, redis, kafka + app services
+docker compose --profile tools up -d          # Also start adminer (:8080) + kafka-ui (:8081)
+docker compose down                           # Stop all infrastructure
 ```
 
 ## Architecture
@@ -59,7 +60,7 @@ libs/
   testing/    # createTestApp, cleanDatabase, kafka mocks (integration tests)
 ```
 
-Infra services: **postgres:5432**, **redis:6379**, **kafka:9092**, **kafka-ui:8081**, **adminer:8080**.
+Infra services: **postgres:5432**, **redis:6379**, **kafka:9092**. Dev tools (gated behind `--profile tools`): **kafka-ui:8081**, **adminer:8080**.
 
 ### API Gateway pattern
 
