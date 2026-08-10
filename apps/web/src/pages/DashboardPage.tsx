@@ -1,10 +1,11 @@
+import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 import { useHousehold } from '../contexts/HouseholdContext';
 import { financeApi } from '../api/finance';
-// import { householdsApi } from '../api/households';
 import { CreateHouseholdModal } from '../components/households/CreateHouseholdModal';
-import { useState } from 'react';
-import { useTranslation } from 'react-i18next';
+import { StatCard } from '../components/dashboard/StatCard';
+import { Section } from '../components/dashboard/Section';
 
 function fmt(n: number, currency = 'UAH') {
   return new Intl.NumberFormat('uk-UA', { style: 'currency', currency }).format(n);
@@ -73,26 +74,12 @@ export function DashboardPage() {
         )}
       </div>
 
-      {/* Balance cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <StatCard
-          label={t('dashboard.totalBalance')}
-          value={summary ? fmt(summary.totalBalance) : '—'}
-          color="blue"
-        />
-        <StatCard
-          label={t('dashboard.incomeThisMonth')}
-          value={monthly ? fmt(monthly.totalIncome) : '—'}
-          color="green"
-        />
-        <StatCard
-          label={t('dashboard.expensesThisMonth')}
-          value={monthly ? fmt(monthly.totalExpense) : '—'}
-          color="red"
-        />
+        <StatCard label={t('dashboard.totalBalance')} value={summary ? fmt(summary.totalBalance) : '—'} color="blue" />
+        <StatCard label={t('dashboard.incomeThisMonth')} value={monthly ? fmt(monthly.totalIncome) : '—'} color="green" />
+        <StatCard label={t('dashboard.expensesThisMonth')} value={monthly ? fmt(monthly.totalExpense) : '—'} color="red" />
       </div>
 
-      {/* Accounts */}
       {summary && summary.accounts.length > 0 && (
         <Section title={t('dashboard.accounts')}>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -107,7 +94,6 @@ export function DashboardPage() {
         </Section>
       )}
 
-      {/* Upcoming payments */}
       {upcoming.length > 0 && (
         <Section title={t('dashboard.upcomingPayments')}>
           <div className="divide-y divide-gray-100 rounded-lg border border-gray-200 bg-white">
@@ -123,29 +109,6 @@ export function DashboardPage() {
           </div>
         </Section>
       )}
-    </div>
-  );
-}
-
-function StatCard({ label, value, color }: { label: string; value: string; color: 'blue' | 'green' | 'red' }) {
-  const colors = {
-    blue: 'bg-blue-50 text-blue-700',
-    green: 'bg-green-50 text-green-700',
-    red: 'bg-red-50 text-red-700',
-  };
-  return (
-    <div className={`rounded-xl p-5 ${colors[color]}`}>
-      <p className="text-sm opacity-80">{label}</p>
-      <p className="mt-1 text-2xl font-bold">{value}</p>
-    </div>
-  );
-}
-
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">{title}</h2>
-      {children}
     </div>
   );
 }
