@@ -31,4 +31,15 @@ export class Account extends BaseEntity {
 
   @Column({ name: 'is_archived', default: false })
   isArchived: boolean;
+
+  // ─────────────────────────────────────────────────────────────────────
+  // Domain methods (Info Expert per #90). Balance is a decimal column and
+  // pg returns it as a string; convert at the boundary. Not currently used
+  // by any call site — an overdraft-check hook other services can adopt.
+  // ─────────────────────────────────────────────────────────────────────
+
+  /** True if this account can cover a withdrawal of `amount` in its currency. */
+  canWithdraw(amount: number): boolean {
+    return Number(this.balance) >= amount;
+  }
 }

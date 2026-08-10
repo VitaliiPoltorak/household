@@ -125,7 +125,7 @@ export class TransactionsService {
         'Cannot change transaction type to transfer',
       );
     }
-    if (existing.type === TransactionType.TRANSFER && dto.type !== undefined) {
+    if (existing.isTransferLeg() && dto.type !== undefined) {
       throw new BadRequestException(
         'Cannot change type of a transfer leg',
       );
@@ -143,7 +143,7 @@ export class TransactionsService {
       const txRepo = manager.getRepository(Transaction);
 
       // Recalculate balance when amount or type changes (skip for transfers — both legs must stay in sync)
-      if (existing.type !== TransactionType.TRANSFER && (dto.amount !== undefined || dto.type !== undefined)) {
+      if (!existing.isTransferLeg() && (dto.amount !== undefined || dto.type !== undefined)) {
         await this.balances.swap(
           existing.accountId,
           existing.type,
@@ -218,7 +218,7 @@ export class TransactionsService {
   async remove(id: string, householdId: string): Promise<void> {
     const transaction = await this.findOne(id, householdId);
 
-    if (transaction.type === TransactionType.TRANSFER && transaction.transferPairId) {
+    if (transaction.isTransferLeg() && transaction.transferPairId) {
       await this.transfers.removePair(transaction.transferPairId, householdId);
       return;
     }

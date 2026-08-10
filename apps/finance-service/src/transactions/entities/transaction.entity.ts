@@ -58,4 +58,60 @@ export class Transaction extends BaseEntity {
     nullable: true,
   })
   transferDirection: TransferDirection | null;
+
+  // ─────────────────────────────────────────────────────────────────────
+  // Domain methods (Info Expert per #90) — the rules that depend only on
+  // Transaction fields live here, not in services. Amount is @Column
+  // decimal, so pg returns it as a string; convert at the boundary.
+  // ─────────────────────────────────────────────────────────────────────
+
+  /**
+   * Signed delta this transaction applies to its account's balance.
+   *  income / adjustment → +amount
+   *  expense             → -amount
+   *  transfer            →  0     (transfer legs are two-account and
+   *                                handled explicitly per leg in
+   *                                TransferDomainService)
+   */
+  getDelta(): number {
+    return Transaction.computeDelta(this.type, Number(this.amount));
+  }
+
+  getReverseDelta(): number {
+    return -this.getDelta();
+  }
+
+  isTransferLeg(): boolean {
+    return this.type === TransactionType.TRANSFER;
+  }
+
+  /**
+   * Signed amount that WAS applied to this leg's account (debit = -amount,
+   * credit = +amount). Returns null for non-transfers and for legacy rows
+   * with no transferDirection — the caller must fall back (see
+   * TransferDomainService.removePair for the fallback rule).
+   */
+  getTransferLegSignedAmount(): number | null {
+    if (!this.isTransferLeg() || !this.transferDirection) return null;
+    return this.transferDirection === TransferDirection.DEBIT
+      ? -Number(this.amount)
+      : Number(this.amount);
+  }
+
+  /**
+   * Static form for pre-persistence flows (create / update) where we have
+   * type + amount from a DTO but not yet an entity instance. Instance
+   * method {@link getDelta} delegates here.
+   */
+  static computeDelta(type: TransactionType, amount: number): number {
+    switch (type) {
+      case TransactionType.INCOME:
+      case TransactionType.ADJUSTMENT:
+        return amount;
+      case TransactionType.EXPENSE:
+        return -amount;
+      case TransactionType.TRANSFER:
+        return 0;
+    }
+  }
 }
