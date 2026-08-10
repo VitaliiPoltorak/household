@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# Triggered by `git checkout <branch>` (and other branch-changing ops).
+# Args: <prev_HEAD> <new_HEAD> <flag: 1=branch checkout, 0=file checkout>.
+# Only care about branch checkouts.
+
+set -u
+
+PREV_HEAD="${1:-}"
+NEW_HEAD="${2:-}"
+IS_BRANCH_CHECKOUT="${3:-0}"
+
+if [[ "$IS_BRANCH_CHECKOUT" != "1" ]]; then
+  exit 0
+fi
+
+REPO_ROOT=$(git rev-parse --show-toplevel)
+"$REPO_ROOT/scripts/rebuild-touched-services.sh" "$PREV_HEAD" "$NEW_HEAD"

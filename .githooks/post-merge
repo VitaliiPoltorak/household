@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# Triggered by `git pull` / `git merge` after the merge commit is written.
+# ORIG_HEAD points at the pre-merge tip; HEAD at the post-merge commit.
+
+set -u
+
+REPO_ROOT=$(git rev-parse --show-toplevel)
+"$REPO_ROOT/scripts/rebuild-touched-services.sh" "$(git rev-parse ORIG_HEAD)" HEAD

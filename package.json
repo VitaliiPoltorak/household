@@ -17,7 +17,9 @@
     "test": "turbo run test",
     "test:unit": "turbo run test:unit",
     "test:integration": "turbo run test:integration",
-    "format": "prettier --write \"**/*.{ts,tsx,js,json,md}\""
+    "format": "prettier --write \"**/*.{ts,tsx,js,json,md}\"",
+    "hooks:enable": "git config core.hooksPath .githooks && echo '✔ git core.hooksPath = .githooks — post-merge/post-checkout will now auto-rebuild running Docker services when their sources change.'",
+    "hooks:disable": "git config --unset core.hooksPath && echo '✔ git core.hooksPath unset — hooks disabled.'"
   },
   "devDependencies": {
     "@eslint/js": "^8.57.0",
