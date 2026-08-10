@@ -1,4 +1,4 @@
-import { ForbiddenException } from '@nestjs/common';
+import { ConflictException, ForbiddenException } from '@nestjs/common';
 import { InvitesService } from '../src/households/invites.service';
 import { MemberRole } from '../src/households/entities/member-role.enum';
 
@@ -15,9 +15,21 @@ type MockRepo = {
   create: jest.Mock;
   update: jest.Mock;
   delete: jest.Mock;
+  createQueryBuilder: jest.Mock;
 };
 
 function makeRepo(): MockRepo {
+  // Fluent builder for the duplicate-invite check: chainable where/andWhere,
+  // getOne() returns null by default (no existing invite).
+  const qb: {
+    where: jest.Mock;
+    andWhere: jest.Mock;
+    getOne: jest.Mock;
+  } = {
+    where: jest.fn().mockReturnThis(),
+    andWhere: jest.fn().mockReturnThis(),
+    getOne: jest.fn().mockResolvedValue(null),
+  };
   return {
     findOne: jest.fn(),
     find: jest.fn(),
@@ -25,6 +37,7 @@ function makeRepo(): MockRepo {
     create: jest.fn((o: unknown) => o),
     update: jest.fn(),
     delete: jest.fn(),
+    createQueryBuilder: jest.fn(() => qb),
   };
 }
 
@@ -114,5 +127,20 @@ describe('InvitesService — role-grant guard (#65)', () => {
       expect.objectContaining({ role: MemberRole.MEMBER }),
       expect.any(Object),
     );
+  });
+
+  it('rejects a second live invite for the same email/household (#68.7)', async () => {
+    members.requireRole.mockResolvedValue({ id: 'a', role: MemberRole.ADMIN });
+    // Duplicate check returns an existing invite → create() must abort.
+    const qb = inviteRepo.createQueryBuilder();
+    (qb.getOne as jest.Mock).mockResolvedValueOnce({ id: 'existing', email: 'x@test' });
+
+    await expect(
+      service.create(HOUSEHOLD_ID, ACTOR_ID, { email: 'x@test', role: MemberRole.MEMBER }),
+    ).rejects.toThrow(ConflictException);
+
+    expect(inviteRepo.save).not.toHaveBeenCalled();
+    expect(redis.set).not.toHaveBeenCalled();
+    expect(events.emit).not.toHaveBeenCalled();
   });
 });

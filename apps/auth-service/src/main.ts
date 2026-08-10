@@ -37,12 +37,16 @@ async function bootstrap() {
     }),
   );
 
-  const swaggerConfig = new DocumentBuilder()
-    .setTitle('Auth Service')
-    .setVersion('0.1.0')
-    .build();
-  const document = SwaggerModule.createDocument(app, swaggerConfig);
-  SwaggerModule.setup('docs', app, document);
+  // Swagger UI exposes every internal endpoint and DTO shape; skip mounting
+  // it in production so a public deploy can't be scraped for the API surface.
+  if (process.env.NODE_ENV !== 'production') {
+    const swaggerConfig = new DocumentBuilder()
+      .setTitle('Auth Service')
+      .setVersion('0.1.0')
+      .build();
+    const document = SwaggerModule.createDocument(app, swaggerConfig);
+    SwaggerModule.setup('docs', app, document);
+  }
 
   await app.listen(port, host);
   logger.log(`Auth Service running on http://${host}:${port}`);
