@@ -204,6 +204,18 @@ Socket.IO is mocked globally in `setup.ts` — no WebSocket connections in tests
 
 Swagger at `/docs` per service is for endpoint reference during development only.
 
+## Rules from past audits (apply while writing code, not just in review)
+
+Three completed audits — Security (milestone 9), Bugs (milestone 10), Architecture/SOLID+GRASP (milestone 11) — found ~60 issues, almost all of them the same handful of mistakes repeated across services. The full checklist with rationale lives in the `backend-hardening-checklist` skill (auto-loads for backend/auth/financial/Kafka work). The rules that caused the most churn (each was found and re-fixed in 2-5 places because the first fix wasn't generalized):
+
+1. **Multi-tenant IDOR**: any ID coming from the client that references another entity (`accountId`, `categoryId`, `storeId`, room name) must be loaded via a household-scoped lookup (`findOne(id, householdId)`) before use — in every service, every entity relationship, not just the first one you touch. When you fix one, `grep` the monorepo for the same unscoped-lookup pattern and fix all of them.
+2. **Balance/financial mutations** are one DB transaction with row locking — never compose separate read-modify-write calls. Sum money in SQL (`SUM`), never by adding `Number()`-converted JS values. Transfers (paired rows) must be created/updated/deleted as a unit keyed by an explicit pair id, never inferred from row order.
+3. **Redis/cache is a performance layer, never an authority** — anything security-relevant (invite validity, refresh-token reuse, single-use tokens) must be checked against the DB or consumed atomically (`GETDEL`, not GET-then-DEL).
+4. **Secrets/JWT config fails loudly at startup** if missing or weak — via one shared helper in `libs/common`, not per-service copy-paste. New cross-origin/inter-service surfaces (CORS, Socket.IO, bind address) default to deny, not wildcard.
+5. **Kafka/queue consumer errors must retry + DLQ**, never catch-log-and-advance-offset (silently drops the event forever). If a client needs `.connect()` (e.g. Redis `lazyConnect`), call it explicitly in `onModuleInit` — don't rely on implicit connect-on-first-command.
+6. **One service class = one aggregate.** When a second aggregate's rules start living in an existing service (e.g. members/invites logic inside a households service), split it out. New "variant" additions (OAuth provider, transaction type, proxy route, Kafka→WS event mapping) should be addable via a registry/config, not by editing a central switch statement.
+7. **Domain rules live on the entity that owns the data** (balance delta, reversal eligibility), not scattered across orchestrating services (GRASP Information Expert) — avoids an anemic domain model.
+
 ## Current implementation status
 
 **Phases 0–4 complete.** Implemented:
