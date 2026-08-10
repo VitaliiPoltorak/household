@@ -14,10 +14,14 @@ export function getAccessTtlSeconds(config: ConfigService): number {
 }
 
 export function getRefreshTtlSeconds(config: ConfigService): number {
-  const days = config.get<number>('JWT_REFRESH_EXPIRES_DAYS', DEFAULT_REFRESH_DAYS);
+  // env vars arrive as strings; coerce so `JWT_REFRESH_EXPIRES_DAYS=30`
+  // (from a .env file or docker-compose) is treated the same as the
+  // numeric default.
+  const raw = config.get<string | number>('JWT_REFRESH_EXPIRES_DAYS', DEFAULT_REFRESH_DAYS);
+  const days = typeof raw === 'number' ? raw : Number(raw);
   if (!Number.isFinite(days) || days <= 0) {
     throw new Error(
-      `JWT_REFRESH_EXPIRES_DAYS must be a positive number (got ${days}).`,
+      `JWT_REFRESH_EXPIRES_DAYS must be a positive number (got ${raw}).`,
     );
   }
   return Math.floor(days * 86400);
