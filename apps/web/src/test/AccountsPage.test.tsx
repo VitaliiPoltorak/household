@@ -85,7 +85,7 @@ describe('AccountsPage', () => {
     it('shows the estimated total using live PrivatBank rates', async () => {
       server.use(
         http.get('/api/v1/accounts', () => HttpResponse.json([UAH_ACCOUNT, USD_ACCOUNT])),
-        http.get('https://api.privatbank.ua/p24api/pubinfo', () =>
+        http.get('/api/v1/rates/latest', () =>
           HttpResponse.json([{ ccy: 'USD', base_ccy: 'UAH', buy: '41.50', sale: '42.00' }]),
         ),
       );
@@ -99,7 +99,7 @@ describe('AccountsPage', () => {
     it('shows unavailable banner when PrivatBank fails and no cache exists', async () => {
       server.use(
         http.get('/api/v1/accounts', () => HttpResponse.json([UAH_ACCOUNT, USD_ACCOUNT])),
-        http.get('https://api.privatbank.ua/p24api/pubinfo', () =>
+        http.get('/api/v1/rates/latest', () =>
           new HttpResponse(null, { status: 503 }),
         ),
       );
@@ -124,7 +124,7 @@ describe('AccountsPage', () => {
 
       server.use(
         http.get('/api/v1/accounts', () => HttpResponse.json([UAH_ACCOUNT, USD_ACCOUNT])),
-        http.get('https://api.privatbank.ua/p24api/pubinfo', () =>
+        http.get('/api/v1/rates/latest', () =>
           new HttpResponse(null, { status: 503 }),
         ),
       );
@@ -144,7 +144,7 @@ describe('AccountsPage', () => {
 
       server.use(
         http.get('/api/v1/accounts', () => HttpResponse.json([UAH_ACCOUNT, USD_ACCOUNT])),
-        http.get('https://api.privatbank.ua/p24api/pubinfo', () =>
+        http.get('/api/v1/rates/latest', () =>
           new HttpResponse(null, { status: 503 }),
         ),
       );
@@ -160,7 +160,7 @@ describe('AccountsPage', () => {
       let pbCalls = 0;
       server.use(
         http.get('/api/v1/accounts', () => HttpResponse.json([UAH_ACCOUNT])),
-        http.get('https://api.privatbank.ua/p24api/pubinfo', () => {
+        http.get('/api/v1/rates/latest', () => {
           pbCalls++;
           return HttpResponse.json([]);
         }),
