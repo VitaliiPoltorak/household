@@ -1,0 +1,42 @@
+# Everything that shouldn't end up in the build context — keeps `docker
+# compose build` fast and images small. Aligns with CI's expectations of
+# a clean checkout.
+**/node_modules
+**/dist
+**/build
+**/coverage
+**/.turbo
+**/*.tsbuildinfo
+
+# Local secrets — services should get env via compose env vars, not baked in
+.env
+.env.local
+.env.*.local
+
+# Tests / dev tooling that runtime doesn't need
+**/test
+**/*.spec.ts
+**/*.test.ts
+**/jest.*.config.js
+**/vitest.config.ts
+
+# IDE / OS / tooling clutter
+.idea
+.vscode
+.DS_Store
+.claude
+
+# Git + CI (nothing runtime cares about)
+.git
+.gitignore
+.github
+
+# Web app — built on host, not in these images
+apps/web
+
+# Docker + infra config
+Dockerfile
+.dockerignore
+docker-compose.yml
+infra
+docs

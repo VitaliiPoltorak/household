@@ -6,6 +6,13 @@
   "scripts": {
     "build": "turbo run build",
     "dev": "turbo run dev",
+    "web": "pnpm --filter @household/web dev",
+    "gateway": "pnpm --filter @household/api-gateway dev",
+    "auth": "pnpm --filter @household/auth-service dev",
+    "household": "pnpm --filter @household/household-service dev",
+    "finance": "pnpm --filter @household/finance-service dev",
+    "shopping": "pnpm --filter @household/shopping-service dev",
+    "realtime": "pnpm --filter @household/realtime-gateway dev",
     "lint": "turbo run lint",
     "test": "turbo run test",
     "test:unit": "turbo run test:unit",

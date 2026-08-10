@@ -10,3 +10,10 @@ dist/
 coverage/
 
 .DS_Store
+
+# IDE / editor local state
+.idea/
+.vscode/
+
+# Claude Code session artifacts (worktrees, memory, transcripts)
+.claude/

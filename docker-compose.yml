@@ -1,4 +1,7 @@
 services:
+  # ─────────────────────────────────────────────────────────────
+  # Infrastructure
+  # ─────────────────────────────────────────────────────────────
   postgres:
     image: postgres:16-alpine
     container_name: household-postgres
@@ -12,6 +15,11 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-household}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
   redis:
     image: redis:7-alpine
@@ -21,6 +29,11 @@ services:
       - "${REDIS_PORT:-6379}:6379"
     volumes:
       - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
   kafka:
     image: apache/kafka:latest
@@ -32,10 +45,15 @@ services:
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: broker,controller
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
-      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      # Dual listener: containers use INTERNAL (kafka:29092), host processes
+      # use EXTERNAL (localhost:9092). Prior single-listener config advertised
+      # localhost:9092 to everyone — worked for hosts, broke for in-network
+      # clients once metadata exchange redirected them.
+      KAFKA_LISTENERS: INTERNAL://:29092,EXTERNAL://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:29092,EXTERNAL://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
@@ -43,6 +61,12 @@ services:
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
     volumes:
       - kafka_data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server kafka:29092 >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 20s
 
   kafka-ui:
     image: provectuslabs/kafka-ui:latest
@@ -52,9 +76,10 @@ services:
       - "8081:8080"
     environment:
       KAFKA_CLUSTERS_0_NAME: household
-      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
     depends_on:
-      - kafka
+      kafka:
+        condition: service_healthy
 
   adminer:
     image: adminer
@@ -63,7 +88,173 @@ services:
     ports:
       - "8080:8080"
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
+
+  # ─────────────────────────────────────────────────────────────
+  # Application services (built from root Dockerfile per SERVICE)
+  # ─────────────────────────────────────────────────────────────
+  # All services pull env from .env (host defaults), then override the infra
+  # host names so they resolve inside the compose network. Ports are exposed
+  # for dev convenience (Swagger, direct debugging) — production would only
+  # publish api-gateway :3000 and realtime-gateway :3010.
+  # ─────────────────────────────────────────────────────────────
+
+  api-gateway:
+    build:
+      context: .
+      args:
+        SERVICE: api-gateway
+    image: household/api-gateway
+    container_name: household-api-gateway
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    env_file: .env
+    environment:
+      NODE_ENV: development
+      LISTEN_HOST: 0.0.0.0
+      # In-network overrides — .env has host-mode defaults.
+      REDIS_HOST: redis
+      REDIS_PORT: '6379'
+      KAFKA_BROKERS: kafka:29092
+      AUTH_SERVICE_URL: http://auth-service:3001
+      HOUSEHOLD_SERVICE_URL: http://household-service:3002
+      FINANCE_SERVICE_URL: http://finance-service:3003
+      SHOPPING_SERVICE_URL: http://shopping-service:3004
+      # Web still runs on host; the browser talks to the gateway from there.
+      CORS_ORIGIN: http://localhost:5173
+    depends_on:
+      redis:
+        condition: service_healthy
+      auth-service:
+        condition: service_started
+
+  auth-service:
+    build:
+      context: .
+      args:
+        SERVICE: auth-service
+    image: household/auth-service
+    container_name: household-auth-service
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    env_file: .env
+    environment:
+      NODE_ENV: development
+      LISTEN_HOST: 0.0.0.0
+      POSTGRES_HOST: postgres
+      REDIS_HOST: redis
+      KAFKA_BROKERS: kafka:29092
+      # HttpOnly cookie requires HTTPS in secure mode — dev uses http://
+      # localhost so keep secure=false when talking through the host browser.
+      AUTH_COOKIE_SECURE: 'false'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+
+  household-service:
+    build:
+      context: .
+      args:
+        SERVICE: household-service
+    image: household/household-service
+    container_name: household-household-service
+    restart: unless-stopped
+    ports:
+      - "3002:3002"
+    env_file: .env
+    environment:
+      NODE_ENV: development
+      LISTEN_HOST: 0.0.0.0
+      POSTGRES_HOST: postgres
+      REDIS_HOST: redis
+      KAFKA_BROKERS: kafka:29092
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+
+  finance-service:
+    build:
+      context: .
+      args:
+        SERVICE: finance-service
+    image: household/finance-service
+    container_name: household-finance-service
+    restart: unless-stopped
+    ports:
+      - "3003:3003"
+    env_file: .env
+    environment:
+      NODE_ENV: development
+      LISTEN_HOST: 0.0.0.0
+      POSTGRES_HOST: postgres
+      REDIS_HOST: redis
+      KAFKA_BROKERS: kafka:29092
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+
+  shopping-service:
+    build:
+      context: .
+      args:
+        SERVICE: shopping-service
+    image: household/shopping-service
+    container_name: household-shopping-service
+    restart: unless-stopped
+    ports:
+      - "3004:3004"
+    env_file: .env
+    environment:
+      NODE_ENV: development
+      LISTEN_HOST: 0.0.0.0
+      POSTGRES_HOST: postgres
+      REDIS_HOST: redis
+      KAFKA_BROKERS: kafka:29092
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+
+  realtime-gateway:
+    build:
+      context: .
+      args:
+        SERVICE: realtime-gateway
+    image: household/realtime-gateway
+    container_name: household-realtime-gateway
+    restart: unless-stopped
+    ports:
+      - "3010:3010"
+    env_file: .env
+    environment:
+      NODE_ENV: development
+      LISTEN_HOST: 0.0.0.0
+      REDIS_HOST: redis
+      KAFKA_BROKERS: kafka:29092
+      WS_CORS_ORIGINS: http://localhost:5173
+    depends_on:
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
 
 volumes:
   postgres_data:
