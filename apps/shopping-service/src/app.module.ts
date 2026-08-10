@@ -6,6 +6,7 @@ import { ensureSchema } from '@household/database';
 import { StoresModule } from './stores/stores.module';
 import { ProductsModule } from './products/products.module';
 import { ShoppingListsModule } from './shopping-lists/shopping-lists.module';
+import { EventsModule } from './events/events.module';
 import { Store } from './stores/entities/store.entity';
 import { Product } from './products/entities/product.entity';
 import { ShoppingList } from './shopping-lists/entities/shopping-list.entity';
@@ -36,6 +37,7 @@ import { ShoppingListItem } from './shopping-lists/entities/shopping-list-item.e
     StoresModule,
     ProductsModule,
     ShoppingListsModule,
+    EventsModule,
   ],
 })
 export class AppModule {}
