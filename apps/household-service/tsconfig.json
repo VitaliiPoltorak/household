@@ -12,7 +12,9 @@
       "@household/database": ["libs/database/src"],
       "@household/database/*": ["libs/database/src/*"],
       "@household/kafka": ["libs/kafka/src"],
-      "@household/kafka/*": ["libs/kafka/src/*"]
+      "@household/kafka/*": ["libs/kafka/src/*"],
+      "@household/audit": ["libs/audit/src"],
+      "@household/audit/*": ["libs/audit/src/*"]
     }
   },
   "include": ["src/**/*"]

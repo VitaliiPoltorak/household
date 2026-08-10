@@ -4,6 +4,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { KafkaModule } from '@household/kafka';
 import { ensureSchema } from '@household/database';
+import { AuditLog, AuditModule } from '@household/audit';
 import { AccountsModule } from './accounts/accounts.module';
 import { TransactionsModule } from './transactions/transactions.module';
 import { CategoriesModule } from './categories/categories.module';
@@ -33,12 +34,13 @@ import { RecurringPayment } from './recurring-payments/entities/recurring-paymen
           password: config.get<string>('POSTGRES_PASSWORD', 'household_secret'),
           database: config.get<string>('POSTGRES_DB', 'household'),
           schema: 'finance',
-          entities: [Account, Transaction, Category, IncomeSource, RecurringPayment],
+          entities: [Account, Transaction, Category, IncomeSource, RecurringPayment, AuditLog],
           synchronize: config.get('NODE_ENV') === 'development',
         };
       },
     }),
     KafkaModule.forRootAsync('finance-service'),
+    AuditModule.register(),
     ScheduleModule.forRoot(),
     AccountsModule,
     TransactionsModule,

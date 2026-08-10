@@ -10,6 +10,7 @@ module.exports = {
     '^@household/contracts(.*)$': '<rootDir>/../../libs/contracts/src$1',
     '^@household/database(.*)$': '<rootDir>/../../libs/database/src$1',
     '^@household/kafka(.*)$': '<rootDir>/../../libs/kafka/src$1',
+    '^@household/audit(.*)$': '<rootDir>/../../libs/audit/src$1',
     '^@household/testing(.*)$': '<rootDir>/../../libs/testing/src$1',
   },
   transform: {

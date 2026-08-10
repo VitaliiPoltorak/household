@@ -3,6 +3,7 @@ import {
   Param, Body, Headers, Query, HttpCode, HttpStatus, UnauthorizedException,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiHeader, ApiQuery } from '@nestjs/swagger';
+import { Audit } from '@household/audit';
 import { TransactionsService } from './transactions.service';
 import { TransactionType } from './entities/transaction.entity';
 import { CreateTransactionDto, CreateTransferDto, UpdateTransactionDto } from './dto/transaction.dto';
@@ -81,6 +82,7 @@ export class TransactionsController {
 
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
+  @Audit({ action: 'finance.transaction.delete', resourceType: 'transaction', resourceIdParam: 'id' })
   @ApiOperation({ summary: 'Delete transaction and reverse balance effect' })
   remove(
     @Headers('x-user-id') userId: string,

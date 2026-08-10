@@ -18,6 +18,7 @@ import { ApiTags, ApiOperation, ApiHeader, ApiParam } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
 import type { Request, Response } from 'express';
 import { getRefreshTtlSeconds } from '@household/common';
+import { Audit } from '@household/audit';
 import { AuthService, TokenPair } from './auth.service';
 import { OAuthStrategyRegistry } from './strategies/oauth-strategy.registry';
 import {
@@ -159,6 +160,7 @@ export class AuthController {
 
   @Post('logout-all')
   @HttpCode(HttpStatus.NO_CONTENT)
+  @Audit({ action: 'auth.logout_all', resourceType: 'user' })
   @ApiOperation({ summary: 'Sign out from all devices — revokes every session for this user' })
   @ApiHeader({ name: 'x-user-id', required: true })
   async logoutAll(
@@ -208,6 +210,7 @@ export class AuthController {
 
   @Delete('me')
   @HttpCode(HttpStatus.NO_CONTENT)
+  @Audit({ action: 'auth.account.delete', resourceType: 'user' })
   @ApiOperation({ summary: 'Delete account (GDPR)' })
   @ApiHeader({ name: 'x-user-id', required: true })
   async deleteAccount(
