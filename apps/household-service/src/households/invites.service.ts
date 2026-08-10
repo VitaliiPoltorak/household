@@ -52,6 +52,21 @@ export class InvitesService {
       throw new ForbiddenException('Cannot grant a role equal to or above your own');
     }
 
+    // Reject a second live invite for the same email/household so admins can't
+    // accidentally spam invitees or leak old links. Compared lowercased to
+    // match the case-insensitive check in accept().
+    const email = dto.email.trim().toLowerCase();
+    const existing = await this.inviteRepo
+      .createQueryBuilder('i')
+      .where('i.householdId = :householdId', { householdId })
+      .andWhere('LOWER(i.email) = :email', { email })
+      .andWhere('i.acceptedAt IS NULL')
+      .andWhere('i.expiresAt > :now', { now: new Date() })
+      .getOne();
+    if (existing) {
+      throw new ConflictException('An active invite for this email already exists');
+    }
+
     const invite = await this.inviteRepo.save(
       this.inviteRepo.create({ householdId, email: dto.email, token, role, expiresAt, acceptedAt: null }),
     );

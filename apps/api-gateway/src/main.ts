@@ -45,18 +45,27 @@ async function bootstrap() {
 
   setupProxies(app);
 
-  const swaggerConfig = new DocumentBuilder()
-    .setTitle('Household API')
-    .setDescription('Family finance & shopping management API')
-    .setVersion('0.1.0')
-    .addBearerAuth()
-    .build();
-  const document = SwaggerModule.createDocument(app, swaggerConfig);
-  SwaggerModule.setup('api/docs', app, document);
+  // Skip Swagger in production so a public deploy can't be scraped for the
+  // full API surface. Dev/staging still get /api/docs for exploration.
+  const swaggerEnabled = process.env.NODE_ENV !== 'production';
+  if (swaggerEnabled) {
+    const swaggerConfig = new DocumentBuilder()
+      .setTitle('Household API')
+      .setDescription('Family finance & shopping management API')
+      .setVersion('0.1.0')
+      .addBearerAuth()
+      .build();
+    const document = SwaggerModule.createDocument(app, swaggerConfig);
+    SwaggerModule.setup('api/docs', app, document);
+  }
 
-  await app.listen(port);
-  logger.log(`API Gateway running on http://localhost:${port}`);
-  logger.log(`Swagger docs at http://localhost:${port}/api/docs`);
+  // The gateway is the client-facing edge; unlike internal services it must
+  // bind to 0.0.0.0 in most deployments. Still exposed as env for parity so
+  // ops can lock it down (e.g. behind a reverse proxy on 127.0.0.1).
+  const host = config.get<string>('LISTEN_HOST', '0.0.0.0');
+  await app.listen(port, host);
+  logger.log(`API Gateway running on http://${host}:${port}`);
+  if (swaggerEnabled) logger.log(`Swagger docs at http://${host}:${port}/api/docs`);
   logger.log(`CORS allowed origins: ${corsOrigins.join(', ')}`);
 }
 bootstrap();

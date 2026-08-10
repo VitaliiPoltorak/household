@@ -23,8 +23,10 @@ async function bootstrap() {
   app.useGlobalFilters(new HttpExceptionFilter());
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }));
 
-  const swagger = new DocumentBuilder().setTitle('Shopping Service').setVersion('0.1.0').build();
-  SwaggerModule.setup('docs', app, SwaggerModule.createDocument(app, swagger));
+  if (process.env.NODE_ENV !== 'production') {
+    const swagger = new DocumentBuilder().setTitle('Shopping Service').setVersion('0.1.0').build();
+    SwaggerModule.setup('docs', app, SwaggerModule.createDocument(app, swagger));
+  }
 
   await app.listen(port, host);
   logger.log(`Shopping Service running on http://${host}:${port}`);
