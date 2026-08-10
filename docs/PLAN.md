@@ -157,6 +157,12 @@ Backend → Web → Mobile → Интеграции → Деплой → App Sto
 
 > **App Store:** если есть сторонние соцлогины — **Sign in with Apple обязателен** ([Guideline 4.8](https://developer.apple.com/app-store/review/guidelines/)).
 
+> **Password login (не реализован):** политика зафиксирована в
+> [`docs/security/password-policy.md`](security/password-policy.md) (Argon2id,
+> zxcvbn ≥ 3, HIBP breach check, rate-limit + account lockout). Любой
+> будущий PR с паролями обязан ссылаться на этот документ и покрывать
+> его чеклист.
+
 ---
 
 ### 4.3 Household Service
