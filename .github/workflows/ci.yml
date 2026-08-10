@@ -13,8 +13,10 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  # Bump both in lockstep with root package.json / engines.
-  NODE_VERSION: '20'
+  # Node 22 required — jsdom 30 → undici 8 uses webidl.util.markAsUncloneable
+  # which only lands in Node 22. Local dev runs 22 too. Keep pnpm pinned in
+  # lockstep with root package.json.
+  NODE_VERSION: '22'
   PNPM_VERSION: '9.15.9'
 
 jobs:
