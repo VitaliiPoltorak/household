@@ -45,6 +45,7 @@ Shared libraries in `libs/`: `common` (config, filters, JWT verify, gateway sign
 git clone git@github.com:VitaliiPoltorak/household.git
 cd household
 pnpm install
+pnpm hooks:enable    # optional but recommended — auto-rebuild running Docker services on git pull / branch checkout
 ```
 
 **2. Configure environment**

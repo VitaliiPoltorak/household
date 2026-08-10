@@ -31,6 +31,10 @@ pnpm --filter @household/auth-service migration:run
 docker compose up -d                          # Start postgres, redis, kafka + app services
 docker compose --profile tools up -d          # Also start adminer (:8080) + kafka-ui (:8081)
 docker compose down                           # Stop all infrastructure
+
+# Git hooks (auto-rebuild Docker services when their sources change)
+pnpm hooks:enable                             # activate .githooks/ (one-time, per clone)
+pnpm hooks:disable                            # opt out
 ```
 
 ## Architecture
@@ -204,6 +208,23 @@ Socket.IO is mocked globally in `setup.ts` — no WebSocket connections in tests
 **Tool: Postman** — `docs/postman/household.postman_collection.json` + `household.postman_environment.json`.
 
 Swagger at `/docs` per service is for endpoint reference during development only.
+
+## Docker auto-rebuild on merge
+
+The compose services are built into `household/<service>` images — a pulled/merged code change is invisible until the image is rebuilt. To avoid the "new endpoint returns 404 because the container is still on the old image" trap, the repo ships two git hooks in `.githooks/`:
+
+- `post-merge` — runs after `git pull` / `git merge`.
+- `post-checkout` — runs after `git checkout <branch>` (branch checkouts only, not file checkouts).
+
+Both delegate to `scripts/rebuild-touched-services.sh`, which:
+1. Diffs the two refs to find changed files.
+2. Maps `apps/<svc>/**` → that service, and `libs/**` / `Dockerfile` / `docker-compose.yml` / root `package.json` / `pnpm-lock.yaml` → all backend services.
+3. Intersects with `docker compose ps --services --status=running` — never starts a service that wasn't already up.
+4. Runs `docker compose up -d --build <targets>` for the intersection.
+
+Failures are logged, never blocking — the git operation succeeds either way.
+
+**Activation is opt-in** (git hooks are not auto-linked to `.githooks/` on clone): run `pnpm hooks:enable` once per clone. `pnpm hooks:disable` reverts.
 
 ## Documentation policy
 
