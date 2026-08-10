@@ -6,14 +6,18 @@ Family finance & shopping management — NestJS microservices monorepo.
 
 | Layer | Technology |
 |-------|-----------|
-| Backend | NestJS + TypeScript, pnpm workspaces + Turborepo |
+| Backend | NestJS 10 + TypeScript, pnpm 9 workspaces + Turborepo |
 | Database | PostgreSQL 16 (schema-per-service) |
 | Cache / Sessions | Redis 7 |
-| Message bus | Apache Kafka (KRaft) |
-| Real-time | Socket.IO |
+| Message bus | Apache Kafka (KRaft) — HMAC-signed envelopes, retry + DLQ |
+| Real-time | Socket.IO + `@socket.io/redis-adapter` |
 | Web | React 18 + Vite 5 + TanStack Query + Tailwind CSS |
 | i18n | react-i18next, shared `libs/locales` (en / uk / de / es) |
+| Auth | Google / Apple / Facebook OAuth · HttpOnly refresh cookie + CSRF (double-submit) · logout-all · Redis sessions |
+| Security | Helmet · gateway-signed trust headers · JWT algorithm allowlist · per-endpoint rate limiting · audit_log · Swagger gated behind `NODE_ENV !== 'production'` |
 | Mobile | React Native / Expo (Phase 5) |
+
+Shared libraries in `libs/`: `common` (config, filters, JWT verify, gateway signature), `contracts` (Kafka envelope, Socket.IO event types, `LIST_HARD_LIMIT`, `PaginationDto`), `database` (base entity, schema helper), `kafka` (producer/consumer wrappers with retry + DLQ), `audit` (audit_log entity + `@Audit()` decorator + interceptor), `locales` (i18n JSON, 4 languages), `testing` (integration test factory).
 
 ## Services
 
@@ -54,10 +58,11 @@ Open `.env` and fill in the required values (see [Environment variables](#enviro
 **3. Start infrastructure**
 
 ```bash
-docker compose up -d
+docker compose up -d                          # postgres + redis + kafka + all app services
+docker compose --profile tools up -d          # also start Adminer (:8080) + Kafka UI (:8081)
 ```
 
-This starts PostgreSQL (5432), Redis (6379), Kafka (9092), Kafka UI (8081), Adminer (8080).
+Dev UIs (Adminer, Kafka UI) are gated behind the `tools` compose profile so a copy-paste of `docker-compose.yml` onto a public host doesn't expose the DB schema or Kafka messages (#68.5, #68.6).
 
 **4. Run backend services**
 
@@ -95,67 +100,51 @@ The web app uses a Vite proxy — all `/api` requests are forwarded to the API G
 | Household Service | http://localhost:3002/docs |
 | Finance Service | http://localhost:3003/docs |
 
-Dev tools:
+Dev tools (only available with `--profile tools`):
 
 | Tool | URL |
 |------|-----|
 | Adminer (DB UI) | http://localhost:8080 |
 | Kafka UI | http://localhost:8081 |
 
+> Swagger is skipped in production (`NODE_ENV=production`) — see [#68.4](https://github.com/VitaliiPoltorak/household/issues/68).
+
 ## Environment variables
 
-Copy `.env.example` to `.env`. Values marked **required** must be set before any service will start.
+Copy `.env.example` to `.env`. Full annotated reference lives in [`.env.example`](.env.example) — the tables below summarise what's **required** vs optional and highlight the security defaults introduced by the 2026-08 audits.
 
-```bash
-# ── Application ──────────────────────────────────────────────────────────────
-NODE_ENV=development
-API_PORT=3000
+### Required in every environment
 
-# ── PostgreSQL ────────────────────────────────────────────────────────────────
-POSTGRES_HOST=localhost
-POSTGRES_PORT=5432
-POSTGRES_USER=household
-POSTGRES_PASSWORD=household_secret   # change in production
-POSTGRES_DB=household
+| Var | Notes |
+|---|---|
+| `JWT_SECRET` | ≥ 32 chars, generated via `openssl rand -base64 48`. Service refuses to start with an empty or placeholder value (#53). |
+| `CORS_ORIGIN` | Comma-separated allow-list for the REST API. `api-gateway` refuses to start with an empty value in production (#51). |
+| `WS_CORS_ORIGINS` | Same, but for the Socket.IO handshake on `realtime-gateway` (#50). |
+| `GOOGLE_CLIENT_ID` | Needed to complete Google login (see the Google OAuth setup section). |
 
-# ── Redis ─────────────────────────────────────────────────────────────────────
-REDIS_HOST=localhost
-REDIS_PORT=6379
+### Required in production
 
-# ── JWT ───────────────────────────────────────────────────────────────────────
-JWT_SECRET=change-me-in-production   # required — any long random string
-JWT_ACCESS_EXPIRES=15m
-JWT_REFRESH_EXPIRES_DAYS=30
+| Var | Notes |
+|---|---|
+| `GATEWAY_SIGNING_SECRET` | HMAC secret used by `api-gateway` / `realtime-gateway` to sign the `X-User-Id` / `X-Household-Id` / `X-User-Email` trust headers. Downstream services verify the signature. Refuses to start empty when `NODE_ENV=production` (#46). |
+| `KAFKA_SIGNING_KEY` | Optional in dev, expected in staging/prod — HMAC used to authenticate Kafka messages between services (#63). Rotation: keep the previous value in `KAFKA_SIGNING_KEY_PREV` while the new one propagates. |
+| `AUTH_COOKIE_SECURE=true` | Default. Only set to `false` for local `http://` dev on non-localhost hosts — `SameSite=None` requires `Secure` (#60/#61). |
 
-# ── Auth Service ──────────────────────────────────────────────────────────────
-AUTH_SERVICE_PORT=3001
+### Optional / defaulted
 
-# Google OAuth (see "Google OAuth setup" section below for full instructions)
-GOOGLE_CLIENT_ID=                    # required for Google login
-
-# Apple Sign In — https://developer.apple.com → Certificates, IDs & Profiles
-APPLE_CLIENT_ID=                     # required for Apple login (App Store mandatory)
-
-# Facebook OAuth — https://developers.facebook.com → My Apps
-# (optional — Facebook login not required for App Store)
-
-# ── Service Ports ─────────────────────────────────────────────────────────────
-HOUSEHOLD_SERVICE_PORT=3002
-FINANCE_SERVICE_PORT=3003
-
-# ── Kafka ─────────────────────────────────────────────────────────────────────
-KAFKA_BROKERS=localhost:9092
-
-# ── Service URLs (used by API Gateway for proxying) ───────────────────────────
-AUTH_SERVICE_URL=http://localhost:3001
-HOUSEHOLD_SERVICE_URL=http://localhost:3002
-FINANCE_SERVICE_URL=http://localhost:3003
-SHOPPING_SERVICE_URL=http://localhost:3004
-
-# ── Rate Limiting ─────────────────────────────────────────────────────────────
-THROTTLE_TTL=60       # window in seconds
-THROTTLE_LIMIT=100    # max requests per window per IP
-```
+| Var | Default | Purpose |
+|---|---|---|
+| `LISTEN_HOST` | `127.0.0.1` for internal services, `0.0.0.0` for `api-gateway` + `realtime-gateway` | Bind address (#68.8). |
+| `POSTGRES_HOST/PORT/USER/PASSWORD/DB` | `localhost:5432` `household:household_secret/household` | |
+| `REDIS_HOST/PORT` | `localhost:6379` | |
+| `KAFKA_BROKERS` | `localhost:9092` | |
+| `JWT_ACCESS_EXPIRES` | `15m` | |
+| `JWT_REFRESH_EXPIRES_DAYS` | `30` | |
+| `AUTH_SERVICE_PORT`, `HOUSEHOLD_SERVICE_PORT`, `FINANCE_SERVICE_PORT`, `SHOPPING_SERVICE_PORT`, `REALTIME_GATEWAY_PORT` | `3001`–`3004`, `3010` | |
+| `AUTH_SERVICE_URL` … `SHOPPING_SERVICE_URL` | `http://localhost:300x` | Used by `api-gateway` for proxying. |
+| `PROXY_ROUTES_JSON` / `PROXY_ROUTES_PATH` | ships with `apps/api-gateway/src/proxy/routes.default.json` | Override the gateway's proxy table without recompiling (#88). |
+| `THROTTLE_TTL` / `THROTTLE_LIMIT` | `60` / `100` | Redis rate limiting on `api-gateway`. |
+| `APPLE_CLIENT_ID` | — | Required for Apple login (App Store mandatory once other providers are enabled). |
 
 ## Development commands
 
@@ -164,19 +153,28 @@ pnpm build                  # build all packages
 pnpm dev                    # start all backend services in watch mode
 pnpm lint                   # lint all packages
 pnpm test                   # run all tests
+pnpm test:unit              # unit tests only (no Docker required)
+pnpm test:integration       # integration tests (requires `docker compose up -d`)
 pnpm format                 # prettier format
+
+# Per-service dev shortcuts (root-level scripts)
+pnpm gateway | pnpm auth | pnpm household | pnpm finance | pnpm shopping | pnpm realtime | pnpm web
 
 # Web app
 pnpm --filter @household/web dev          # start dev server
-pnpm --filter @household/web test:run     # run Vitest integration tests (27 tests, no Docker needed)
+pnpm --filter @household/web test:run     # Vitest integration tests (42 tests, no Docker needed)
 pnpm --filter @household/web test:ui      # Vitest UI
 
-# Backend integration tests (requires docker compose up -d)
+# Backend integration tests per service (requires docker compose up -d)
 pnpm --filter @household/finance-service test:integration
 pnpm --filter @household/shopping-service test:integration
 
-# Unit tests (no Docker needed)
+# Unit tests per service (no Docker needed)
 pnpm --filter @household/api-gateway test:unit
+pnpm --filter @household/auth-service test:unit
+pnpm --filter @household/household-service test:unit
+pnpm --filter @household/finance-service test:unit
+pnpm --filter @household/audit test:unit
 
 # TypeORM migrations (same pattern for all services)
 pnpm --filter @household/auth-service migration:generate -- -n InitAuth
@@ -233,7 +231,7 @@ Each completed feature has a manual testing checklist in the [Testing milestone]
 
 ### Web — Vitest
 
-The web app has 27 integration tests using **Vitest + @testing-library/react + MSW** (Mock Service Worker intercepts fetch at the network level). No Docker needed.
+The web app has 42 integration tests using **Vitest + @testing-library/react + MSW** (Mock Service Worker intercepts fetch at the network level). No Docker needed.
 
 ```bash
 pnpm --filter @household/web test:run   # run once
