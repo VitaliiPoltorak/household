@@ -10,7 +10,8 @@
     "lint": "eslint src",
     "test": "vitest",
     "test:ui": "vitest --ui",
-    "test:run": "vitest run"
+    "test:run": "vitest run",
+    "test:unit": "vitest run"
   },
   "dependencies": {
     "@react-oauth/google": "^0.12.1",

@@ -8,6 +8,7 @@
     "dev": "turbo run dev",
     "lint": "turbo run lint",
     "test": "turbo run test",
+    "test:unit": "turbo run test:unit",
     "test:integration": "turbo run test:integration",
     "format": "prettier --write \"**/*.{ts,tsx,js,json,md}\""
   },
