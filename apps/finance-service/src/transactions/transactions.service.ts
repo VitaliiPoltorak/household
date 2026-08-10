@@ -1,7 +1,7 @@
 import { Inject, Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { EVENT_PUBLISHER, IEventPublisher } from '@household/contracts';
+import { EVENT_PUBLISHER, IEventPublisher, LIST_HARD_LIMIT } from '@household/contracts';
 import { nextDayIso } from '@household/common';
 import { AccountsService } from '../accounts/accounts.service';
 import { CategoriesService } from '../categories/categories.service';
@@ -108,7 +108,7 @@ export class TransactionsService {
     if (query.from) qb.andWhere('t.date >= :from', { from: query.from });
     if (query.to) qb.andWhere('t.date < :toExclusive', { toExclusive: nextDayIso(query.to) });
 
-    return qb.orderBy('t.date', 'DESC').getMany();
+    return qb.orderBy('t.date', 'DESC').take(LIST_HARD_LIMIT).getMany();
   }
 
   async findOne(id: string, householdId: string): Promise<Transaction> {

@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { LIST_HARD_LIMIT } from '@household/contracts';
 import { IncomeSource } from './entities/income-source.entity';
 import { CreateIncomeSourceDto, UpdateIncomeSourceDto } from './dto/income-source.dto';
 
@@ -15,7 +16,7 @@ export class IncomeSourcesService {
   }
 
   findAll(householdId: string): Promise<IncomeSource[]> {
-    return this.repo.find({ where: { householdId }, order: { name: 'ASC' } });
+    return this.repo.find({ where: { householdId }, order: { name: 'ASC' }, take: LIST_HARD_LIMIT });
   }
 
   async findOne(id: string, householdId: string): Promise<IncomeSource> {

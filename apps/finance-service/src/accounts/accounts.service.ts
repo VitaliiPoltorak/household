@@ -1,7 +1,7 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { EntityManager, Repository } from 'typeorm';
-import { EVENT_PUBLISHER, IEventPublisher } from '@household/contracts';
+import { EVENT_PUBLISHER, IEventPublisher, LIST_HARD_LIMIT } from '@household/contracts';
 import { Account } from './entities/account.entity';
 import { CreateAccountDto, UpdateAccountDto } from './dto/account.dto';
 
@@ -22,7 +22,11 @@ export class AccountsService {
   }
 
   findAll(householdId: string): Promise<Account[]> {
-    return this.repo.find({ where: { householdId, isArchived: false }, order: { name: 'ASC' } });
+    return this.repo.find({
+      where: { householdId, isArchived: false },
+      order: { name: 'ASC' },
+      take: LIST_HARD_LIMIT,
+    });
   }
 
   async findOne(id: string, householdId: string): Promise<Account> {

@@ -1,6 +1,11 @@
 import { Type } from 'class-transformer';
 import { IsInt, IsOptional, Max, Min } from 'class-validator';
 
+// Absolute cap applied by list endpoints as defence in depth: a client can
+// never receive more than this many rows in a single response, regardless
+// of query params. Prevents accidental / malicious DoS via giant payloads.
+export const LIST_HARD_LIMIT = 1000;
+
 export class PaginationDto {
   @IsOptional()
   @Type(() => Number)

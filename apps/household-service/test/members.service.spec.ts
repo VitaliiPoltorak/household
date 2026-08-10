@@ -236,6 +236,7 @@ describe('MembersService (unit)', () => {
       expect(memberRepo.find).toHaveBeenCalledWith({
         where: { householdId: HOUSEHOLD_ID },
         order: { createdAt: 'ASC' },
+        take: 1000,
       });
     });
   });
