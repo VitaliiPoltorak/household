@@ -6,7 +6,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
 import { randomUUID } from 'crypto';
-import { EVENT_PUBLISHER, IEventPublisher } from '@household/contracts';
+import { EVENT_PUBLISHER, IEventPublisher, LIST_HARD_LIMIT } from '@household/contracts';
 import { Household } from './entities/household.entity';
 import { MemberRole } from './entities/member-role.enum';
 import { CreateHouseholdDto } from './dto/create-household.dto';
@@ -40,7 +40,7 @@ export class HouseholdsService {
     const memberships = await this.members.findByUserId(userId);
     if (!memberships.length) return [];
     const ids = memberships.map((m) => m.householdId);
-    return this.householdRepo.find({ where: { id: In(ids) }, order: { name: 'ASC' } });
+    return this.householdRepo.find({ where: { id: In(ids) }, order: { name: 'ASC' }, take: LIST_HARD_LIMIT });
   }
 
   async findOne(householdId: string, userId: string): Promise<Household> {

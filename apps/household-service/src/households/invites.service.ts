@@ -10,7 +10,7 @@ import { Repository, MoreThan } from 'typeorm';
 import { randomUUID } from 'crypto';
 import Redis from 'ioredis';
 import { InjectRedis } from '../redis/redis.module';
-import { EVENT_PUBLISHER, IEventPublisher } from '@household/contracts';
+import { EVENT_PUBLISHER, IEventPublisher, LIST_HARD_LIMIT } from '@household/contracts';
 import { HouseholdInvite } from './entities/household-invite.entity';
 import { HouseholdMember } from './entities/household-member.entity';
 import { MemberRole, canGrant } from './entities/member-role.enum';
@@ -91,6 +91,7 @@ export class InvitesService {
     await this.members.requireRole(householdId, actorId, [MemberRole.OWNER, MemberRole.ADMIN]);
     return this.inviteRepo.find({
       where: { householdId, acceptedAt: undefined, expiresAt: MoreThan(new Date()) },
+      take: LIST_HARD_LIMIT,
     });
   }
 

@@ -1,6 +1,7 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { LIST_HARD_LIMIT } from '@household/contracts';
 import { Category, CategoryType } from './entities/category.entity';
 import { CreateCategoryDto, UpdateCategoryDto } from './dto/category.dto';
 import { Transaction } from '../transactions/entities/transaction.entity';
@@ -32,7 +33,7 @@ export class CategoriesService {
     const where: Record<string, unknown> = { householdId };
     if (type) where['type'] = type;
     if (!includeArchived) where['isArchived'] = false;
-    return this.repo.find({ where, order: { name: 'ASC' } });
+    return this.repo.find({ where, order: { name: 'ASC' }, take: LIST_HARD_LIMIT });
   }
 
   async findOne(id: string, householdId: string): Promise<Category> {

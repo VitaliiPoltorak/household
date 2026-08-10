@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ILike, Repository } from 'typeorm';
+import { LIST_HARD_LIMIT } from '@household/contracts';
 import { Product } from './entities/product.entity';
 import { CreateProductDto, UpdateProductDto } from './dto/product.dto';
 import { StoresService } from '../stores/stores.service';
@@ -50,7 +51,7 @@ export class ProductsService {
     const where: Record<string, unknown> = { householdId };
     if (query.search) where['name'] = ILike(`%${query.search}%`);
     if (query.storeId) where['preferredStoreId'] = query.storeId;
-    return this.repo.find({ where, order: { name: 'ASC' } });
+    return this.repo.find({ where, order: { name: 'ASC' }, take: LIST_HARD_LIMIT });
   }
 
   async findOne(id: string, householdId: string): Promise<Product> {

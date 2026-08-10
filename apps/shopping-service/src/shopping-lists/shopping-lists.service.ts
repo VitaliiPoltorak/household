@@ -1,7 +1,7 @@
 import { Inject, Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { EVENT_PUBLISHER, IEventPublisher } from '@household/contracts';
+import { EVENT_PUBLISHER, IEventPublisher, LIST_HARD_LIMIT } from '@household/contracts';
 import { ShoppingList, ListStatus } from './entities/shopping-list.entity';
 import {
   CreateShoppingListDto, UpdateShoppingListDto,
@@ -52,7 +52,7 @@ export class ShoppingListsService {
     // Sort by name to keep a single source of truth (#79). Web used to
     // re-sort client-side which caused cross-browser inconsistencies when
     // the browser's collation disagreed with PostgreSQL's default.
-    return this.listRepo.find({ where, order: { name: 'ASC' } });
+    return this.listRepo.find({ where, order: { name: 'ASC' }, take: LIST_HARD_LIMIT });
   }
 
   async findOne(id: string, householdId: string): Promise<ShoppingList> {

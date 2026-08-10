@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { EVENT_PUBLISHER, IEventPublisher } from '@household/contracts';
+import { EVENT_PUBLISHER, IEventPublisher, LIST_HARD_LIMIT } from '@household/contracts';
 import { HouseholdMember } from './entities/household-member.entity';
 import { MemberRole, canManage, canGrant } from './entities/member-role.enum';
 import { UpdateMemberRoleDto } from './dto/update-member-role.dto';
@@ -27,7 +27,11 @@ export class MembersService {
 
   async list(householdId: string, actorId: string): Promise<HouseholdMember[]> {
     await this.requireMember(householdId, actorId);
-    return this.memberRepo.find({ where: { householdId }, order: { createdAt: 'ASC' } });
+    return this.memberRepo.find({
+      where: { householdId },
+      order: { createdAt: 'ASC' },
+      take: LIST_HARD_LIMIT,
+    });
   }
 
   /**

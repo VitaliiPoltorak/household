@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, LessThanOrEqual } from 'typeorm';
+import { LIST_HARD_LIMIT } from '@household/contracts';
 import { RecurringPayment } from './entities/recurring-payment.entity';
 import { CreateRecurringPaymentDto, UpdateRecurringPaymentDto } from './dto/recurring-payment.dto';
 
@@ -23,7 +24,7 @@ export class RecurringPaymentsService {
   }
 
   findAll(householdId: string): Promise<RecurringPayment[]> {
-    return this.repo.find({ where: { householdId }, order: { nextDueDate: 'ASC' } });
+    return this.repo.find({ where: { householdId }, order: { nextDueDate: 'ASC' }, take: LIST_HARD_LIMIT });
   }
 
   async findOne(id: string, householdId: string): Promise<RecurringPayment> {
@@ -49,6 +50,7 @@ export class RecurringPaymentsService {
     return this.repo.find({
       where: { householdId, nextDueDate: LessThanOrEqual(cutoff.toISOString().split('T')[0]) },
       order: { nextDueDate: 'ASC' },
+      take: LIST_HARD_LIMIT,
     });
   }
 }
