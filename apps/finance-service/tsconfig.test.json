@@ -11,6 +11,8 @@
       "@household/database/*": ["libs/database/src/*"],
       "@household/kafka": ["libs/kafka/src"],
       "@household/kafka/*": ["libs/kafka/src/*"],
+      "@household/audit": ["libs/audit/src"],
+      "@household/audit/*": ["libs/audit/src/*"],
       "@household/testing": ["libs/testing/src"],
       "@household/testing/*": ["libs/testing/src/*"]
     }
