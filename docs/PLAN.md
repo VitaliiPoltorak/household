@@ -18,6 +18,7 @@
 9. [Фазы разработки](#9-фазы-разработки)
 10. [MVP scope](#10-mvp-scope)
 11. [Деплой и App Store](#11-деплой-и-app-store)
+11a. [Аудиты 2026-08 (завершены)](#11a-аудиты-2026-08-завершены)
 12. [Открытые вопросы](#12-открытые-вопросы)
 13. [Real-time (Socket.IO)](#13-real-time-socketio)
 
@@ -149,11 +150,15 @@ Backend → Web → Mobile → Интеграции → Деплой → App Sto
 
 | Ответственность |
 |-----------------|
-| OAuth 2.0: Google, Apple, Facebook |
-| JWT access + refresh tokens |
-| Сессии в Redis |
-| Профиль пользователя (`displayName`, `avatar`, `locale`) |
+| OAuth 2.0: Google, Apple, Facebook (все три стратегии реализованы; регистрация через `OAuthStrategyRegistry` — #85) |
+| JWT access (15 мин) + refresh (30 дней), алгоритм в allowlist (#52) |
+| Refresh token в HttpOnly + Secure + SameSite=None cookie, парная CSRF-cookie double-submit (#60, #61) |
+| Логин из нескольких устройств; `POST /auth/logout-all` инвалидирует все сессии пользователя (#66) |
+| Session single-use с атомарным `GETDEL` в Redis (защита от race-condition при рефреше — #55) |
+| Сессии + rate-limit по эндпоинтам auth (#54) |
+| Профиль пользователя (`displayName`, `avatarUrl` с `@IsUrl({protocols:['http','https']})`, `locale`) |
 | Удаление аккаунта (GDPR-ready) |
+| Аудит-лог для logout-all и удаления аккаунта (`@Audit()` + `libs/audit` — #68.3) |
 
 > **App Store:** если есть сторонние соцлогины — **Sign in with Apple обязателен** ([Guideline 4.8](https://developer.apple.com/app-store/review/guidelines/)).
 
@@ -170,10 +175,13 @@ Backend → Web → Mobile → Интеграции → Деплой → App Sto
 | Ответственность |
 |-----------------|
 | CRUD домохозяйств («Дом») |
-| Участники и роли |
-| Приглашения (email / ссылка / код) |
+| Участники и роли (`MembersService` — выделен из HouseholdsService по SRP, #89) |
+| Приглашения (`InvitesService` — тоже отдельный, #89); email / ссылка / токен в Redis + запись в БД; TTL 7 дней; проверка на дубликат pending-invite (#68.7); email должен совпасть при accept (#76) |
+| Guard `canGrant()` против peer-level elevation (admin не может выдать admin/owner — #65) |
 | Переключение активного домохозяйства |
-| Проверка прав доступа (делегируется другим сервисам через shared lib или sync call) |
+| Kafka consumer `auth.user.deleted` → cascade cleanup memberships |
+| Kafka emitter `household.deleted` → finance/shopping consumers очищают свои схемы (#83.4) |
+| Аудит-лог для delete household, member role change, member remove, invite create/revoke/accept (#68.3) |
 
 **Роли:**
 
@@ -190,12 +198,16 @@ Backend → Web → Mobile → Интеграции → Деплой → App Sto
 
 | Ответственность |
 |-----------------|
-| Счета: cash, bank, crypto, investment, deposit |
-| Транзакции: income, expense, transfer, adjustment |
-| Категории расходов/доходов |
+| Счета: cash, bank, crypto, investment, deposit; ручная корректировка баланса `POST /accounts/:id/adjust-balance` создаёт ADJUSTMENT-транзакцию для истории |
+| Транзакции: income, expense, transfer, adjustment; баланс аккаунта пересчитывается атомарно через `SELECT ... FOR UPDATE` (#70) и SQL-`SUM` для агрегации (#71); reverse-delta при удалении/апдейте (#69) |
+| Transfer — парные транзакции с явным `transferPairId`, удаление/апдейт как единое целое (#74) |
+| Категории: soft-delete (archive) → `GET /categories/:id/impact` показывает зависимые сущности → hard-delete только через `?permanent=true` когда impact==0 (#110–115) |
 | Источники дохода (зарплата, проект, дивиденды, аренда…) |
-| Регулярные платежи (подписки, аренда) |
-| Агрегированные балансы и отчёты |
+| Регулярные платежи + `@nestjs/schedule` cron (#78); эндпоинт `GET /recurring-payments/upcoming` |
+| Отчёты: monthly / by-category / net-worth (`ReportsService` использует `TransactionQueryRepository` — #87) |
+| Kafka consumer `household.deleted` → полная очистка finance-схемы для этого домохозяйства (#83.4) |
+| Аудит-лог для delete account и delete transaction (#68.3) |
+| Все list-эндпоинты капнуты `LIST_HARD_LIMIT=1000` (#68.2) |
 | Привязка внешних транзакций (из Integration) к ручным |
 
 ---
@@ -205,9 +217,11 @@ Backend → Web → Mobile → Интеграции → Деплой → App Sto
 | Ответственность |
 |-----------------|
 | Магазины (супермаркеты, овощной, аптека…) |
-| Каталог товаров с привязкой к магазинам |
-| Списки покупок (активные / архивные) |
+| Каталог товаров с привязкой к магазинам, все `storeId`-references проверяются на household-scope при create/update (#67) |
+| Списки покупок (активные / завершённые / архивные) |
+| Позиции списка (`ShoppingListItemsService` — выделен из ShoppingListsService по SRP, #91) |
 | «Предпочитаемый магазин» vs «купить сейчас в другом» |
+| Kafka consumer `household.deleted` → каскадная очистка stores/products/lists (items уходят через FK cascade, #83.4) |
 | История цен (опционально в MVP+) |
 | Отметка «куплено» с привязкой к транзакции (позже) |
 
@@ -262,22 +276,25 @@ Backend → Web → Mobile → Интеграции → Деплой → App Sto
 ## 5. Инфраструктура (Docker Compose)
 
 ```yaml
-# Сервисы приложения
-api-gateway           # :3000
-auth-service          # :3001
+# Сервисы приложения (все дockerized — образы household/<service>)
+api-gateway           # :3000  — LISTEN_HOST=0.0.0.0 (client edge)
+auth-service          # :3001  — LISTEN_HOST=127.0.0.1 по умолчанию, 0.0.0.0 в контейнерах
 household-service     # :3002
 finance-service       # :3003
 shopping-service      # :3004
-realtime-gateway      # :3010 (Socket.IO) — Phase 2+
-integration-service   # Phase 3+
-notification-service  # Phase 3+
+realtime-gateway      # :3010 (Socket.IO) — LISTEN_HOST=0.0.0.0 (client edge)
+integration-service   # Phase 3+ (не реализован)
+notification-service  # Phase 6 (не реализован)
 
-# Инфраструктура
-postgres              # 1 инстанс, schemas: auth, household, finance, shopping, integration
+# Инфраструктура (default profile)
+postgres              # 1 инстанс, schemas: auth, household, finance, shopping (+ audit_log в каждой)
 redis
 kafka (KRaft)
-adminer / pgadmin     # dev only
-kafka-ui              # dev only
+
+# Dev-tools (profile: tools) — не запускаются в default,
+# чтобы копипаст docker-compose.yml на публичный хост не открыл БД/Kafka
+adminer               # :8080 — docker compose --profile tools up -d
+kafka-ui              # :8081
 ```
 
 ### Redis — use cases
@@ -295,20 +312,25 @@ kafka-ui              # dev only
 
 ```
 apps/
-  api-gateway/
-  auth-service/
-  household-service/
-  finance-service/
-  shopping-service/
-  realtime-gateway/    # Socket.IO, Kafka consumer, presence
-  integration-service/
-  notification-service/
+  api-gateway/          # :3000 — JWT proxy, rate limiting, Swagger
+  auth-service/         # :3001 — OAuth (Google/Apple/Facebook), JWT, Redis sessions
+  household-service/    # :3002 — households, members, invites
+  finance-service/      # :3003 — accounts, transactions, categories, reports
+  shopping-service/     # :3004 — stores, products, lists + items
+  realtime-gateway/     # :3010 — Socket.IO, Kafka bridge, presence
+  web/                  # :5173 — React 18 + Vite SPA
+  integration-service/  # Phase 3 — Monobank sync (не реализован)
+  notification-service/ # Phase 6 — email + push (не реализован)
+  mobile/               # Phase 5 — React Native / Expo (не реализован)
 
 libs/
-  common/          # guards, decorators, pipes, exceptions
-  contracts/       # DTO, event schemas, shared types; Socket.IO event types
-  database/        # migrations helpers, base entities
-  kafka/           # producers, consumers, event envelope
+  common/     # config, filters, JWT verify, gateway signature, date helpers
+  contracts/  # DTO, Kafka envelope, Socket.IO event types, PaginationDto + LIST_HARD_LIMIT
+  database/   # BaseEntity, createDataSourceOptions, ensureSchema
+  kafka/      # KafkaProducer/Consumer с HMAC-подписью, retry + DLQ
+  audit/      # audit_log entity + @Audit() декоратор + interceptor (#68.3)
+  locales/    # i18n JSON (en / uk / de / es) — web + mobile
+  testing/    # createTestApp, cleanDatabase, kafka mocks (integration tests)
 ```
 
 ---
@@ -465,14 +487,16 @@ Finance Service → Kafka: finance.transaction.created
 
 | Method | Path | Описание |
 |--------|------|----------|
-| POST | `/auth/google` | OAuth callback / token exchange |
-| POST | `/auth/apple` | Sign in with Apple |
-| POST | `/auth/facebook` | Facebook OAuth |
-| POST | `/auth/refresh` | Обновление access token |
-| POST | `/auth/logout` | Инвалидация refresh token |
+| POST | `/auth/google` | OAuth callback / token exchange (legacy — оставлено для web/mobile клиентов) |
+| POST | `/auth/apple` | Sign in with Apple (legacy) |
+| POST | `/auth/facebook` | Facebook OAuth (legacy) |
+| POST | `/auth/oauth/:provider` | Провайдер-агностичный OAuth (Strategy Registry — #85). Новые провайдеры добавляются без правок контроллера |
+| POST | `/auth/refresh` | Обновление access token; читает HttpOnly cookie + `X-CSRF-Token` header (double-submit) |
+| POST | `/auth/logout` | Инвалидация текущей сессии; очищает cookies |
+| POST | `/auth/logout-all` | Инвалидация **всех** сессий пользователя (#66); аудит-лог |
 | GET | `/auth/me` | Текущий пользователь + профиль |
-| PATCH | `/auth/me` | Обновление профиля |
-| DELETE | `/auth/me` | Удаление аккаунта |
+| PATCH | `/auth/me` | Обновление профиля (`avatarUrl` валидируется `@IsUrl` http(s) — #68.1) |
+| DELETE | `/auth/me` | Удаление аккаунта; Kafka `auth.user.deleted` для cascade cleanup; аудит-лог |
 
 ---
 
@@ -500,12 +524,12 @@ Finance Service → Kafka: finance.transaction.created
 | Method | Path | Описание |
 |--------|------|----------|
 | POST | `/accounts` | Создать счёт |
-| GET | `/accounts` | Список счетов дома |
+| GET | `/accounts` | Список счетов дома (капнут `LIST_HARD_LIMIT=1000` — #68.2) |
 | GET | `/accounts/:id` | Детали + баланс |
 | PATCH | `/accounts/:id` | Обновить |
-| DELETE | `/accounts/:id` | Архивировать / удалить |
-| GET | `/accounts/:id/balance` | Текущий баланс |
-| GET | `/accounts/summary` | Сводка по всем счетам |
+| DELETE | `/accounts/:id` | Архивировать / удалить (аудит-лог) |
+| POST | `/accounts/:id/adjust-balance` | Ручная корректировка баланса; создаёт ADJUSTMENT-транзакцию для истории |
+| GET | `/accounts/summary` | Сводка по всем счетам с `SUM()` на стороне БД (без float drift — #71) |
 
 ---
 
@@ -527,9 +551,12 @@ Finance Service → Kafka: finance.transaction.created
 | Method | Path | Описание |
 |--------|------|----------|
 | POST | `/categories` | Создать категорию |
-| GET | `/categories` | Список (income / expense) |
+| GET | `/categories` | Список (income / expense), фильтр по `includeArchived` |
+| GET | `/categories/:id/impact` | Счётчик зависимых сущностей (transactions, recurring, subcategories) + `lastUsedAt` — предпросмотр перед hard-delete (#112) |
 | PATCH | `/categories/:id` | Обновить |
-| DELETE | `/categories/:id` | Удалить |
+| DELETE | `/categories/:id` | Soft-delete (archive) — не удаляет исторические транзакции (#73, #111) |
+| DELETE | `/categories/:id?permanent=true` | Hard-delete; отклоняется с 409 если `impact != 0` (#113) |
+| POST | `/categories/:id/unarchive` | Восстановить архивную категорию (#114) |
 
 ---
 
@@ -553,17 +580,21 @@ Finance Service → Kafka: finance.transaction.created
 | GET | `/recurring-payments/:id` | Детали |
 | PATCH | `/recurring-payments/:id` | Обновить |
 | DELETE | `/recurring-payments/:id` | Удалить |
-| GET | `/recurring-payments/upcoming` | Ближайшие платежи |
+| GET | `/recurring-payments/upcoming?days=30` | Ближайшие платежи (по умолчанию 30 дней) |
+
+> Cron-scheduler (`@nestjs/schedule`) уже гоняет due-check ежедневно (#78); публикация Kafka-события `finance.recurring_payment.due` для Notification Service — Phase 6.
 
 ---
 
-### Finance — Reports `/reports` *(Phase 2)*
+### Finance — Reports `/reports`
 
 | Method | Path | Описание |
 |--------|------|----------|
-| GET | `/reports/monthly` | Доходы / расходы за месяц |
-| GET | `/reports/by-category` | Разбивка по категориям |
-| GET | `/reports/net-worth` | Общий капитал |
+| GET | `/reports/monthly?year=&month=` | Доходы / расходы за месяц |
+| GET | `/reports/by-category?from=&to=` | Разбивка по категориям |
+| GET | `/reports/net-worth` | Общий капитал (сумма всех счетов, конвертация опционально) |
+
+> Реализовано в Phase 2 через `TransactionQueryRepository` — сервис отчётов не завязан на TypeORM (#87).
 
 ---
 
@@ -639,47 +670,48 @@ Finance Service → Kafka: finance.transaction.created
 
 ## 9. Фазы разработки
 
-### Phase 0 — Foundation (1–2 недели)
+### Phase 0 — Foundation ✅ (завершено)
 
 ```
-□ Git repo + NestJS monorepo (Nx или native workspaces)
-□ Docker Compose: postgres, redis, kafka, adminer, kafka-ui
-□ libs/common: config, logger, exception filter, response format
-□ libs/contracts: базовые DTO и event envelope
-□ libs/database: migration runner (TypeORM / Prisma — выбрать)
-□ API Gateway skeleton + /health
-□ Единый формат ошибок { statusCode, message, error, timestamp }
-□ Swagger setup
+✔ Git repo + NestJS monorepo (pnpm workspaces + Turborepo)
+✔ Docker Compose: postgres, redis, kafka; adminer + kafka-ui за profile `tools`
+✔ libs/common: config, filters, JWT verify, gateway signature, date helpers
+✔ libs/contracts: DTO + Kafka envelope + Socket.IO event types + PaginationDto/LIST_HARD_LIMIT
+✔ libs/database: base entity, createDataSourceOptions, ensureSchema
+✔ libs/kafka: producer/consumer с HMAC-подписью, retry + DLQ
+✔ API Gateway skeleton + /health
+✔ Единый формат ошибок { statusCode, message, error, timestamp }
+✔ Swagger setup (гейтится за NODE_ENV в prod)
 ```
 
 ---
 
-### Phase 1 — Core Backend MVP (3–4 недели)
+### Phase 1 — Core Backend MVP ✅ (завершено)
 
 ```
-□ Auth Service
-    □ Google OAuth (первым — проще всего)
-    □ JWT access/refresh + Redis sessions
-    □ GET/PATCH /auth/me
-    □ Kafka: auth.user.created
+✔ Auth Service
+    ✔ Google OAuth
+    ✔ JWT access/refresh + Redis sessions
+    ✔ GET/PATCH/DELETE /auth/me
+    ✔ Kafka: auth.user.created / auth.user.deleted
 
-□ Household Service
-    □ CRUD households
-    □ Members + roles
-    □ Invites (token в Redis, email позже)
-    □ Kafka: household.*
+✔ Household Service
+    ✔ CRUD households
+    ✔ Members + roles (owner/admin/member/viewer) с canGrant guard
+    ✔ Invites (Redis + БД, TTL 7 дней, email match, no-duplicate check)
+    ✔ Kafka: household.member.invited/joined/removed + household.deleted
 
-□ Finance Service (без банка)
-    □ Accounts CRUD
-    □ Transactions CRUD + transfer
-    □ Categories, income sources
-    □ Recurring payments (без cron напоминаний)
-    □ Kafka: finance.transaction.created
+✔ Finance Service (без банка)
+    ✔ Accounts CRUD + adjust-balance
+    ✔ Transactions CRUD + transfer (парные) + reverse-delta на удалении
+    ✔ Categories (archive/impact/permanent-delete flow), income sources
+    ✔ Recurring payments с cron scheduler
+    ✔ Kafka: finance.transaction.created + household.deleted consumer
 
-□ API Gateway
-    □ Auth guard на всех роутах
-    □ Проксирование к сервисам
-    □ X-Household-Id middleware
+✔ API Gateway
+    ✔ JWT middleware + требование алгоритма из allowlist
+    ✔ Проксирование через настраиваемую таблицу routes.default.json
+    ✔ X-Household-Id middleware + HMAC-подпись trust-headers
 ```
 
 **Результат Phase 1:** можно тестировать весь finance flow через Swagger.
@@ -709,32 +741,36 @@ pnpm test:integration                                       # все серви�
 
 ---
 
-### Phase 2 — Shopping + Real-time (2–3 недели)
+### Phase 2 — Shopping + Real-time ✅ (завершено)
 
 ```
-□ Shopping Service
-    □ Stores, Products, Shopping Lists
-    □ preferredStore vs actualStore логика
-    □ Kafka: shopping.list.completed
+✔ Shopping Service
+    ✔ Stores, Products, Shopping Lists + Items (ShoppingListItemsService выделен, #91)
+    ✔ preferredStore vs actualStore логика
+    ✔ Kafka: shopping.list.completed
+    ✔ Kafka consumer: household.deleted → каскадная очистка
 
-□ Kafka consumers между сервисами
-□ Redis rate limiting на Gateway
-□ Finance reports (monthly, by-category)
-□ Shopping suggest endpoint
+✔ Kafka consumers между сервисами
+✔ Redis rate limiting на Gateway (общий + per-auth-endpoint #54)
+✔ Finance reports (monthly, by-category, net-worth)
+✔ Realtime Gateway: Socket.IO + JWT auth + rooms + presence + editing indicators + Kafka bridge
+□ Shopping suggest endpoint (перенесено в Phase 2+ / backlog)
 ```
 
 ---
 
-### Phase 3 — Integrations + Migrations (2–3 недели)
+### Phase 3 — Integrations + Migrations (в работе)
 
 ```
-□ Integration Service
+▷ Integration Service (#20, #21)
     □ Monobank connect + sync
     □ Incremental sync с учётом лимитов
     □ Маппинг external → internal transactions
     □ Kafka: integration.monobank.*
 
-□ Apple + Facebook OAuth (для App Store)
+▷ Apple + Facebook OAuth end-to-end (#22)
+    ✔ Стратегии реализованы (google/apple/facebook.strategy.ts + OAuthStrategyRegistry)
+    □ End-to-end setup + тесты (нужны Apple Developer Account + Facebook App)
 
 □ TypeORM migrations (схема стабилизировалась после Phase 2)
     □ Сгенерировать initial migration для каждого сервиса:
@@ -750,26 +786,28 @@ pnpm test:integration                                       # все серви�
 
 ---
 
-### Phase 4 — Web App ✅ (завершено)
+### Phase 4 — Web App ✅ (завершено; open: Dark theme #42)
 
 ```
-□ React + Vite + TypeScript
-□ React Query (TanStack Query) для API
-□ Auth flow (OAuth redirect / popup)
-□ Layout: sidebar, household switcher
-□ Страницы:
-    □ Dashboard (балансы, ближайшие платежи)
-    □ Accounts & Transactions
-    □ Categories & Income sources
-    □ Shopping lists
-    □ Household settings & invites
-    □ Bank connections (Monobank)
-□ Shared types из libs/contracts (npm link или copy)
-□ Socket.IO клиент (socket.io-client)
-    □ Подключение при логине, отключение при логауте
-    □ Live-обновления списков при изменениях других участников
-    □ Индикаторы "кто онлайн" в шапке / sidebar
-    □ Индикатор "редактирует..." на транзакциях и shopping items
+✔ React 18 + Vite 5 + TypeScript + TanStack Query + Tailwind
+✔ Auth flow — Google OAuth (@react-oauth/google), HttpOnly cookie refresh, CSRF header
+✔ Layout: sidebar, household switcher
+✔ Страницы:
+    ✔ Dashboard (балансы, ближайшие платежи)
+    ✔ Accounts & Transactions (inline edit, transfer modal, multi-currency totals с PrivatBank rates)
+    ✔ Categories (archive / impact preview / permanent delete)
+    ✔ Shopping lists
+    ✔ Household settings & invites
+    ✔ User settings (профиль, i18n, logout-all)
+    □ Bank connections (Monobank) — ждёт Integration Service
+□ Dark theme (#42)
+✔ Socket.IO клиент
+    ✔ Подключение при логине, отключение при логауте
+    ✔ Live-обновления списков при изменениях других участников
+    ✔ Индикаторы "кто онлайн" (presence)
+    ✔ Индикатор "редактирует..." на транзакциях и shopping items
+✔ i18n (react-i18next): en / uk / de / es с переключателем в header
+✔ 42 Vitest-теста (integration через MSW)
 ```
 
 ---
@@ -789,13 +827,12 @@ pnpm test:integration                                       # все серви�
 
 ---
 
-### Phase 6 — Production (2–3 недели)
+### Phase 6 — Production (частично)
 
 ```
-□ Notification Service (email + push)
-□ Recurring payment cron + reminders
-□ CI/CD (GitHub Actions)
-    □ lint + test:integration + build на каждый PR
+□ Notification Service (email + push) — #30
+□ Recurring payment Kafka reminders (cron уже есть, публикация — #31)
+✔ CI/CD — GitHub Actions (#32): lint + build + unit + integration на каждый PR
     □ migration:run как часть deploy pipeline
 
 □ Миграции в production
@@ -803,10 +840,10 @@ pnpm test:integration                                       # все серви�
     □ migration:run запускается до старта каждого сервиса (CMD в Dockerfile)
     □ Убедиться что rollback-стратегия понятна (down migrations)
 
-□ Деплой backend (Railway / Fly.io / VPS + Docker)
-□ Деплой web (Vercel / Cloudflare Pages — статика)
+□ Деплой backend (Railway / Fly.io / VPS + Docker) — #33
+□ Деплой web (Vercel / Cloudflare Pages — статика) — #33
 
-□ Мониторинг — Sentry
+□ Мониторинг — Sentry (#33)
     □ @sentry/nestjs в каждом NestJS сервисе
         □ SentryModule.forRoot({ dsn, environment, release })
         □ SentryInterceptor для захвата unhandled exceptions
@@ -818,7 +855,7 @@ pnpm test:integration                                       # все серви�
         □ Sentry.init() в App.tsx
         □ Native crash reporting
 
-□ App Store submission
+□ App Store submission — #34
 ```
 
 ---
@@ -827,26 +864,33 @@ pnpm test:integration                                       # все серви�
 
 **Входит в первый релиз:**
 
-- [x] Auth (Google + Apple)
-- [x] Household (создание, приглашения, роли)
-- [x] Accounts + ручные транзакции
-- [x] Категории и источники дохода
-- [x] Регулярные платежи (без push-напоминаний)
-- [x] Shopping lists + stores + products
+- [x] Auth (Google; Apple + Facebook стратегии реализованы, ждут App-Store setup)
+- [x] Household (создание, приглашения, роли, cascade delete через Kafka)
+- [x] Accounts + ручные транзакции + adjust-balance
+- [x] Категории (archive / impact preview / permanent-delete) и источники дохода
+- [x] Регулярные платежи с cron scheduler (без push-напоминаний)
+- [x] Shopping lists + stores + products + items (SRP split)
 - [x] Web dashboard
-- [x] Docker Compose + Swagger
+- [x] Multi-currency totals с PrivatBank rates
+- [x] Docker Compose (dev tools за profile `tools`) + Swagger (в prod скрыт)
 - [x] Real-time: live-обновления данных между участниками домохозяйства
 - [x] Real-time: presence (кто онлайн) + индикаторы редактирования
+- [x] i18n (4 языка)
+- [x] Security baseline после 2026-08 audits: HttpOnly cookies + CSRF, JWT allowlist, gateway-signed trust-headers, HMAC на Kafka, rate limit, session revoke-all, audit_log
+- [x] CI/CD (GitHub Actions — lint + build + unit + integration)
 
 **Не входит в MVP (backlog):**
 
-- Monobank auto-sync
+- Monobank auto-sync (Phase 3)
 - Крипто-курсы
-- Отчёты и графики
-- Push notifications
-- Mobile app
-- Мультивалютность с конвертацией
+- Отчёты и графики в UI (endpoints уже есть)
+- Push notifications (Phase 6)
+- Mobile app (Phase 5)
+- Мультивалютность с конвертацией внутри финансов (сейчас — только отображение)
 - Привязка покупки к транзакции
+- Dark theme (#42)
+- Prod-миграции (Phase 6 — сейчас `synchronize: true` в dev)
+- Sentry monitoring (Phase 6)
 
 ---
 
@@ -885,6 +929,31 @@ FACEBOOK_APP_ID, FACEBOOK_APP_SECRET
 MONOBANK_WEBHOOK_SECRET (если будет)
 ENCRYPTION_KEY (для bank tokens)
 ```
+
+---
+
+## 11a. Аудиты 2026-08 (завершены)
+
+После Phase 2 проведены три параллельных аудита кодовой базы. Всего ~63 находки, все закрыты. Milestones:
+
+| Milestone | Область | Найдено | Закрыто |
+|---|---|---|---|
+| [#9 Security Audit](https://github.com/VitaliiPoltorak/household/milestone/9) | JWT/OAuth, trust boundaries, membership verification, Socket.IO auth, CORS, rate limiting, PII, secrets | 23 | 23 |
+| [#10 Bugs Audit](https://github.com/VitaliiPoltorak/household/milestone/10) | Balance atomicity, transfer pair integrity, float precision, cascade deletes, Redis/Kafka reliability, timezone/locale | 21 | 21 |
+| [#11 Architecture (SOLID + GRASP)](https://github.com/VitaliiPoltorak/household/milestone/11) | SRP splits, OCP for OAuth, DIP for Kafka, Info Expert для domain entities, coupling в gateway/bridge | 12 | 12 |
+
+Ключевые системные исправления, изменившие baseline:
+
+- **IDOR guard**: любой ID из запроса (`accountId`, `categoryId`, `storeId`, Socket.IO room) проверяется на household-scope перед использованием (#46–48, #62, #67).
+- **Финансовая атомарность**: баланс мутируется через `SELECT ... FOR UPDATE`, transfer — парные строки с явным `transferPairId`, агрегаты через SQL `SUM` (#69–71).
+- **Session security**: HttpOnly + Secure + SameSite=None cookie, парная CSRF-cookie double-submit, single-use refresh с атомарным `GETDEL`, JWT algorithm allowlist, strong-secret gate (#52, #53, #55, #58, #60, #61).
+- **Cross-service trust**: HMAC-signed заголовки `X-User-Id/Household-Id/Email` (`GATEWAY_SIGNING_SECRET`), HMAC подпись Kafka-envelope (`KAFKA_SIGNING_KEY`) (#46, #63).
+- **Kafka reliability**: retry + DLQ вместо catch-log-and-advance-offset (#77).
+- **Extensibility**: `OAuthStrategyRegistry` вместо switch (#85), настраиваемая таблица proxy routes (#88), явный event map для Kafka→Socket.IO (#94).
+- **SRP splits**: `TransactionsService` → BalanceAdjustment + TransferDomain (#84); `HouseholdsService` → Members + Invites (#89); `ShoppingListsService` → Items (#91); `ReportsService` → TransactionQueryRepository (#87).
+- **Low-severity batch** (последний PR-набор, PRs #150–155): pagination cap, Swagger production gate, audit_log lib, docker `tools` profile, cascade `household.deleted`, LISTEN_HOST, avatar URL validation, duplicate-invite guard.
+
+Правила, вынесенные из этих аудитов, зафиксированы в [`CLAUDE.md`](../CLAUDE.md#rules-from-past-audits-apply-while-writing-code-not-just-in-review) и в skill `backend-hardening-checklist` — применяются proactively при написании нового кода, а не только при ревью.
 
 ---
 
@@ -1086,4 +1155,4 @@ graph TD
 
 ---
 
-*Последнее обновление: август 2026*
+*Последнее обновление: 2026-08-10*
