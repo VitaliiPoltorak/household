@@ -11,14 +11,33 @@ import { Logger } from '@nestjs/common';
 import { Server, Socket } from 'socket.io';
 import { maskId } from '@household/common';
 import { PresenceService } from '../presence/presence.service';
-import { MembershipService } from '../membership/membership.service';
 import {
   ClientEvents,
   ServerEvents,
   EditingPayload,
   PresenceUpdateEvent,
 } from '@household/contracts';
+import {
+  JoinRoomHandler,
+  JoinRoomPayload,
+} from './handlers/join-room.handler';
+import {
+  LeaveRoomHandler,
+  LeaveRoomPayload,
+} from './handlers/leave-room.handler';
+import {
+  HeartbeatHandler,
+  HeartbeatPayload,
+} from './handlers/heartbeat.handler';
+import { EditingStartHandler } from './handlers/editing-start.handler';
+import { EditingStopHandler } from './handlers/editing-stop.handler';
 
+/**
+ * Thin dispatcher (#93). Per-message behaviour lives in handler classes under
+ * ./handlers/*. Connection/disconnection lifecycle stays here — it's not a
+ * @SubscribeMessage event, and disconnect touches state (household set) that
+ * this class owns.
+ */
 @WebSocketGateway({ transports: ['websocket', 'polling'] })
 export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer()
@@ -28,7 +47,11 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
 
   constructor(
     private readonly presence: PresenceService,
-    private readonly membership: MembershipService,
+    private readonly joinRoom: JoinRoomHandler,
+    private readonly leaveRoom: LeaveRoomHandler,
+    private readonly heartbeat: HeartbeatHandler,
+    private readonly editingStart: EditingStartHandler,
+    private readonly editingStop: EditingStopHandler,
   ) {}
 
   async handleConnection(client: Socket): Promise<void> {
@@ -67,128 +90,42 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
   }
 
   @SubscribeMessage(ClientEvents.ROOM_JOIN)
-  async handleRoomJoin(
+  handleRoomJoin(
     @ConnectedSocket() client: Socket,
-    @MessageBody() payload: { roomName: string; displayName?: string },
+    @MessageBody() payload: JoinRoomPayload,
   ): Promise<void> {
-    const userId = client.data.userId as string;
-
-    if (payload.roomName.startsWith('household:')) {
-      const householdId = payload.roomName.replace('household:', '');
-      if (!(await this.membership.isMember(userId, householdId))) {
-        this.logger.warn(`User ${maskId(userId)} denied join for household ${maskId(householdId)}`);
-        client.emit('error', { message: 'Not a member of this household' });
-        return;
-      }
-    }
-
-    await client.join(payload.roomName);
-
-    if (!payload.roomName.startsWith('household:')) return;
-
-    const householdId = payload.roomName.replace('household:', '');
-
-    if (payload.displayName) {
-      client.data.displayName = payload.displayName;
-    }
-
-    const isFirstSocket = this.presence.joinHousehold(userId, householdId, client.id);
-    (client.data.householdIds as Set<string>).add(householdId);
-
-    if (isFirstSocket) {
-      // First device joining this household — register in Redis
-      await this.presence.setOnline(householdId, {
-        userId,
-        displayName: (client.data.displayName as string | undefined) ?? userId,
-      });
-    }
-
-    // Send current snapshot to the joining socket
-    const users = await this.presence.getSnapshot(householdId);
-    client.emit(ServerEvents.PRESENCE_SNAPSHOT, { users });
-
-    // Broadcast to others only when user appears for the first time in this household
-    if (isFirstSocket) {
-      const event: PresenceUpdateEvent = {
-        userId,
-        status: 'online',
-        displayName: (client.data.displayName as string | undefined) ?? userId,
-      };
-      client.to(payload.roomName).emit(ServerEvents.PRESENCE_UPDATE, event);
-    }
+    return this.joinRoom.handle(client, payload);
   }
 
   @SubscribeMessage(ClientEvents.ROOM_LEAVE)
-  async handleRoomLeave(
+  handleRoomLeave(
     @ConnectedSocket() client: Socket,
-    @MessageBody() payload: { roomName: string },
+    @MessageBody() payload: LeaveRoomPayload,
   ): Promise<void> {
-    await client.leave(payload.roomName);
-
-    if (!payload.roomName.startsWith('household:')) return;
-
-    const householdId = payload.roomName.replace('household:', '');
-    const userId = client.data.userId as string;
-
-    const isLastSocket = this.presence.leaveHousehold(userId, householdId, client.id);
-    (client.data.householdIds as Set<string>).delete(householdId);
-
-    if (isLastSocket) {
-      await this.presence.setOffline(householdId, userId);
-      const event: PresenceUpdateEvent = {
-        userId,
-        status: 'offline',
-        displayName: (client.data.displayName as string | undefined) ?? userId,
-      };
-      this.server.to(payload.roomName).emit(ServerEvents.PRESENCE_UPDATE, event);
-    }
+    return this.leaveRoom.handle(client, payload);
   }
 
   @SubscribeMessage(ClientEvents.HEARTBEAT)
-  async handleHeartbeat(
+  handleHeartbeat(
     @ConnectedSocket() client: Socket,
-    @MessageBody() payload: { householdId: string },
+    @MessageBody() payload: HeartbeatPayload,
   ): Promise<void> {
-    const userId = client.data.userId as string;
-    if (!(await this.membership.isMember(userId, payload.householdId))) return;
-    await this.presence.heartbeat(payload.householdId, userId);
+    return this.heartbeat.handle(client, payload);
   }
 
   @SubscribeMessage(ClientEvents.EDITING_START)
-  async handleEditingStart(
+  handleEditingStart(
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: EditingPayload,
   ): Promise<void> {
-    const userId = client.data.userId as string;
-    if (!(await this.membership.isMember(userId, payload.householdId))) return;
-
-    await this.presence.setEditing(payload.householdId, userId, payload.entity, payload.entityId);
-
-    const event: PresenceUpdateEvent = {
-      userId,
-      status: 'online',
-      displayName: (client.data.displayName as string | undefined) ?? userId,
-      editingEntity: payload.entity,
-      editingId: payload.entityId,
-    };
-    this.server.to(`household:${payload.householdId}`).emit(ServerEvents.PRESENCE_UPDATE, event);
+    return this.editingStart.handle(client, payload);
   }
 
   @SubscribeMessage(ClientEvents.EDITING_STOP)
-  async handleEditingStop(
+  handleEditingStop(
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: EditingPayload,
   ): Promise<void> {
-    const userId = client.data.userId as string;
-    if (!(await this.membership.isMember(userId, payload.householdId))) return;
-
-    await this.presence.clearEditing(payload.householdId, userId);
-
-    const event: PresenceUpdateEvent = {
-      userId,
-      status: 'online',
-      displayName: (client.data.displayName as string | undefined) ?? userId,
-    };
-    this.server.to(`household:${payload.householdId}`).emit(ServerEvents.PRESENCE_UPDATE, event);
+    return this.editingStop.handle(client, payload);
   }
 }
