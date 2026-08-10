@@ -121,6 +121,7 @@
       "adjustment": "Ajuste"
     },
     "transferring": "Transfiriendo…",
+    "transferNeedsTwoAccounts": "Necesitas al menos 2 cuentas para hacer una transferencia.",
     "selectType": "Selecciona tipo…",
     "editTitle": "Editar transacción",
     "fromDate": "Desde fecha",

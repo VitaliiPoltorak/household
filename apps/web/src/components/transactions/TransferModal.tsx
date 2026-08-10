@@ -43,6 +43,21 @@ export function TransferModal({ hid, accounts, onClose, onCreated }: Props) {
     }
   };
 
+  if (accounts.length < 2) {
+    return (
+      <Modal title={t('transactions.transferTitle')} onClose={onClose}>
+        <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-700">
+          {t('transactions.transferNeedsTwoAccounts')}
+        </p>
+        <div className="flex justify-end pt-3">
+          <Button type="button" variant="secondary" onClick={onClose}>
+            {t('common.close')}
+          </Button>
+        </div>
+      </Modal>
+    );
+  }
+
   return (
     <Modal title={t('transactions.transferTitle')} onClose={onClose}>
       <form onSubmit={submit} className="space-y-3">

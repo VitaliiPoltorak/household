@@ -2,10 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import type { Transaction } from '../../types/api';
 import { Badge } from '../ui/Badge';
 import { EditingBadge } from '../presence/EditingBadge';
+import { formatMoney } from '../../lib/money';
 
-function fmt(n: number, currency = 'UAH') {
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency, maximumFractionDigits: 2 }).format(n);
-}
+const fmt = (n: number, currency = 'UAH') => formatMoney(n, currency);
 
 interface Props {
   tx: Transaction;
