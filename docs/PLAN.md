@@ -208,6 +208,7 @@ Backend → Web → Mobile → Интеграции → Деплой → App Sto
 | Kafka consumer `household.deleted` → полная очистка finance-схемы для этого домохозяйства (#83.4) |
 | Аудит-лог для delete account и delete transaction (#68.3) |
 | Все list-эндпоинты капнуты `LIST_HARD_LIMIT=1000` (#68.2) |
+| Курсы валют: cron 08:00 Kyiv тянет PrivatBank, сохраняет в `exchange_rates`; `GET /rates/latest` для конвертации в web; `GET /rates/history` — задел под графики динамики |
 | Привязка внешних транзакций (из Integration) к ручным |
 
 ---
@@ -388,6 +389,10 @@ income_sources
 recurring_payments
   id, household_id, name, amount, currency, category_id,
   frequency (monthly|weekly|yearly), next_due_date, account_id?
+
+exchange_rates                # НЕ привязано к household — общий справочник
+  id, effective_date, source ('privatbank'), ccy, base_ccy, buy, sale, created_at
+  UNIQUE (effective_date, source, ccy, base_ccy)
 ```
 
 ### Shopping
@@ -595,6 +600,17 @@ Finance Service → Kafka: finance.transaction.created
 | GET | `/reports/net-worth` | Общий капитал (сумма всех счетов, конвертация опционально) |
 
 > Реализовано в Phase 2 через `TransactionQueryRepository` — сервис отчётов не завязан на TypeORM (#87).
+
+---
+
+### Finance — Rates `/rates`
+
+| Method | Path | Описание |
+|--------|------|----------|
+| GET | `/rates/latest` | Последний снапшот курсов (UAH-base): `[{ ccy, base_ccy, buy, sale }]`. Используется web для конвертации multi-currency totals |
+| GET | `/rates/history?ccy&from&to` | История по валюте — зарезервировано для будущего графика динамики |
+
+> finance-service тянет PrivatBank через `RatesScheduler` (@Cron 08:00 Europe/Kyiv + warm-up при пустой таблице), сохраняет в `exchange_rates` (unique по `effective_date+source+ccy+base_ccy`, upsert). Клиент бьёт в наш эндпоинт — CORS не проблема, и БД растит историю для последующих отчётов о динамике.
 
 ---
 
