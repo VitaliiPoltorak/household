@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { Transaction } from '../../types/api';
 import { Badge } from '../ui/Badge';
 import { EditingBadge } from '../presence/EditingBadge';
@@ -9,16 +10,27 @@ const fmt = (n: number, currency = 'UAH') => formatMoney(n, currency);
 interface Props {
   tx: Transaction;
   accountName: string;
+  /** Name of the counter account (only used when tx.type === 'transfer'). */
+  counterAccountName?: string | null;
   categoryName: string | null;
   onDelete: () => void;
   onEdit: () => void;
   onDescriptionSave: (desc: string) => void;
 }
 
-/** Single transaction row with inline description edit. */
-export function TxRow({ tx, accountName, categoryName, onDelete, onEdit, onDescriptionSave }: Props) {
+/**
+ * Single transaction row with inline description edit.
+ *
+ * Transfers (#167) render as ONE row `From X → To Y` — both accounts are
+ * shown together, and clicking delete cascades to both legs on the backend.
+ */
+export function TxRow({
+  tx, accountName, counterAccountName, categoryName, onDelete, onEdit, onDescriptionSave,
+}: Props) {
+  const { t } = useTranslation();
   const isIncome = tx.type === 'income';
   const isExpense = tx.type === 'expense';
+  const isTransfer = tx.type === 'transfer';
   const [editingDesc, setEditingDesc] = useState(false);
   const [descVal, setDescVal] = useState(tx.description ?? '');
   const inputRef = useRef<HTMLInputElement>(null);
@@ -36,6 +48,12 @@ export function TxRow({ tx, accountName, categoryName, onDelete, onEdit, onDescr
     setDescVal(tx.description ?? '');
     setEditingDesc(false);
   };
+
+  // For transfers, the "primary account label" is a From→To pair.
+  // Fallback for legacy / half-paired transfers: show just the primary account.
+  const transferPairLabel = isTransfer && counterAccountName
+    ? t('transactions.transferPair', { from: accountName, to: counterAccountName })
+    : accountName;
 
   return (
     <div className="group flex items-center gap-4 px-5 py-3">
@@ -60,12 +78,12 @@ export function TxRow({ tx, accountName, categoryName, onDelete, onEdit, onDescr
               onDoubleClick={() => setEditingDesc(true)}
               title="Double-click to edit description"
             >
-              {tx.description ?? accountName}
+              {tx.description ?? transferPairLabel}
             </span>
           )}
           {categoryName && <span className="text-xs text-gray-400 dark:text-gray-500">· {categoryName}</span>}
         </div>
-        <p className="mt-0.5 text-xs text-gray-400 dark:text-gray-500">{tx.date} · {accountName}</p>
+        <p className="mt-0.5 text-xs text-gray-400 dark:text-gray-500">{tx.date} · {transferPairLabel}</p>
         <EditingBadge entity="transaction" entityId={tx.id} />
       </div>
 

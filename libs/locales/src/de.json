@@ -125,7 +125,8 @@
     "selectType": "Typ auswählen…",
     "editTitle": "Transaktion bearbeiten",
     "fromDate": "Von Datum",
-    "toDate": "Bis Datum"
+    "toDate": "Bis Datum",
+    "transferPair": "{{from}} → {{to}}"
   },
   "categories": {
     "title": "Kategorien",

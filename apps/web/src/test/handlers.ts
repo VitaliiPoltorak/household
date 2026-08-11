@@ -52,7 +52,12 @@ export const MOCK_TRANSACTION = {
   date: '2026-07-01',
   createdBy: 'user-1',
   transferPairId: null,
+  transferDirection: null,
   createdAt: '2026-07-01T00:00:00Z',
+  counterAccountId: null,
+  counterTransactionId: null,
+  counterAmount: null,
+  counterCurrency: null,
 };
 
 // --- Handlers ---

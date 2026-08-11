@@ -89,6 +89,11 @@ export function TransactionsPage() {
               key={tx.id}
               tx={tx}
               accountName={accountMap[tx.accountId]?.name ?? tx.accountId}
+              counterAccountName={
+                tx.counterAccountId
+                  ? (accountMap[tx.counterAccountId]?.name ?? tx.counterAccountId)
+                  : null
+              }
               categoryName={tx.categoryId ? (categoryMap[tx.categoryId]?.name ?? null) : null}
               onDelete={() => remove.mutate(tx.id)}
               onEdit={() => setEditTx(tx)}

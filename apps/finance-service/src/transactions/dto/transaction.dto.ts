@@ -2,7 +2,7 @@ import {
   IsDateString, IsEnum, IsNotEmpty, IsNumber, IsOptional, IsPositive, IsString, Length,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { TransactionType } from '../entities/transaction.entity';
+import { Transaction, TransactionType, TransferDirection } from '../entities/transaction.entity';
 
 export class CreateTransactionDto {
   @ApiProperty()
@@ -62,6 +62,81 @@ export class CreateTransferDto {
   @ApiProperty({ example: '2026-07-30' })
   @IsDateString()
   date: string;
+}
+
+/**
+ * Wire shape returned by `GET /transactions` list.
+ *
+ * Mirrors the {@link Transaction} entity but adds a transfer-only sidecar so
+ * that the frontend can render each transfer pair as ONE row instead of two
+ * orphan-able legs (see #167). Non-transfer rows leave all `counter*` fields
+ * null.
+ *
+ * The row surfaces the DEBIT leg by default (i.e. `accountId` = source
+ * account, `counterAccountId` = destination). When the caller filtered by
+ * an account and only the CREDIT leg matched, the row is "flipped" so
+ * `accountId` = the matched account and `counterAccountId` = the other
+ * side — this keeps "filter by account A" showing A in the primary column
+ * whether A is the source or destination.
+ */
+export class TransactionResponseDto {
+  @ApiProperty() id: string;
+  @ApiProperty() householdId: string;
+  @ApiProperty() accountId: string;
+  @ApiProperty({ enum: TransactionType }) type: TransactionType;
+  @ApiProperty() amount: number;
+  @ApiProperty() currency: string;
+  @ApiProperty({ nullable: true }) categoryId: string | null;
+  @ApiProperty({ nullable: true }) incomeSourceId: string | null;
+  @ApiProperty({ nullable: true }) description: string | null;
+  @ApiProperty() date: string;
+  @ApiProperty() createdBy: string;
+  @ApiProperty({ nullable: true }) transferPairId: string | null;
+  @ApiProperty({ enum: TransferDirection, nullable: true }) transferDirection: TransferDirection | null;
+  @ApiProperty() createdAt: Date;
+  @ApiProperty() updatedAt: Date;
+
+  /** Present only for transfer rows — the OTHER account (the counterparty). */
+  @ApiPropertyOptional({ nullable: true })
+  counterAccountId: string | null;
+
+  /** Present only for transfer rows — the id of the paired leg. */
+  @ApiPropertyOptional({ nullable: true })
+  counterTransactionId: string | null;
+
+  /** Present only for transfer rows — the counterparty leg's amount. Equal to
+   *  `amount` today; kept as a distinct field so #162 (cross-currency
+   *  transfers) can plug in without changing the API shape. */
+  @ApiPropertyOptional({ nullable: true })
+  counterAmount: number | null;
+
+  /** Present only for transfer rows — currency of the counterparty leg. */
+  @ApiPropertyOptional({ nullable: true })
+  counterCurrency: string | null;
+
+  static fromEntity(tx: Transaction, counter: Transaction | null = null): TransactionResponseDto {
+    return {
+      id: tx.id,
+      householdId: tx.householdId,
+      accountId: tx.accountId,
+      type: tx.type,
+      amount: Number(tx.amount),
+      currency: tx.currency,
+      categoryId: tx.categoryId,
+      incomeSourceId: tx.incomeSourceId,
+      description: tx.description,
+      date: tx.date,
+      createdBy: tx.createdBy,
+      transferPairId: tx.transferPairId,
+      transferDirection: tx.transferDirection,
+      createdAt: tx.createdAt,
+      updatedAt: tx.updatedAt,
+      counterAccountId: counter?.accountId ?? null,
+      counterTransactionId: counter?.id ?? null,
+      counterAmount: counter ? Number(counter.amount) : null,
+      counterCurrency: counter?.currency ?? null,
+    };
+  }
 }
 
 export class UpdateTransactionDto {
