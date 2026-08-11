@@ -202,7 +202,12 @@
       "dark": "Dunkel",
       "system": "System"
     },
-    "themeHint": "„System“ übernimmt das Erscheinungsbild Ihres Betriebssystems."
+    "themeHint": "„System“ übernimmt das Erscheinungsbild Ihres Betriebssystems.",
+    "refreshRates": "Wechselkurse aktualisieren",
+    "refreshRatesDesc": "Aktuelle Kurse manuell von der PrivatBank abrufen. Ansonsten einmal täglich.",
+    "refreshRatesSuccess": "Kurse aktualisiert",
+    "refreshRatesError": "Kurse konnten nicht aktualisiert werden",
+    "refreshRatesCooldown": "Bitte eine Minute warten, bevor Sie erneut aktualisieren."
   },
   "categoryMgmt": {
     "title": "Kategorien",

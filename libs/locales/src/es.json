@@ -202,7 +202,12 @@
       "dark": "Oscuro",
       "system": "Sistema"
     },
-    "themeHint": "«Sistema» sigue la apariencia de tu sistema operativo."
+    "themeHint": "«Sistema» sigue la apariencia de tu sistema operativo.",
+    "refreshRates": "Actualizar tipos de cambio",
+    "refreshRatesDesc": "Obtén tipos actualizados de PrivatBank manualmente. Si no, se actualizan una vez al día.",
+    "refreshRatesSuccess": "Tipos actualizados",
+    "refreshRatesError": "No se pudieron actualizar los tipos",
+    "refreshRatesCooldown": "Espera un minuto antes de actualizar de nuevo."
   },
   "categoryMgmt": {
     "title": "Categorías",

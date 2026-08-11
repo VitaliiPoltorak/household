@@ -97,6 +97,10 @@ export const financeApi = {
 
   // Exchange rates (household-agnostic — no cfg needed but header is harmless)
   getLatestRates: () => api.get<ExchangeRate[]>('/rates/latest'),
+
+  // On-demand refresh. Server-side rate limit: 1 request per minute per user.
+  // Returns the freshly-synced rates so callers don't need a follow-up GET.
+  refreshRates: () => api.post<RefreshRatesResponse>('/rates/refresh'),
 };
 
 export interface ExchangeRate {
@@ -106,4 +110,10 @@ export interface ExchangeRate {
   sale: string;
   effective_date: string;
   source: string;
+}
+
+export interface RefreshRatesResponse {
+  inserted: number;
+  date: string;
+  rates: ExchangeRate[];
 }

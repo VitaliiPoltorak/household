@@ -1,8 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../contexts/AuthContext';
 import { authApi } from '../api/auth';
+import { financeApi } from '../api/finance';
+import { ApiError } from '../api/client';
 import { Button } from '../components/ui/Button';
 import { Input, Select } from '../components/ui/Input';
 import { supportedLngs, type SupportedLng } from '@household/locales';
@@ -260,8 +263,97 @@ function PreferencesSection({ i18n: _i18n }: { i18n: ReturnType<typeof useTransl
         <p className="text-xs text-gray-400 dark:text-gray-500">
           {t('settings.defaultCurrency')} — used as base currency for multi-currency total on Accounts page.
         </p>
+
+        <RefreshRatesRow />
       </div>
     </Section>
+  );
+}
+
+// ──────────────────────────────────────────────
+// Manual PrivatBank rates refresh (issue #163)
+// Backend caches rates once daily; this is the escape hatch when a user
+// doesn't want to wait for the next 08:00 Kyiv cron.
+// ──────────────────────────────────────────────
+function RefreshRatesRow() {
+  const { t } = useTranslation();
+  const queryClient = useQueryClient();
+  const [status, setStatus] = useState<
+    | { kind: 'idle' }
+    | { kind: 'loading' }
+    | { kind: 'success'; date: string }
+    | { kind: 'error'; message: string }
+    | { kind: 'cooldown' } // rate-limited by server, button re-enables after 60s
+  >({ kind: 'idle' });
+  const cooldownTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (cooldownTimerRef.current) clearTimeout(cooldownTimerRef.current);
+    };
+  }, []);
+
+  const startCooldown = () => {
+    if (cooldownTimerRef.current) clearTimeout(cooldownTimerRef.current);
+    cooldownTimerRef.current = setTimeout(() => {
+      setStatus({ kind: 'idle' });
+    }, 60_000);
+  };
+
+  const handleClick = async () => {
+    setStatus({ kind: 'loading' });
+    try {
+      const res = await financeApi.refreshRates();
+      // Push the fresh rates straight into the query cache so Accounts page
+      // picks them up on next visit without a second network round trip.
+      queryClient.setQueryData(['exchange-rates'], res.rates);
+      setStatus({ kind: 'success', date: res.date });
+      startCooldown();
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 429) {
+        setStatus({ kind: 'cooldown' });
+        startCooldown();
+        return;
+      }
+      const message = err instanceof Error ? err.message : t('settings.refreshRatesError');
+      setStatus({ kind: 'error', message });
+      // Auto-clear the error after a few seconds so the row doesn't stay red
+      // forever, but don't lock the button — user can retry immediately.
+      setTimeout(() => {
+        setStatus((s) => (s.kind === 'error' ? { kind: 'idle' } : s));
+      }, 5000);
+    }
+  };
+
+  const disabled = status.kind === 'loading' || status.kind === 'success' || status.kind === 'cooldown';
+
+  return (
+    <div className="flex flex-col gap-2 border-t border-gray-100 pt-4">
+      <label className="text-sm font-medium text-gray-700">
+        {t('settings.refreshRates')}
+      </label>
+      <p className="text-xs text-gray-400">{t('settings.refreshRatesDesc')}</p>
+      <div className="flex items-center gap-3 pt-1">
+        <Button variant="secondary" size="sm" onClick={handleClick} disabled={disabled}>
+          {status.kind === 'loading' ? t('settings.saving') : t('settings.refreshRates')}
+        </Button>
+        {status.kind === 'success' && (
+          <span className="text-sm text-green-600">
+            ✓ {t('settings.refreshRatesSuccess')}
+          </span>
+        )}
+        {status.kind === 'cooldown' && (
+          <span className="text-sm text-amber-600">
+            {t('settings.refreshRatesCooldown')}
+          </span>
+        )}
+        {status.kind === 'error' && (
+          <span className="text-sm text-red-600">
+            {t('settings.refreshRatesError')}
+          </span>
+        )}
+      </div>
+    </div>
   );
 }
 

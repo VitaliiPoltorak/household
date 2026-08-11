@@ -202,7 +202,12 @@
       "dark": "Dark",
       "system": "System"
     },
-    "themeHint": "\"System\" follows your operating system's appearance."
+    "themeHint": "\"System\" follows your operating system's appearance.",
+    "refreshRates": "Refresh exchange rates",
+    "refreshRatesDesc": "Manually pull fresh rates from PrivatBank. Otherwise updates once daily.",
+    "refreshRatesSuccess": "Rates updated",
+    "refreshRatesError": "Failed to refresh rates",
+    "refreshRatesCooldown": "Please wait a minute before refreshing again."
   },
   "categoryMgmt": {
     "title": "Categories",
