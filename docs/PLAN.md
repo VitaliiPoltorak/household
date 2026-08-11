@@ -802,7 +802,7 @@ pnpm test:integration                                       # все серви�
 
 ---
 
-### Phase 4 — Web App ✅ (завершено; open: Dark theme #42)
+### Phase 4 — Web App ✅ (завершено)
 
 ```
 ✔ React 18 + Vite 5 + TypeScript + TanStack Query + Tailwind
@@ -816,7 +816,7 @@ pnpm test:integration                                       # все серви�
     ✔ Household settings & invites
     ✔ User settings (профиль, i18n, logout-all)
     □ Bank connections (Monobank) — ждёт Integration Service
-□ Dark theme (#42)
+✔ Dark theme (#42) — light / dark / system, класс на <html>, `useTheme` + `<html>` inline-скрипт против FOUC, toggle в Header и селектор в Settings
 ✔ Socket.IO клиент
     ✔ Подключение при логине, отключение при логауте
     ✔ Live-обновления списков при изменениях других участников
@@ -904,7 +904,6 @@ pnpm test:integration                                       # все серви�
 - Mobile app (Phase 5)
 - Мультивалютность с конвертацией внутри финансов (сейчас — только отображение)
 - Привязка покупки к транзакции
-- Dark theme (#42)
 - Prod-миграции (Phase 6 — сейчас `synchronize: true` в dev)
 - Sentry monitoring (Phase 6)
 

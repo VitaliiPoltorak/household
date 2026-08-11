@@ -195,7 +195,14 @@
     "logoutAll": "Sign out from all devices",
     "logoutAllDesc": "End every active session for your account across all browsers and devices. Useful if you suspect a stolen refresh token.",
     "logoutAllWarning": "You'll be signed out here too. You'll need to sign in again.",
-    "logoutAllConfirm": "Sign out everywhere"
+    "logoutAllConfirm": "Sign out everywhere",
+    "theme": "Theme",
+    "themes": {
+      "light": "Light",
+      "dark": "Dark",
+      "system": "System"
+    },
+    "themeHint": "\"System\" follows your operating system's appearance."
   },
   "categoryMgmt": {
     "title": "Categories",

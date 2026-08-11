@@ -58,15 +58,15 @@ export function CategoriesPage() {
   const activeByType = byType(active);
 
   if (!hid) {
-    return <div className="text-sm text-gray-500">{t('common.selectHousehold')}</div>;
+    return <div className="text-sm text-gray-500 dark:text-gray-400">{t('common.selectHousehold')}</div>;
   }
 
   return (
     <div className="max-w-3xl space-y-8">
-      <h1 className="text-2xl font-bold text-gray-900">{t('categoryMgmt.title')}</h1>
+      <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{t('categoryMgmt.title')}</h1>
 
       {isLoading ? (
-        <div className="text-sm text-gray-500">{t('common.loading')}</div>
+        <div className="text-sm text-gray-500 dark:text-gray-400">{t('common.loading')}</div>
       ) : (
         <>
           <ActiveSection
@@ -128,12 +128,12 @@ function ActiveSection({
 
   return (
     <section>
-      <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">
-        {title} <span className="text-gray-400">({total})</span>
+      <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+        {title} <span className="text-gray-400 dark:text-gray-500">({total})</span>
       </h2>
 
       {total === 0 ? (
-        <div className="rounded-xl border border-dashed border-gray-200 px-4 py-8 text-center text-sm text-gray-500">
+        <div className="rounded-xl border border-dashed border-gray-200 px-4 py-8 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
           {emptyLabel}
         </div>
       ) : (
@@ -160,13 +160,13 @@ function TypeGroup({
   const { t } = useTranslation();
   return (
     <div>
-      <div className="mb-1.5 text-xs font-medium text-gray-500">{label}</div>
-      <ul className="divide-y divide-gray-100 rounded-xl border border-gray-200 bg-white">
+      <div className="mb-1.5 text-xs font-medium text-gray-500 dark:text-gray-400">{label}</div>
+      <ul className="divide-y divide-gray-100 rounded-xl border border-gray-200 bg-white dark:divide-gray-800 dark:border-gray-800 dark:bg-gray-900">
         {items.map(cat => (
           <li key={cat.id} className="flex items-center justify-between px-4 py-3">
             <div className="flex items-center gap-3">
               {cat.icon && <span aria-hidden>{cat.icon}</span>}
-              <span className="text-sm text-gray-900">{cat.name}</span>
+              <span className="text-sm text-gray-900 dark:text-gray-100">{cat.name}</span>
             </div>
             <div className="flex items-center gap-2">
               <Button size="sm" variant="ghost" onClick={() => onArchive(cat)}>
@@ -198,27 +198,27 @@ function ArchivedSection({
       <button
         type="button"
         onClick={onToggle}
-        className="flex w-full items-center justify-between border-b border-gray-100 pb-2 text-left"
+        className="flex w-full items-center justify-between border-b border-gray-100 pb-2 text-left dark:border-gray-800"
       >
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
-          {t('categoryMgmt.archived')} <span className="text-gray-400">({items.length})</span>
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+          {t('categoryMgmt.archived')} <span className="text-gray-400 dark:text-gray-500">({items.length})</span>
         </h2>
-        <span className="text-gray-400" aria-hidden>{expanded ? '▾' : '▸'}</span>
+        <span className="text-gray-400 dark:text-gray-500" aria-hidden>{expanded ? '▾' : '▸'}</span>
       </button>
 
       {expanded && (
         items.length === 0 ? (
-          <div className="mt-3 rounded-xl border border-dashed border-gray-200 px-4 py-6 text-center text-sm text-gray-500">
+          <div className="mt-3 rounded-xl border border-dashed border-gray-200 px-4 py-6 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
             {emptyLabel}
           </div>
         ) : (
-          <ul className="mt-3 divide-y divide-gray-100 rounded-xl border border-gray-200 bg-white">
+          <ul className="mt-3 divide-y divide-gray-100 rounded-xl border border-gray-200 bg-white dark:divide-gray-800 dark:border-gray-800 dark:bg-gray-900">
             {items.map(cat => (
               <li key={cat.id} className="flex items-center justify-between px-4 py-3">
                 <div className="flex items-center gap-3">
                   {cat.icon && <span aria-hidden>{cat.icon}</span>}
-                  <span className="text-sm text-gray-500 line-through">{cat.name}</span>
-                  <span className="text-xs uppercase text-gray-400">{t(`categories.${cat.type}`)}</span>
+                  <span className="text-sm text-gray-500 line-through dark:text-gray-400">{cat.name}</span>
+                  <span className="text-xs uppercase text-gray-400 dark:text-gray-500">{t(`categories.${cat.type}`)}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Button
@@ -261,13 +261,13 @@ function ConfirmDialog({
 }) {
   const { t } = useTranslation();
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-md rounded-xl bg-white shadow-xl">
-        <div className="border-b border-gray-200 px-6 py-4">
-          <h2 className="text-base font-semibold text-gray-900">{title}</h2>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 dark:bg-black/60">
+      <div className="w-full max-w-md rounded-xl bg-white shadow-xl dark:bg-gray-900">
+        <div className="border-b border-gray-200 px-6 py-4 dark:border-gray-800">
+          <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">{title}</h2>
         </div>
-        <div className="px-6 py-4 text-sm text-gray-700">{body}</div>
-        <div className="flex justify-end gap-2 border-t border-gray-100 px-6 py-3">
+        <div className="px-6 py-4 text-sm text-gray-700 dark:text-gray-200">{body}</div>
+        <div className="flex justify-end gap-2 border-t border-gray-100 px-6 py-3 dark:border-gray-800">
           <Button variant="secondary" size="sm" onClick={onCancel} disabled={confirming}>
             {t('common.cancel')}
           </Button>

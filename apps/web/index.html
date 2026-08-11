@@ -4,6 +4,17 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Household</title>
+    <script>
+      // Apply theme before React mounts to prevent a light-mode flash on load.
+      (function () {
+        try {
+          var stored = localStorage.getItem('theme');
+          var pref = stored === 'light' || stored === 'dark' || stored === 'system' ? stored : 'system';
+          var dark = pref === 'dark' || (pref === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          if (dark) document.documentElement.classList.add('dark');
+        } catch (e) { /* localStorage disabled — default to light */ }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

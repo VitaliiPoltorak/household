@@ -52,12 +52,12 @@ export function EditTxModal({ tx, hid, categories, accountName, onClose, onSaved
   return (
     <Modal title={t('transactions.editTitle')} onClose={onClose}>
       <form onSubmit={submit} className="space-y-3">
-        <div className="rounded-lg bg-gray-50 px-3 py-2 text-sm text-gray-500">
+        <div className="rounded-lg bg-gray-50 px-3 py-2 text-sm text-gray-500 dark:bg-gray-800 dark:text-gray-400">
           <span className="font-medium">{t('transactions.account')}:</span>{' '}{accountName}
         </div>
 
         {isTransfer && (
-          <p className="text-xs text-amber-600 bg-amber-50 rounded-lg px-3 py-2">
+          <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-600 dark:bg-amber-900/30 dark:text-amber-300">
             ⚠️ Transfer type and amount cannot be changed — both sides of the transfer must stay in sync.
           </p>
         )}

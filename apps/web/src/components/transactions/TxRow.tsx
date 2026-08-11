@@ -38,9 +38,9 @@ export function TxRow({ tx, accountName, categoryName, onDelete, onEdit, onDescr
   };
 
   return (
-    <div className="flex items-center gap-4 px-5 py-3 group">
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 flex-wrap">
+    <div className="group flex items-center gap-4 px-5 py-3">
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-2">
           <Badge label={tx.type} />
           {editingDesc ? (
             <input
@@ -52,30 +52,50 @@ export function TxRow({ tx, accountName, categoryName, onDelete, onEdit, onDescr
                 if (e.key === 'Enter') saveDesc();
                 if (e.key === 'Escape') cancelDesc();
               }}
-              className="flex-1 rounded border border-primary-400 px-1 text-sm text-gray-700 focus:outline-none"
+              className="flex-1 rounded border border-primary-400 bg-white px-1 text-sm text-gray-700 focus:outline-none dark:bg-gray-800 dark:text-gray-200"
             />
           ) : (
             <span
-              className="text-sm text-gray-700 truncate cursor-text"
+              className="cursor-text truncate text-sm text-gray-700 dark:text-gray-300"
               onDoubleClick={() => setEditingDesc(true)}
               title="Double-click to edit description"
             >
               {tx.description ?? accountName}
             </span>
           )}
-          {categoryName && <span className="text-xs text-gray-400">· {categoryName}</span>}
+          {categoryName && <span className="text-xs text-gray-400 dark:text-gray-500">· {categoryName}</span>}
         </div>
-        <p className="text-xs text-gray-400 mt-0.5">{tx.date} · {accountName}</p>
+        <p className="mt-0.5 text-xs text-gray-400 dark:text-gray-500">{tx.date} · {accountName}</p>
         <EditingBadge entity="transaction" entityId={tx.id} />
       </div>
 
-      <span className={`font-semibold whitespace-nowrap ${isIncome ? 'text-green-600' : isExpense ? 'text-red-600' : 'text-gray-700'}`}>
+      <span
+        className={`whitespace-nowrap font-semibold ${
+          isIncome
+            ? 'text-green-600 dark:text-green-400'
+            : isExpense
+              ? 'text-red-600 dark:text-red-400'
+              : 'text-gray-700 dark:text-gray-300'
+        }`}
+      >
         {isExpense ? '−' : isIncome ? '+' : ''}{fmt(Number(tx.amount), tx.currency)}
       </span>
 
-      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-        <button onClick={onEdit} className="text-gray-300 hover:text-primary-500 text-sm" title="Edit">✏️</button>
-        <button onClick={onDelete} className="text-gray-300 hover:text-red-400 text-sm" title="Delete">✕</button>
+      <div className="flex shrink-0 gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+        <button
+          onClick={onEdit}
+          className="text-sm text-gray-300 hover:text-primary-500 dark:text-gray-600 dark:hover:text-primary-400"
+          title="Edit"
+        >
+          ✏️
+        </button>
+        <button
+          onClick={onDelete}
+          className="text-sm text-gray-300 hover:text-red-400 dark:text-gray-600 dark:hover:text-red-400"
+          title="Delete"
+        >
+          ✕
+        </button>
       </div>
     </div>
   );

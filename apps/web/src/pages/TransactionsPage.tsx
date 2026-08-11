@@ -44,7 +44,7 @@ export function TransactionsPage() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['transactions', hid] }),
   });
 
-  if (!activeHousehold) return <p className="text-gray-500">{t('common.selectHousehold')}</p>;
+  if (!activeHousehold) return <p className="text-gray-500 dark:text-gray-400">{t('common.selectHousehold')}</p>;
 
   const accountMap = Object.fromEntries(accounts.map((a) => [a.id, a]));
   const categoryMap = Object.fromEntries(categories.map((c) => [c.id, c]));
@@ -57,7 +57,7 @@ export function TransactionsPage() {
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center gap-3">
-        <h1 className="text-2xl font-bold text-gray-900 flex-1">{t('transactions.title')}</h1>
+        <h1 className="flex-1 text-2xl font-bold text-gray-900 dark:text-gray-100">{t('transactions.title')}</h1>
         <Button variant="secondary" size="sm" onClick={() => setShowTransfer(true)}>
           {t('transactions.transfer')}
         </Button>
@@ -81,9 +81,9 @@ export function TransactionsPage() {
       {isLoading ? (
         <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary-500 border-t-transparent" />
       ) : transactions.length === 0 ? (
-        <div className="py-16 text-center text-gray-400">{t('transactions.empty')}</div>
+        <div className="py-16 text-center text-gray-400 dark:text-gray-500">{t('transactions.empty')}</div>
       ) : (
-        <div className="divide-y divide-gray-100 rounded-xl border border-gray-200 bg-white">
+        <div className="divide-y divide-gray-100 rounded-xl border border-gray-200 bg-white dark:divide-gray-800 dark:border-gray-800 dark:bg-gray-900">
           {transactions.map((tx) => (
             <TxRow
               key={tx.id}

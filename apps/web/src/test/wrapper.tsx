@@ -5,6 +5,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import { AuthProvider } from '../contexts/AuthContext';
 import { HouseholdProvider } from '../contexts/HouseholdContext';
+import { ThemeProvider } from '../contexts/ThemeContext';
 import { setAccessToken } from '../api/client';
 
 function makeQueryClient() {
@@ -53,13 +54,15 @@ export function renderWithProviders(ui: React.ReactElement, options: WrapperOpti
     return (
       <GoogleOAuthProvider clientId="test-client-id">
         <QueryClientProvider client={qc}>
-          <MemoryRouter initialEntries={initialEntries}>
-            <AuthProvider>
-              <HouseholdProvider>
-                {children}
-              </HouseholdProvider>
-            </AuthProvider>
-          </MemoryRouter>
+          <ThemeProvider>
+            <MemoryRouter initialEntries={initialEntries}>
+              <AuthProvider>
+                <HouseholdProvider>
+                  {children}
+                </HouseholdProvider>
+              </AuthProvider>
+            </MemoryRouter>
+          </ThemeProvider>
         </QueryClientProvider>
       </GoogleOAuthProvider>
     );

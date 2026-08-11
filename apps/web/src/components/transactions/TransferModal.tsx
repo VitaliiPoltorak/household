@@ -46,7 +46,7 @@ export function TransferModal({ hid, accounts, onClose, onCreated }: Props) {
   if (accounts.length < 2) {
     return (
       <Modal title={t('transactions.transferTitle')} onClose={onClose}>
-        <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-700">
+        <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
           {t('transactions.transferNeedsTwoAccounts')}
         </p>
         <div className="flex justify-end pt-3">

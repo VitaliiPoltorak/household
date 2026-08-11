@@ -20,20 +20,20 @@ export function Sidebar() {
   ];
 
   return (
-    <aside className="flex w-56 flex-col border-r border-gray-200 bg-white">
-      <div className="flex h-14 items-center border-b border-gray-200 px-4">
-        <span className="text-lg font-bold text-primary-600">Household</span>
+    <aside className="flex w-56 flex-col border-r border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
+      <div className="flex h-14 items-center border-b border-gray-200 px-4 dark:border-gray-800">
+        <span className="text-lg font-bold text-primary-600 dark:text-primary-400">Household</span>
       </div>
 
       {households.length > 1 && (
-        <div className="border-b border-gray-200 px-3 py-2">
+        <div className="border-b border-gray-200 px-3 py-2 dark:border-gray-800">
           <select
             value={activeHousehold?.id ?? ''}
             onChange={(e) => {
               const h = households.find((x) => x.id === e.target.value);
               if (h) setActiveHousehold(h);
             }}
-            className="w-full rounded border border-gray-200 bg-gray-50 px-2 py-1.5 text-sm"
+            className="w-full rounded border border-gray-200 bg-gray-50 px-2 py-1.5 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
           >
             {households.map((h) => (
               <option key={h.id} value={h.id}>{h.name}</option>
@@ -43,9 +43,9 @@ export function Sidebar() {
       )}
 
       {activeHousehold && households.length === 1 && (
-        <div className="border-b border-gray-200 px-4 py-2.5">
-          <p className="text-xs text-gray-500">{t('nav.household')}</p>
-          <p className="font-medium text-gray-800">{activeHousehold.name}</p>
+        <div className="border-b border-gray-200 px-4 py-2.5 dark:border-gray-800">
+          <p className="text-xs text-gray-500 dark:text-gray-400">{t('nav.household')}</p>
+          <p className="font-medium text-gray-800 dark:text-gray-200">{activeHousehold.name}</p>
         </div>
       )}
 
@@ -58,8 +58,8 @@ export function Sidebar() {
               clsx(
                 'flex items-center rounded-md px-3 py-2 text-sm transition-colors',
                 isActive
-                  ? 'bg-primary-50 font-medium text-primary-700'
-                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900',
+                  ? 'bg-primary-50 font-medium text-primary-700 dark:bg-primary-900/40 dark:text-primary-300'
+                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-100',
               )
             }
           >
@@ -69,7 +69,7 @@ export function Sidebar() {
       </nav>
 
       {/* Bottom: settings */}
-      <div className="border-t border-gray-200 px-2 py-2">
+      <div className="border-t border-gray-200 px-2 py-2 dark:border-gray-800">
         {BOTTOM_NAV.map(({ to, label }) => (
           <NavLink
             key={to}
@@ -78,8 +78,8 @@ export function Sidebar() {
               clsx(
                 'flex items-center rounded-md px-3 py-2 text-sm transition-colors',
                 isActive
-                  ? 'bg-primary-50 font-medium text-primary-700'
-                  : 'text-gray-500 hover:bg-gray-100 hover:text-gray-800',
+                  ? 'bg-primary-50 font-medium text-primary-700 dark:bg-primary-900/40 dark:text-primary-300'
+                  : 'text-gray-500 hover:bg-gray-100 hover:text-gray-800 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200',
               )
             }
           >
