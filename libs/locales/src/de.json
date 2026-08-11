@@ -52,7 +52,16 @@
     "upcomingPayments": "Anstehende Zahlungen (30 Tage)",
     "noHousehold": "Sie haben noch keinen Haushalt.",
     "createFirst": "Ersten Haushalt erstellen",
-    "newHome": "+ Neuer Haushalt"
+    "newHome": "+ Neuer Haushalt",
+    "byCurrency": "Nach Währung",
+    "convertedFrom": "aus {{count}} Währungen mit PrivatBank-Kursen umgerechnet",
+    "convertedFromCached": "aus {{count}} Währungen mit gecachten Kursen umgerechnet",
+    "mixedCurrencies": "gemischte Währungen — Summen ohne Umrechnung",
+    "rates": {
+      "loading": "Wechselkurse werden geladen…",
+      "unavailableShort": "nicht verfügbar",
+      "unavailableDesc": "Wechselkurse nicht verfügbar — Gesamtsumme ausgeblendet"
+    }
   },
   "accounts": {
     "title": "Konten",

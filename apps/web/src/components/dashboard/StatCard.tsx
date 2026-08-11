@@ -2,6 +2,8 @@ interface Props {
   label: string;
   value: string;
   color: 'blue' | 'green' | 'red';
+  /** Optional small caption below the value — e.g. "converted from 3 currencies". */
+  subtitle?: string | null;
 }
 
 const COLORS: Record<Props['color'], string> = {
@@ -11,11 +13,12 @@ const COLORS: Record<Props['color'], string> = {
 };
 
 /** Coloured summary card shown on the dashboard. */
-export function StatCard({ label, value, color }: Props) {
+export function StatCard({ label, value, color, subtitle }: Props) {
   return (
     <div className={`rounded-xl p-5 ${COLORS[color]}`}>
       <p className="text-sm opacity-80">{label}</p>
       <p className="mt-1 text-2xl font-bold">{value}</p>
+      {subtitle && <p className="mt-1 text-xs opacity-70">{subtitle}</p>}
     </div>
   );
 }
