@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { User } from './entities/user.entity';
 import { AuthProvider } from './entities/auth-provider.entity';
 
@@ -23,6 +23,22 @@ export class UsersService {
 
   async findById(id: string): Promise<User | null> {
     return this.userRepo.findOne({ where: { id } });
+  }
+
+  /**
+   * Bulk lookup by ids. Missing users are silently omitted from the result —
+   * callers (mainly the member-list UI in the web app) can render a fallback
+   * for any id that doesn't come back.
+   *
+   * Deliberately returns full User entities; the controller layer decides
+   * which fields to expose over HTTP.
+   */
+  async findByIds(ids: string[]): Promise<User[]> {
+    if (ids.length === 0) return [];
+    // Dedupe defensively — TypeORM's IN also handles it, but this keeps the
+    // SQL parameter list tight when callers pass overlapping arrays.
+    const uniqueIds = Array.from(new Set(ids));
+    return this.userRepo.find({ where: { id: In(uniqueIds) } });
   }
 
   async findByEmail(email: string): Promise<User | null> {

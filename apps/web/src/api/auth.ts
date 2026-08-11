@@ -1,5 +1,5 @@
 import { api } from './client';
-import type { LoginResponse, User } from '../types/api';
+import type { LoginResponse, PublicUserProfile, User } from '../types/api';
 
 export const authApi = {
   loginWithGoogle: (idToken: string) =>
@@ -20,4 +20,19 @@ export const authApi = {
     api.patch<User>('/auth/me', data),
 
   deleteAccount: () => api.delete('/auth/me'),
+
+  /**
+   * Bulk-resolve userIds to display name + avatar for the member list. Missing
+   * ids are silently omitted server-side (#166).
+   *
+   * Caller MUST pass a sorted ids list if it wants stable cache keys. The
+   * helper below dedupes and hides an empty request from the network.
+   */
+  getUsers: async (ids: string[]): Promise<PublicUserProfile[]> => {
+    const unique = Array.from(new Set(ids)).filter(Boolean);
+    if (unique.length === 0) return [];
+    return api.get<PublicUserProfile[]>('/auth/users', {
+      params: { ids: unique.join(',') },
+    });
+  },
 };

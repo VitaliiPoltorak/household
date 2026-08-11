@@ -24,7 +24,7 @@ Shared libraries in `libs/`: `common` (config, filters, JWT verify, gateway sign
 | Service | Port | Description |
 |---------|------|-------------|
 | api-gateway | 3000 | Single REST entry point, JWT auth, proxy, Swagger |
-| auth-service | 3001 | Google / Apple / Facebook OAuth, JWT, Redis sessions |
+| auth-service | 3001 | Google / Apple / Facebook OAuth, JWT, Redis sessions, public user directory |
 | household-service | 3002 | Households, members, roles, invites |
 | finance-service | 3003 | Accounts, transactions, categories, recurring payments |
 | shopping-service | 3004 | Stores, products, shopping lists |

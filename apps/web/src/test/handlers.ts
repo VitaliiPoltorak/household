@@ -65,6 +65,18 @@ export const handlers = [
   http.get(`${BASE}/auth/me`, () => HttpResponse.json(MOCK_USER)),
   http.patch(`${BASE}/auth/me`, () => HttpResponse.json(MOCK_USER)),
 
+  // Bulk public profile lookup for member lists (#166). Filters MOCK_USER-only
+  // by default; individual tests can override with server.use(...) for
+  // richer fixtures.
+  http.get(`${BASE}/auth/users`, ({ request }) => {
+    const url = new URL(request.url);
+    const ids = (url.searchParams.get('ids') ?? '').split(',').filter(Boolean);
+    const known: Array<{ id: string; displayName: string; avatarUrl: string | null }> = [
+      { id: MOCK_USER.id, displayName: MOCK_USER.displayName, avatarUrl: MOCK_USER.avatarUrl },
+    ];
+    return HttpResponse.json(known.filter((u) => ids.includes(u.id)));
+  }),
+
   // Households
   http.get(`${BASE}/households`, () => HttpResponse.json([MOCK_HOUSEHOLD])),
   http.post(`${BASE}/households`, async ({ request }) => {

@@ -1,12 +1,14 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useHousehold } from '../contexts/HouseholdContext';
 import { householdsApi } from '../api/households';
-import type { MemberRole } from '../types/api';
+import { authApi } from '../api/auth';
+import type { MemberRole, PublicUserProfile } from '../types/api';
 import { Button } from '../components/ui/Button';
 import { Input, Select } from '../components/ui/Input';
 import { Modal } from '../components/ui/Modal';
+import { RoleBadge } from '../components/households/RoleBadge';
 
 const ROLES: MemberRole[] = ['admin', 'member', 'viewer'];
 
@@ -24,6 +26,25 @@ export function HouseholdPage() {
     queryFn: () => householdsApi.getMembers(hid, hid),
     enabled: !!hid,
   });
+
+  // Second-level query: resolve every member's userId to a display name +
+  // avatar via the auth service. Sorted CSV cache key so overlapping calls
+  // dedupe correctly (e.g. two households sharing the same member).
+  const sortedUserIds = useMemo(
+    () => members.map((m) => m.userId).sort(),
+    [members],
+  );
+  const { data: userProfiles = [] } = useQuery({
+    queryKey: ['users', sortedUserIds.join(',')],
+    queryFn: () => authApi.getUsers(sortedUserIds),
+    enabled: sortedUserIds.length > 0,
+    staleTime: 5 * 60 * 1000, // display names rarely change; keep 5 min
+  });
+  const userById = useMemo(() => {
+    const m = new Map<string, PublicUserProfile>();
+    for (const u of userProfiles) m.set(u.id, u);
+    return m;
+  }, [userProfiles]);
 
   const { data: invites = [] } = useQuery({
     queryKey: ['invites', hid],
@@ -67,24 +88,32 @@ export function HouseholdPage() {
       {/* Members */}
       <Section title={t('household.members')}>
         <div className="divide-y divide-gray-100 rounded-xl border border-gray-200 bg-white dark:divide-gray-800 dark:border-gray-800 dark:bg-gray-900">
-          {members.map((m) => (
-            <div key={m.id} className="flex items-center justify-between px-4 py-3">
-              <div>
-                <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{m.userId}</p>
-                <span className="inline-block rounded-full bg-gray-100 px-2 py-0.5 text-xs capitalize text-gray-500 dark:bg-gray-800 dark:text-gray-300">
-                  {t(`household.roles.${m.role}`)}
-                </span>
+          {members.map((m) => {
+            const profile = userById.get(m.userId);
+            const displayName = profile?.displayName ?? shortId(m.userId);
+            return (
+              <div key={m.id} className="flex items-center justify-between px-4 py-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <Avatar name={displayName} avatarUrl={profile?.avatarUrl ?? null} />
+                  <div className="min-w-0">
+                    <p className="flex items-center gap-2 text-sm font-medium text-gray-900 dark:text-gray-100">
+                      <span className="truncate">{displayName}</span>
+                      <RoleBadge role={m.role} />
+                    </p>
+                    <p className="font-mono text-xs text-gray-400 dark:text-gray-500">{shortId(m.userId)}</p>
+                  </div>
+                </div>
+                {m.role !== 'owner' && (
+                  <button
+                    onClick={() => removeMember.mutate(m.id)}
+                    className="text-xs text-red-400 hover:text-red-600 shrink-0 ml-3 dark:text-red-400 dark:hover:text-red-300"
+                  >
+                    {t('common.delete')}
+                  </button>
+                )}
               </div>
-              {m.role !== 'owner' && (
-                <button
-                  onClick={() => removeMember.mutate(m.id)}
-                  className="text-xs text-red-400 hover:text-red-600 dark:text-red-400 dark:hover:text-red-300"
-                >
-                  {t('common.delete')}
-                </button>
-              )}
-            </div>
-          ))}
+            );
+          })}
         </div>
         <Button size="sm" onClick={() => setShowInvite(true)} className="mt-3">
           + {t('household.inviteByEmail')}
@@ -166,6 +195,44 @@ function Section({ title, children }: { title: string; children: React.ReactNode
       <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{title}</h2>
       {children}
     </div>
+  );
+}
+
+/**
+ * Short, monospace representation of a userId — first 8 chars + ellipsis.
+ * Used both as the secondary line under the display name and as the fallback
+ * display name when the auth service returns no profile for an id.
+ */
+function shortId(id: string): string {
+  return `${id.slice(0, 8)}…`;
+}
+
+/**
+ * 32 x 32 circular avatar. Falls back to the first letter of the display name
+ * on a coloured background when no image URL is available (or the image fails
+ * to load).
+ */
+function Avatar({ name, avatarUrl }: { name: string; avatarUrl: string | null }) {
+  const [broken, setBroken] = useState(false);
+  const initial = name.trim().charAt(0).toUpperCase() || '?';
+
+  if (avatarUrl && !broken) {
+    return (
+      <img
+        src={avatarUrl}
+        alt=""
+        onError={() => setBroken(true)}
+        className="h-8 w-8 shrink-0 rounded-full object-cover bg-gray-100 dark:bg-gray-800"
+      />
+    );
+  }
+  return (
+    <span
+      aria-hidden="true"
+      className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary-100 text-sm font-semibold text-primary-700 dark:bg-primary-900/40 dark:text-primary-300"
+    >
+      {initial}
+    </span>
   );
 }
 
