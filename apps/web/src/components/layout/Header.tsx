@@ -1,27 +1,18 @@
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../contexts/AuthContext';
-import { authApi } from '../../api/auth';
 import { useNavigate } from 'react-router-dom';
-import { supportedLngs, type SupportedLng } from '@household/locales';
 import { OnlineUsers } from '../presence/OnlineUsers';
 import { ThemeToggle } from './ThemeToggle';
-
-const FLAG: Record<SupportedLng, string> = { en: '🇬🇧', uk: '🇺🇦', de: '🇩🇪', es: '🇪🇸' };
+import { LanguageSwitcher } from './LanguageSwitcher';
 
 export function Header() {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
   const handleLogout = async () => {
     await logout();
     navigate('/login');
-  };
-
-  const handleLangChange = async (lng: SupportedLng) => {
-    await i18n.changeLanguage(lng);
-    // Persist to user profile if logged in
-    if (user) authApi.updateProfile({ locale: lng }).catch(() => null);
   };
 
   return (
@@ -33,20 +24,7 @@ export function Header() {
       <ThemeToggle />
       <div className="h-4 w-px bg-gray-200 dark:bg-gray-700" />
       {/* Language switcher */}
-      <div className="flex items-center gap-1">
-        {supportedLngs.map((lng) => (
-          <button
-            key={lng}
-            onClick={() => handleLangChange(lng)}
-            title={t(`lang.${lng}`)}
-            className={`rounded px-1.5 py-0.5 text-base transition-opacity ${
-              i18n.resolvedLanguage === lng ? 'opacity-100' : 'opacity-30 hover:opacity-60'
-            }`}
-          >
-            {FLAG[lng]}
-          </button>
-        ))}
-      </div>
+      <LanguageSwitcher />
 
       {user && (
         <>
