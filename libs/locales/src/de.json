@@ -135,7 +135,13 @@
     "editTitle": "Transaktion bearbeiten",
     "fromDate": "Von Datum",
     "toDate": "Bis Datum",
-    "transferPair": "{{from}} → {{to}}"
+    "transferPair": "{{from}} → {{to}}",
+    "transferSent": "Gesendet",
+    "transferReceived": "Erhalten",
+    "transferRecalcTitle": "Mit aktuellem Kurs neu berechnen",
+    "transferEffectiveRate": "1 {{from}} ≈ {{rate}} {{to}}",
+    "transferYourRate": "Ihr Kurs: {{rate}}",
+    "transferRateUnavailable": "Kurse nicht verfügbar — beide Beträge manuell eingeben"
   },
   "categories": {
     "title": "Kategorien",

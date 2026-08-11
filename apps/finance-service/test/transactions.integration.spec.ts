@@ -10,11 +10,12 @@ async function createAccount(
   app: INestApplication,
   name: string,
   type = 'bank',
+  currency = 'UAH',
 ): Promise<string> {
   const res = await request(app.getHttpServer())
     .post('/accounts')
     .set('X-User-Id', U).set('X-Household-Id', H)
-    .send({ name, type, currency: 'UAH' });
+    .send({ name, type, currency });
   return res.body.id as string;
 }
 
@@ -186,6 +187,222 @@ describe('Transactions (integration)', () => {
         .set('X-User-Id', U).set('X-Household-Id', H)
         .send({ fromAccountId: mine, toAccountId: '00000000-0000-0000-0000-000000000000', amount: 100, currency: 'UAH', date: '2026-07-30' })
         .expect(404);
+    });
+  });
+
+  describe('POST /transactions/transfer — cross-currency (#162)', () => {
+    // Cross-currency transfers write DIFFERENT amounts to each leg in each
+    // leg's own currency. There is no single "rate" stored on the ledger —
+    // the effective rate is implicit in the ratio of the two amounts. This
+    // reflects reality: banks fees, spreads, and cross-border rules mean
+    // the amount you send is rarely the amount that lands.
+
+    it('debits source in source currency, credits destination in target currency', async () => {
+      const uahId = await createAccount(app, 'UAH Bank', 'bank', 'UAH');
+      const usdId = await createAccount(app, 'USD Bank', 'bank', 'USD');
+      await request(app.getHttpServer())
+        .post('/transactions')
+        .set('X-User-Id', U).set('X-Household-Id', H)
+        .send({ accountId: uahId, type: 'income', amount: 5000, currency: 'UAH', date: '2026-07-30' });
+
+      const res = await request(app.getHttpServer())
+        .post('/transactions/transfer')
+        .set('X-User-Id', U).set('X-Household-Id', H)
+        .send({
+          fromAccountId: uahId,
+          toAccountId: usdId,
+          fromAmount: 1000,
+          toAmount: 24.20,
+          currency: 'UAH',
+          toCurrency: 'USD',
+          date: '2026-07-30',
+        })
+        .expect(201);
+
+      const [debit, credit] = res.body as Array<{
+        amount: number | string; currency: string; transferPairId: string; transferDirection: string;
+      }>;
+      // Same pair id links the two legs.
+      expect(debit.transferPairId).toBe(credit.transferPairId);
+      // Debit leg preserves source amount + currency; credit leg preserves target.
+      expect(debit.transferDirection).toBe('debit');
+      expect(Number(debit.amount)).toBe(1000);
+      expect(debit.currency).toBe('UAH');
+      expect(credit.transferDirection).toBe('credit');
+      expect(Number(credit.amount)).toBe(24.20);
+      expect(credit.currency).toBe('USD');
+
+      // Each account's balance moves in its own currency by its own amount.
+      expect(await getBalance(app, uahId)).toBe(4000);
+      expect(await getBalance(app, usdId)).toBe(24.20);
+    });
+
+    it('surfaces cross-currency counterAmount + counterCurrency in GET /transactions', async () => {
+      const uahId = await createAccount(app, 'UAH Bank', 'bank', 'UAH');
+      const usdId = await createAccount(app, 'USD Bank', 'bank', 'USD');
+      await request(app.getHttpServer())
+        .post('/transactions')
+        .set('X-User-Id', U).set('X-Household-Id', H)
+        .send({ accountId: uahId, type: 'income', amount: 5000, currency: 'UAH', date: '2026-07-30' });
+      await request(app.getHttpServer())
+        .post('/transactions/transfer')
+        .set('X-User-Id', U).set('X-Household-Id', H)
+        .send({
+          fromAccountId: uahId,
+          toAccountId: usdId,
+          fromAmount: 1000,
+          toAmount: 24.20,
+          currency: 'UAH',
+          toCurrency: 'USD',
+          date: '2026-07-30',
+        });
+
+      const list = await request(app.getHttpServer())
+        .get('/transactions?type=transfer')
+        .set('X-User-Id', U).set('X-Household-Id', H)
+        .expect(200);
+
+      expect(list.body).toHaveLength(1);
+      const row = list.body[0];
+      // Primary = debit leg (source), so amount + currency reflect the UAH side
+      // and counter* reflect the USD side.
+      expect(Number(row.amount)).toBe(1000);
+      expect(row.currency).toBe('UAH');
+      expect(row.counterAmount).toBe(24.20);
+      expect(row.counterCurrency).toBe('USD');
+    });
+
+    it('reverses both balances in their respective currencies on delete', async () => {
+      const uahId = await createAccount(app, 'UAH Bank', 'bank', 'UAH');
+      const usdId = await createAccount(app, 'USD Bank', 'bank', 'USD');
+      await request(app.getHttpServer())
+        .post('/transactions')
+        .set('X-User-Id', U).set('X-Household-Id', H)
+        .send({ accountId: uahId, type: 'income', amount: 5000, currency: 'UAH', date: '2026-07-30' });
+      const transferRes = await request(app.getHttpServer())
+        .post('/transactions/transfer')
+        .set('X-User-Id', U).set('X-Household-Id', H)
+        .send({
+          fromAccountId: uahId,
+          toAccountId: usdId,
+          fromAmount: 1000,
+          toAmount: 24.20,
+          currency: 'UAH',
+          toCurrency: 'USD',
+          date: '2026-07-30',
+        });
+      const [debit] = transferRes.body as Array<{ id: string }>;
+
+      expect(await getBalance(app, uahId)).toBe(4000);
+      expect(await getBalance(app, usdId)).toBe(24.20);
+
+      await request(app.getHttpServer())
+        .delete(`/transactions/${debit.id}`)
+        .set('X-User-Id', U).set('X-Household-Id', H)
+        .expect(204);
+
+      // UAH gets its 1000 back, USD gives its 24.20 back — each in its own ccy.
+      expect(await getBalance(app, uahId)).toBe(5000);
+      expect(await getBalance(app, usdId)).toBe(0);
+    });
+
+    it('rejects providing both { amount } and { fromAmount, toAmount }', async () => {
+      const uahId = await createAccount(app, 'UAH', 'bank', 'UAH');
+      const usdId = await createAccount(app, 'USD', 'bank', 'USD');
+      await request(app.getHttpServer())
+        .post('/transactions/transfer')
+        .set('X-User-Id', U).set('X-Household-Id', H)
+        .send({
+          fromAccountId: uahId,
+          toAccountId: usdId,
+          amount: 100,
+          fromAmount: 100,
+          toAmount: 2.5,
+          currency: 'UAH',
+          toCurrency: 'USD',
+          date: '2026-07-30',
+        })
+        .expect(400);
+    });
+
+    it('rejects fromAmount without toAmount', async () => {
+      const uahId = await createAccount(app, 'UAH', 'bank', 'UAH');
+      const usdId = await createAccount(app, 'USD', 'bank', 'USD');
+      await request(app.getHttpServer())
+        .post('/transactions/transfer')
+        .set('X-User-Id', U).set('X-Household-Id', H)
+        .send({
+          fromAccountId: uahId,
+          toAccountId: usdId,
+          fromAmount: 100,
+          currency: 'UAH',
+          toCurrency: 'USD',
+          date: '2026-07-30',
+        })
+        .expect(400);
+    });
+
+    it('rejects toCurrency mismatch under the legacy single-amount shape', async () => {
+      // A client that sets {amount, toCurrency} might be trying to fake a
+      // cross-currency transfer while leaving both legs equal — that would
+      // silently drift the destination balance. Reject with 400 instead.
+      const uahId = await createAccount(app, 'UAH', 'bank', 'UAH');
+      const usdId = await createAccount(app, 'USD', 'bank', 'USD');
+      await request(app.getHttpServer())
+        .post('/transactions/transfer')
+        .set('X-User-Id', U).set('X-Household-Id', H)
+        .send({
+          fromAccountId: uahId,
+          toAccountId: usdId,
+          amount: 100,
+          currency: 'UAH',
+          toCurrency: 'USD',
+          date: '2026-07-30',
+        })
+        .expect(400);
+    });
+
+    it('rejects a transfer with no amount at all', async () => {
+      const uahId = await createAccount(app, 'UAH', 'bank', 'UAH');
+      const usdId = await createAccount(app, 'USD', 'bank', 'USD');
+      await request(app.getHttpServer())
+        .post('/transactions/transfer')
+        .set('X-User-Id', U).set('X-Household-Id', H)
+        .send({
+          fromAccountId: uahId,
+          toAccountId: usdId,
+          currency: 'UAH',
+          date: '2026-07-30',
+        })
+        .expect(400);
+    });
+
+    it('accepts same-currency via explicit fromAmount + toAmount (equal legs)', async () => {
+      // A UI that always sends the explicit shape (even in the single-ccy
+      // case) shouldn't be forced to switch payloads — verify equal amounts
+      // work the same as the legacy shape.
+      const from = await createAccount(app, 'A', 'bank', 'UAH');
+      const to = await createAccount(app, 'B', 'cash', 'UAH');
+      await request(app.getHttpServer())
+        .post('/transactions')
+        .set('X-User-Id', U).set('X-Household-Id', H)
+        .send({ accountId: from, type: 'income', amount: 1000, currency: 'UAH', date: '2026-07-30' });
+
+      await request(app.getHttpServer())
+        .post('/transactions/transfer')
+        .set('X-User-Id', U).set('X-Household-Id', H)
+        .send({
+          fromAccountId: from,
+          toAccountId: to,
+          fromAmount: 300,
+          toAmount: 300,
+          currency: 'UAH',
+          date: '2026-07-30',
+        })
+        .expect(201);
+
+      expect(await getBalance(app, from)).toBe(700);
+      expect(await getBalance(app, to)).toBe(300);
     });
   });
 

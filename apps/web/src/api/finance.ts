@@ -34,7 +34,7 @@ export const financeApi = {
   createTransaction: (hid: string, data: object) =>
     api.post<Transaction>('/transactions', data, cfg(hid)),
 
-  createTransfer: (hid: string, data: object) =>
+  createTransfer: (hid: string, data: CreateTransferPayload) =>
     api.post<[Transaction, Transaction]>('/transactions/transfer', data, cfg(hid)),
 
   updateTransaction: (id: string, hid: string, data: object) =>
@@ -102,6 +102,31 @@ export const financeApi = {
   // Returns the freshly-synced rates so callers don't need a follow-up GET.
   refreshRates: () => api.post<RefreshRatesResponse>('/rates/refresh'),
 };
+
+/**
+ * Request shape for POST /transactions/transfer.
+ *
+ * Cross-currency (#162): pass `fromAmount` + `toAmount` (with `toCurrency`
+ * when it differs from `currency`). Same-currency callers may still pass
+ * the legacy `amount` shape — the backend accepts either but not both.
+ * Mixing the two produces a 400.
+ */
+export interface CreateTransferPayload {
+  fromAccountId: string;
+  toAccountId: string;
+  /** Legacy same-currency shortcut. Prefer fromAmount + toAmount. */
+  amount?: number;
+  /** Amount debited from the source account, denominated in `currency`. */
+  fromAmount?: number;
+  /** Amount credited to the destination account, denominated in `toCurrency`. */
+  toAmount?: number;
+  /** Source currency. Defaults to UAH server-side. */
+  currency?: string;
+  /** Destination currency. Omit for same-currency transfers. */
+  toCurrency?: string;
+  description?: string;
+  date: string;
+}
 
 export interface ExchangeRate {
   ccy: string;

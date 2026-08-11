@@ -34,6 +34,12 @@ export class TransferDomainService {
       throw new BadRequestException('Source and destination accounts must differ');
     }
 
+    // Resolve payload variants (#162): explicit two-leg amounts win, else
+    // fall back to the legacy single `amount` shape for same-currency
+    // transfers. Reject anything ambiguous with a 400 rather than silently
+    // picking one side and drifting the ledger.
+    const { fromAmount, toAmount, fromCurrency, toCurrency } = this.resolveAmounts(dto);
+
     // Verifies both accounts exist AND belong to the caller's household.
     // Throws NotFoundException otherwise — prevents cross-household transfers.
     await Promise.all([
@@ -51,8 +57,8 @@ export class TransferDomainService {
           householdId,
           accountId: dto.fromAccountId,
           type: TransactionType.TRANSFER,
-          amount: dto.amount,
-          currency: dto.currency ?? 'UAH',
+          amount: fromAmount,
+          currency: fromCurrency,
           description: dto.description ?? null,
           date: dto.date,
           createdBy: userId,
@@ -68,8 +74,8 @@ export class TransferDomainService {
           householdId,
           accountId: dto.toAccountId,
           type: TransactionType.TRANSFER,
-          amount: dto.amount,
-          currency: dto.currency ?? 'UAH',
+          amount: toAmount,
+          currency: toCurrency,
           description: dto.description ?? null,
           date: dto.date,
           createdBy: userId,
@@ -80,8 +86,15 @@ export class TransferDomainService {
         }),
       );
 
-      await this.accountsService.adjustBalance(dto.fromAccountId, -dto.amount, manager);
-      await this.accountsService.adjustBalance(dto.toAccountId, dto.amount, manager);
+      // Each leg mutates ITS OWN account in ITS OWN currency — Account.balance
+      // is denominated in the account's currency, and adjustBalance treats
+      // delta as raw units of that currency. This is why cross-currency works
+      // without a rate: the source account's UAH balance loses fromAmount UAH,
+      // the destination account's USD balance gains toAmount USD. Whatever
+      // effective rate the user chose is materialised as the ratio of the two
+      // amounts on the two legs.
+      await this.accountsService.adjustBalance(dto.fromAccountId, -fromAmount, manager);
+      await this.accountsService.adjustBalance(dto.toAccountId, toAmount, manager);
 
       return [debitLeg, creditLeg] as const;
     });
@@ -98,6 +111,70 @@ export class TransferDomainService {
     );
 
     return [debit, credit];
+  }
+
+  /**
+   * Normalises the (legacy vs #162) DTO variants into the exact per-leg
+   * amounts + currencies the pair-writer needs.
+   *
+   *   - Preferred (#162): `fromAmount` + `toAmount` set explicitly.
+   *     `toCurrency` optional, defaults to source `currency`.
+   *   - Legacy: only `amount` set → both legs use it in the single `currency`.
+   *
+   * Deliberately strict: mixing (`amount` + `fromAmount`) or providing only
+   * one of (`fromAmount`, `toAmount`) is rejected. Silently dropping half the
+   * inputs would let a client accidentally write a lopsided ledger.
+   */
+  private resolveAmounts(dto: CreateTransferDto): {
+    fromAmount: number;
+    toAmount: number;
+    fromCurrency: string;
+    toCurrency: string;
+  } {
+    const hasExplicit = dto.fromAmount !== undefined || dto.toAmount !== undefined;
+    const hasLegacy = dto.amount !== undefined;
+
+    if (hasExplicit && hasLegacy) {
+      throw new BadRequestException(
+        'Provide either { amount } (legacy) or { fromAmount, toAmount } — not both',
+      );
+    }
+
+    if (hasExplicit) {
+      if (dto.fromAmount === undefined || dto.toAmount === undefined) {
+        throw new BadRequestException(
+          'Both fromAmount and toAmount are required for cross-currency transfers',
+        );
+      }
+      const fromCurrency = dto.currency ?? 'UAH';
+      const toCurrency = dto.toCurrency ?? fromCurrency;
+      return {
+        fromAmount: dto.fromAmount,
+        toAmount: dto.toAmount,
+        fromCurrency,
+        toCurrency,
+      };
+    }
+
+    if (hasLegacy) {
+      // Legacy same-currency path: single amount, single currency.
+      // Reject `toCurrency` here so callers can't sneak a cross-currency
+      // rate through the single-amount shape.
+      if (dto.toCurrency !== undefined && dto.toCurrency !== (dto.currency ?? 'UAH')) {
+        throw new BadRequestException(
+          'toCurrency requires explicit fromAmount + toAmount',
+        );
+      }
+      const ccy = dto.currency ?? 'UAH';
+      return {
+        fromAmount: dto.amount!,
+        toAmount: dto.amount!,
+        fromCurrency: ccy,
+        toCurrency: ccy,
+      };
+    }
+
+    throw new BadRequestException('amount or (fromAmount + toAmount) is required');
   }
 
   /**

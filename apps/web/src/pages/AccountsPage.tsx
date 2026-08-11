@@ -498,6 +498,9 @@ function QuickTxModal({ account, txType, hid, accounts, categories, onClose, onC
 }) {
   const { t } = useTranslation();
   const [amount, setAmount] = useState('');
+  // Cross-currency (#162): a second amount field for the received leg.
+  const [toAmount, setToAmount] = useState('');
+  const [toAmountTouched, setToAmountTouched] = useState(false);
   const [description, setDescription] = useState('');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [categoryId, setCategoryId] = useState('');
@@ -512,6 +515,45 @@ function QuickTxModal({ account, txType, hid, accounts, categories, onClose, onC
   const filteredCategories = isTransfer ? [] : categories.filter((c) => c.type === txType);
   const otherAccounts = accounts.filter((a) => a.id !== account.id);
 
+  const toAccount = accounts.find((a) => a.id === toAccountId) ?? null;
+  const fromCcy = account.currency;
+  const toCcy = toAccount?.currency ?? fromCcy;
+  const isCrossCurrency = isTransfer && fromCcy !== toCcy;
+
+  // Only fetch rates when we need to convert a live amount.
+  const ratesState = useRatesState(isCrossCurrency);
+  const marketRate = isCrossCurrency && ratesState.status === 'ready'
+    ? convert(1, fromCcy, toCcy, ratesState.rates)
+    : null;
+
+  // Auto-fill toAmount = amount * marketRate while the user hasn't typed.
+  useEffect(() => {
+    if (!isCrossCurrency) return;
+    if (toAmountTouched) return;
+    if (marketRate === null) return;
+    const parsed = parseFloat(amount);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      setToAmount('');
+      return;
+    }
+    setToAmount((parsed * marketRate).toFixed(2));
+  }, [amount, marketRate, isCrossCurrency, toAmountTouched]);
+
+  // Changing the destination account resets the derived toAmount so we
+  // re-auto-fill from the new rate.
+  useEffect(() => {
+    setToAmountTouched(false);
+    setToAmount('');
+  }, [toAccountId]);
+
+  const recalc = () => setToAmountTouched(false);
+
+  const fromNum = parseFloat(amount);
+  const toNum = parseFloat(toAmount);
+  const effectiveRate = isCrossCurrency && Number.isFinite(fromNum) && Number.isFinite(toNum) && fromNum > 0
+    ? toNum / fromNum
+    : null;
+
   const titleKey = `transactions.types.${txType}` as const;
 
   const submit = async (e: React.FormEvent) => {
@@ -520,14 +562,26 @@ function QuickTxModal({ account, txType, hid, accounts, categories, onClose, onC
     setSaving(true);
     try {
       if (isTransfer) {
-        await financeApi.createTransfer(hid, {
-          fromAccountId: account.id,
-          toAccountId,
-          amount: parseFloat(amount),
-          currency: account.currency,
-          description: description || undefined,
-          date,
-        });
+        await financeApi.createTransfer(hid, isCrossCurrency
+          ? {
+              fromAccountId: account.id,
+              toAccountId,
+              fromAmount: fromNum,
+              toAmount: toNum,
+              currency: fromCcy,
+              toCurrency: toCcy,
+              description: description || undefined,
+              date,
+            }
+          : {
+              fromAccountId: account.id,
+              toAccountId,
+              fromAmount: fromNum,
+              toAmount: fromNum,
+              currency: fromCcy,
+              description: description || undefined,
+              date,
+            });
       } else {
         await financeApi.createTransaction(hid, {
           accountId: account.id,
@@ -573,7 +627,7 @@ function QuickTxModal({ account, txType, hid, accounts, categories, onClose, onC
         )}
 
         <Input
-          label={t('transactions.amount')}
+          label={isTransfer ? `${t('transactions.transferSent')} (${fromCcy})` : t('transactions.amount')}
           type="number" step="0.01" min="0.01"
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
@@ -581,6 +635,56 @@ function QuickTxModal({ account, txType, hid, accounts, categories, onClose, onC
           required
           autoFocus
         />
+
+        {isCrossCurrency && (
+          <div className="space-y-1">
+            <div className="flex items-end gap-2">
+              <div className="flex-1">
+                <Input
+                  label={`${t('transactions.transferReceived')} (${toCcy})`}
+                  type="number" step="0.01" min="0.01"
+                  value={toAmount}
+                  onChange={(e) => {
+                    setToAmount(e.target.value);
+                    setToAmountTouched(true);
+                  }}
+                  required
+                  placeholder="0.00"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={recalc}
+                disabled={marketRate === null}
+                title={t('transactions.transferRecalcTitle')}
+                className="mb-[2px] flex h-[38px] w-10 items-center justify-center rounded-lg border border-gray-200 bg-white text-lg text-gray-500 transition-colors hover:border-primary-400 hover:text-primary-600 disabled:cursor-not-allowed disabled:opacity-40 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:border-primary-500 dark:hover:text-primary-400"
+              >
+                ↻
+              </button>
+            </div>
+            {ratesState.status === 'ready' && marketRate !== null ? (
+              <p className="pl-1 text-xs text-gray-400 dark:text-gray-500">
+                {t('transactions.transferEffectiveRate', {
+                  from: fromCcy,
+                  rate: marketRate.toFixed(4),
+                  to: toCcy,
+                })}
+                {effectiveRate !== null && (
+                  <>
+                    {' · '}
+                    {t('transactions.transferYourRate', { rate: effectiveRate.toFixed(4) })}
+                  </>
+                )}
+              </p>
+            ) : ratesState.status === 'loading' ? (
+              <p className="pl-1 text-xs text-gray-400 dark:text-gray-500">{t('accounts.loading')}</p>
+            ) : (
+              <p className="pl-1 text-xs text-amber-600 dark:text-amber-400">
+                {t('transactions.transferRateUnavailable')}
+              </p>
+            )}
+          </div>
+        )}
 
         <Input
           label={t('transactions.date')}
@@ -614,7 +718,12 @@ function QuickTxModal({ account, txType, hid, accounts, categories, onClose, onC
           <Button
             type="submit"
             className="flex-1"
-            disabled={saving || !amount || (isTransfer && !toAccountId)}
+            disabled={
+              saving
+              || !amount
+              || (isTransfer && !toAccountId)
+              || (isCrossCurrency && (!toAmount || !Number.isFinite(toNum) || toNum <= 0))
+            }
           >
             {saving ? t('common.saving') : t('common.add')}
           </Button>
