@@ -20,6 +20,11 @@ export function useTransactions(hid: string, filters: TransactionFilters) {
         to: filters.to || undefined,
       }),
     enabled: !!hid,
+    // initialData gives us a never-undefined `data`, but pairing it with
+    // initialDataUpdatedAt: 0 keeps the seed value flagged as stale so the
+    // 30s global staleTime doesn't gate the first fetch (without this, the
+    // page shows an empty list for 30s+ before the query actually runs).
     initialData: [] as Transaction[],
+    initialDataUpdatedAt: 0,
   });
 }
