@@ -16,6 +16,18 @@ export interface User {
   createdAt: string;
 }
 
+/**
+ * Redacted user shape returned by `GET /auth/users?ids=…`. Any caller with a
+ * valid JWT can resolve any userId; no sensitive fields (email, locale, …)
+ * are exposed. Used to render member / avatar rows with a display name
+ * instead of a raw UUID.
+ */
+export interface PublicUserProfile {
+  id: string;
+  displayName: string;
+  avatarUrl: string | null;
+}
+
 // Households
 export type MemberRole = 'owner' | 'admin' | 'member' | 'viewer';
 

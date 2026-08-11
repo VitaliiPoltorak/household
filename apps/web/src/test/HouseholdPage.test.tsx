@@ -1,0 +1,77 @@
+import { screen, waitFor } from '@testing-library/react';
+import { http, HttpResponse } from 'msw';
+import { renderWithProviders } from './wrapper';
+import { server } from './setup';
+import { HouseholdPage } from '../pages/HouseholdPage';
+
+describe('HouseholdPage — member display names (#166)', () => {
+  const OWNER_ID = 'user-1'; // same as MOCK_USER.id from handlers
+  const OTHER_ID = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
+
+  it('renders member display name from bulk /auth/users lookup', async () => {
+    server.use(
+      http.get('/api/v1/households/:id/members', () =>
+        HttpResponse.json([
+          { id: 'm-1', householdId: 'hh-1', userId: OWNER_ID, role: 'owner', createdAt: '2026-01-01T00:00:00Z' },
+          { id: 'm-2', householdId: 'hh-1', userId: OTHER_ID, role: 'member', createdAt: '2026-01-02T00:00:00Z' },
+        ]),
+      ),
+      http.get('/api/v1/auth/users', () =>
+        HttpResponse.json([
+          { id: OWNER_ID, displayName: 'Alice Owner', avatarUrl: null },
+          { id: OTHER_ID, displayName: 'Bob Member', avatarUrl: null },
+        ]),
+      ),
+    );
+
+    renderWithProviders(<HouseholdPage />);
+
+    await waitFor(() => expect(screen.getByText('Alice Owner')).toBeInTheDocument(), { timeout: 3000 });
+    expect(screen.getByText('Bob Member')).toBeInTheDocument();
+    // Raw UUID no longer used as the primary label — but its shortened form
+    // still appears as the secondary line.
+    expect(screen.queryByText(OTHER_ID)).not.toBeInTheDocument();
+    expect(screen.getByText(`${OTHER_ID.slice(0, 8)}…`)).toBeInTheDocument();
+  });
+
+  it('shows a 1-letter role badge with the full role name as tooltip', async () => {
+    server.use(
+      http.get('/api/v1/households/:id/members', () =>
+        HttpResponse.json([
+          { id: 'm-1', householdId: 'hh-1', userId: OWNER_ID, role: 'owner', createdAt: '2026-01-01T00:00:00Z' },
+          { id: 'm-2', householdId: 'hh-1', userId: OTHER_ID, role: 'admin', createdAt: '2026-01-02T00:00:00Z' },
+        ]),
+      ),
+    );
+
+    renderWithProviders(<HouseholdPage />);
+
+    await waitFor(() => expect(screen.getAllByRole('img').length).toBeGreaterThan(0), { timeout: 3000 });
+    // Look up the badge by its accessible label (the localized role name).
+    const ownerBadge = screen.getByRole('img', { name: 'Owner' });
+    expect(ownerBadge).toHaveTextContent('O');
+    expect(ownerBadge).toHaveAttribute('title', 'Owner');
+
+    const adminBadge = screen.getByRole('img', { name: 'Admin' });
+    expect(adminBadge).toHaveTextContent('A');
+  });
+
+  it('falls back to shortened userId when no profile is returned', async () => {
+    server.use(
+      http.get('/api/v1/households/:id/members', () =>
+        HttpResponse.json([
+          { id: 'm-lonely', householdId: 'hh-1', userId: OTHER_ID, role: 'viewer', createdAt: '2026-01-01T00:00:00Z' },
+        ]),
+      ),
+      // Profile endpoint returns empty — user might be soft-deleted.
+      http.get('/api/v1/auth/users', () => HttpResponse.json([])),
+    );
+
+    renderWithProviders(<HouseholdPage />);
+
+    await waitFor(
+      () => expect(screen.getAllByText(`${OTHER_ID.slice(0, 8)}…`).length).toBeGreaterThan(0),
+      { timeout: 3000 },
+    );
+  });
+});
