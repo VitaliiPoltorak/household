@@ -38,6 +38,20 @@ export class CreateTransactionDto {
   date: string;
 }
 
+/**
+ * Cross-currency transfers (#162) — the two legs may carry different amounts
+ * AND different currencies. The service resolves the payload as follows:
+ *
+ *   1. If `fromAmount` + `toAmount` are both present → use them per-leg.
+ *      `currency`     → source-leg currency (default 'UAH')
+ *      `toCurrency`   → destination-leg currency (default = source `currency`)
+ *   2. Else if legacy `amount` is present → same-currency behaviour: both
+ *      legs use `amount` and `currency`. `toCurrency` is ignored.
+ *   3. Else the service throws 400.
+ *
+ * The legacy single-`amount` shape is kept because pre-#162 integrations,
+ * mobile clients, and the existing test suite all rely on it.
+ */
 export class CreateTransferDto {
   @ApiProperty({ description: 'Source account id' })
   @IsString() @IsNotEmpty()
@@ -47,13 +61,31 @@ export class CreateTransferDto {
   @IsString() @IsNotEmpty()
   toAccountId: string;
 
-  @ApiProperty({ example: 500.00 })
-  @IsNumber() @IsPositive()
-  amount: number;
+  /**
+   * Legacy same-currency shortcut. When present without `fromAmount` /
+   * `toAmount`, both legs are booked at this amount in `currency`.
+   */
+  @ApiPropertyOptional({ example: 500.00, description: 'Legacy — same-currency amount for both legs.' })
+  @IsNumber() @IsPositive() @IsOptional()
+  amount?: number;
 
-  @ApiPropertyOptional({ example: 'UAH' })
+  /** Amount debited from the source account, denominated in `currency`. */
+  @ApiPropertyOptional({ example: 1000.00, description: 'Amount debited from the source account (in source currency).' })
+  @IsNumber() @IsPositive() @IsOptional()
+  fromAmount?: number;
+
+  /** Amount credited to the destination account, denominated in `toCurrency`. */
+  @ApiPropertyOptional({ example: 24.20, description: 'Amount credited to the destination account (in destination currency).' })
+  @IsNumber() @IsPositive() @IsOptional()
+  toAmount?: number;
+
+  @ApiPropertyOptional({ example: 'UAH', description: 'Source currency (defaults to UAH).' })
   @IsString() @IsOptional() @Length(3, 3)
   currency?: string;
+
+  @ApiPropertyOptional({ example: 'USD', description: 'Destination currency. Omit for same-currency transfers.' })
+  @IsString() @IsOptional() @Length(3, 3)
+  toCurrency?: string;
 
   @ApiPropertyOptional()
   @IsString() @IsOptional()
@@ -104,13 +136,15 @@ export class TransactionResponseDto {
   @ApiPropertyOptional({ nullable: true })
   counterTransactionId: string | null;
 
-  /** Present only for transfer rows — the counterparty leg's amount. Equal to
-   *  `amount` today; kept as a distinct field so #162 (cross-currency
-   *  transfers) can plug in without changing the API shape. */
+  /** Present only for transfer rows — the counterparty leg's amount. Equal
+   *  to `amount` for same-currency transfers; differs for cross-currency
+   *  transfers (#162) where each leg carries its own currency amount. */
   @ApiPropertyOptional({ nullable: true })
   counterAmount: number | null;
 
-  /** Present only for transfer rows — currency of the counterparty leg. */
+  /** Present only for transfer rows — currency of the counterparty leg.
+   *  Equal to `currency` for same-currency transfers; differs for
+   *  cross-currency transfers (#162). */
   @ApiPropertyOptional({ nullable: true })
   counterCurrency: string | null;
 

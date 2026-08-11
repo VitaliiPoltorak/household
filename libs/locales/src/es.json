@@ -135,7 +135,13 @@
     "editTitle": "Editar transacción",
     "fromDate": "Desde fecha",
     "toDate": "Hasta fecha",
-    "transferPair": "{{from}} → {{to}}"
+    "transferPair": "{{from}} → {{to}}",
+    "transferSent": "Enviado",
+    "transferReceived": "Recibido",
+    "transferRecalcTitle": "Recalcular con la tasa actual",
+    "transferEffectiveRate": "1 {{from}} ≈ {{rate}} {{to}}",
+    "transferYourRate": "tu tasa: {{rate}}",
+    "transferRateUnavailable": "Tasas no disponibles — ingresa ambos montos manualmente"
   },
   "categories": {
     "title": "Categorías",

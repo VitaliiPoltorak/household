@@ -7,6 +7,14 @@ import { server } from './setup';
 import { MOCK_TRANSACTION, MOCK_ACCOUNT } from './handlers';
 
 describe('TransactionsPage', () => {
+  // Rates cache is a shared localStorage side-channel between AccountsPage +
+  // TransferModal (both use useRatesState). Clear it before each test so a
+  // previous test's cache doesn't rescue a "rates unavailable" scenario.
+  beforeEach(() => {
+    localStorage.removeItem('accounts:ratesCache');
+  });
+
+
   it('renders list of transactions from API', async () => {
     renderWithProviders(<TransactionsPage />);
     await waitFor(() => expect(screen.getByText('Salary')).toBeInTheDocument(), { timeout: 3000 });
@@ -74,6 +82,172 @@ describe('TransactionsPage', () => {
 
     expect(screen.getByText('Transfer between accounts')).toBeInTheDocument();
     expect(screen.getByLabelText('From')).toBeInTheDocument();
+    // #162: Sent label always shown; Received only when cross-currency.
+    expect(screen.getByLabelText(/Sent \(UAH\)/)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/Received/)).not.toBeInTheDocument();
+  });
+
+  it('same-currency transfer sends { fromAmount, toAmount } with equal legs (#162 backward-compat)', async () => {
+    // Post-#162 the frontend always sends the explicit shape, even in the
+    // single-currency case. Backend accepts both — verify we send matching
+    // fromAmount/toAmount when currencies match.
+    let payload: Record<string, unknown> | null = null;
+    server.use(
+      http.get('/api/v1/accounts', () => HttpResponse.json([
+        MOCK_ACCOUNT,
+        { ...MOCK_ACCOUNT, id: 'acc-2', name: 'Cash' },
+      ])),
+      http.post('/api/v1/transactions/transfer', async ({ request }) => {
+        payload = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json(
+          [
+            { ...MOCK_TRANSACTION, id: 'tx-debit', type: 'transfer', transferPairId: 'p1' },
+            { ...MOCK_TRANSACTION, id: 'tx-credit', type: 'transfer', transferPairId: 'p1', accountId: 'acc-2' },
+          ],
+          { status: 201 },
+        );
+      }),
+    );
+
+    renderWithProviders(<TransactionsPage />);
+    await waitFor(() => screen.getByText('⇄ Transfer'), { timeout: 3000 });
+    await userEvent.click(screen.getByText('⇄ Transfer'));
+
+    await userEvent.type(screen.getByLabelText(/Sent \(UAH\)/), '500');
+    await userEvent.click(screen.getAllByRole('button', { name: '⇄ Transfer' }).at(-1)!);
+
+    await waitFor(() => expect(payload).not.toBeNull(), { timeout: 3000 });
+    expect(payload).toMatchObject({
+      fromAmount: 500,
+      toAmount: 500,
+      currency: 'UAH',
+    });
+    // No toCurrency for same-currency transfers.
+    expect(payload).not.toHaveProperty('toCurrency');
+    // Legacy `amount` field is not sent — we're on the new shape.
+    expect(payload).not.toHaveProperty('amount');
+  });
+
+  it('cross-currency transfer auto-fills Received from live rate, then sends both amounts (#162)', async () => {
+    // UAH → USD, PrivatBank returns 1 USD = 41.32 UAH so 1000 UAH ≈ 24.20 USD.
+    let payload: Record<string, unknown> | null = null;
+    server.use(
+      http.get('/api/v1/accounts', () => HttpResponse.json([
+        MOCK_ACCOUNT,
+        { ...MOCK_ACCOUNT, id: 'acc-usd', name: 'USD Bank', currency: 'USD' },
+      ])),
+      http.get('/api/v1/rates/latest', () => HttpResponse.json([
+        { ccy: 'USD', base_ccy: 'UAH', buy: '41.32', sale: '41.80', effective_date: '2026-08-11', source: 'privatbank' },
+      ])),
+      http.post('/api/v1/transactions/transfer', async ({ request }) => {
+        payload = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json(
+          [
+            { ...MOCK_TRANSACTION, id: 'tx-d', type: 'transfer', transferPairId: 'pp' },
+            { ...MOCK_TRANSACTION, id: 'tx-c', type: 'transfer', transferPairId: 'pp', accountId: 'acc-usd', currency: 'USD' },
+          ],
+          { status: 201 },
+        );
+      }),
+    );
+
+    renderWithProviders(<TransactionsPage />);
+    await waitFor(() => screen.getByText('⇄ Transfer'), { timeout: 3000 });
+    await userEvent.click(screen.getByText('⇄ Transfer'));
+
+    // Pick USD as destination — triggers cross-currency mode.
+    await userEvent.selectOptions(screen.getByLabelText('To'), 'acc-usd');
+    await userEvent.type(screen.getByLabelText(/Sent \(UAH\)/), '1000');
+
+    // Auto-fill kicks in once rates load.
+    await waitFor(
+      () => expect((screen.getByLabelText(/Received \(USD\)/) as HTMLInputElement).value).not.toBe(''),
+      { timeout: 3000 },
+    );
+    const received = screen.getByLabelText(/Received \(USD\)/) as HTMLInputElement;
+    // 1000 / 41.32 = 24.20 (rounded to 2dp)
+    expect(parseFloat(received.value)).toBeCloseTo(24.20, 2);
+
+    await userEvent.click(screen.getAllByRole('button', { name: '⇄ Transfer' }).at(-1)!);
+    await waitFor(() => expect(payload).not.toBeNull(), { timeout: 3000 });
+    expect(payload).toMatchObject({
+      fromAccountId: 'acc-1',
+      toAccountId: 'acc-usd',
+      currency: 'UAH',
+      toCurrency: 'USD',
+      fromAmount: 1000,
+    });
+    expect(Number(payload!.toAmount)).toBeCloseTo(24.20, 2);
+  });
+
+  it('cross-currency transfer respects manual override of Received (#162)', async () => {
+    let payload: Record<string, unknown> | null = null;
+    server.use(
+      http.get('/api/v1/accounts', () => HttpResponse.json([
+        MOCK_ACCOUNT,
+        { ...MOCK_ACCOUNT, id: 'acc-usd', name: 'USD Bank', currency: 'USD' },
+      ])),
+      http.get('/api/v1/rates/latest', () => HttpResponse.json([
+        { ccy: 'USD', base_ccy: 'UAH', buy: '41.32', sale: '41.80', effective_date: '2026-08-11', source: 'privatbank' },
+      ])),
+      http.post('/api/v1/transactions/transfer', async ({ request }) => {
+        payload = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json(
+          [
+            { ...MOCK_TRANSACTION, id: 'tx-d', type: 'transfer', transferPairId: 'p1' },
+            { ...MOCK_TRANSACTION, id: 'tx-c', type: 'transfer', transferPairId: 'p1', accountId: 'acc-usd', currency: 'USD' },
+          ],
+          { status: 201 },
+        );
+      }),
+    );
+
+    renderWithProviders(<TransactionsPage />);
+    await waitFor(() => screen.getByText('⇄ Transfer'), { timeout: 3000 });
+    await userEvent.click(screen.getByText('⇄ Transfer'));
+
+    await userEvent.selectOptions(screen.getByLabelText('To'), 'acc-usd');
+    await userEvent.type(screen.getByLabelText(/Sent \(UAH\)/), '1000');
+    // Wait for auto-fill so we know the effect ran, then clear + type a
+    // different value (the bank credited less due to a fee).
+    await waitFor(
+      () => expect((screen.getByLabelText(/Received \(USD\)/) as HTMLInputElement).value).not.toBe(''),
+      { timeout: 3000 },
+    );
+    const received = screen.getByLabelText(/Received \(USD\)/);
+    await userEvent.clear(received);
+    await userEvent.type(received, '23.50');
+    await userEvent.click(screen.getAllByRole('button', { name: '⇄ Transfer' }).at(-1)!);
+
+    await waitFor(() => expect(payload).not.toBeNull(), { timeout: 3000 });
+    expect(payload!.fromAmount).toBe(1000);
+    expect(payload!.toAmount).toBe(23.50);
+  });
+
+  it('cross-currency transfer with rates unavailable requires manual entry of both amounts (#162)', async () => {
+    server.use(
+      http.get('/api/v1/accounts', () => HttpResponse.json([
+        MOCK_ACCOUNT,
+        { ...MOCK_ACCOUNT, id: 'acc-usd', name: 'USD Bank', currency: 'USD' },
+      ])),
+      http.get('/api/v1/rates/latest', () => HttpResponse.json([])),
+    );
+
+    renderWithProviders(<TransactionsPage />);
+    await waitFor(() => screen.getByText('⇄ Transfer'), { timeout: 3000 });
+    await userEvent.click(screen.getByText('⇄ Transfer'));
+
+    await userEvent.selectOptions(screen.getByLabelText('To'), 'acc-usd');
+    await userEvent.type(screen.getByLabelText(/Sent \(UAH\)/), '1000');
+
+    // No auto-fill happens; the hint shows and submit stays disabled until
+    // the user enters Received manually.
+    await waitFor(
+      () => expect(screen.getByText(/Rates unavailable/)).toBeInTheDocument(),
+      { timeout: 3000 },
+    );
+    expect((screen.getByLabelText(/Received \(USD\)/) as HTMLInputElement).value).toBe('');
+    expect(screen.getAllByRole('button', { name: '⇄ Transfer' }).at(-1)!).toBeDisabled();
   });
 
   it('shows warning when only 1 account available for transfer', async () => {

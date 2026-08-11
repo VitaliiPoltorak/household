@@ -135,7 +135,13 @@
     "editTitle": "Edit transaction",
     "fromDate": "From date",
     "toDate": "To date",
-    "transferPair": "{{from}} → {{to}}"
+    "transferPair": "{{from}} → {{to}}",
+    "transferSent": "Sent",
+    "transferReceived": "Received",
+    "transferRecalcTitle": "Recalculate from live rate",
+    "transferEffectiveRate": "1 {{from}} ≈ {{rate}} {{to}}",
+    "transferYourRate": "your rate: {{rate}}",
+    "transferRateUnavailable": "Rates unavailable — enter both amounts manually"
   },
   "categories": {
     "title": "Categories",

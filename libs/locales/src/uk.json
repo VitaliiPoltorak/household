@@ -135,7 +135,13 @@
     "editTitle": "Редагувати транзакцію",
     "fromDate": "Від дати",
     "toDate": "До дати",
-    "transferPair": "{{from}} → {{to}}"
+    "transferPair": "{{from}} → {{to}}",
+    "transferSent": "Списано",
+    "transferReceived": "Отримано",
+    "transferRecalcTitle": "Перерахувати за поточним курсом",
+    "transferEffectiveRate": "1 {{from}} ≈ {{rate}} {{to}}",
+    "transferYourRate": "ваш курс: {{rate}}",
+    "transferRateUnavailable": "Курси недоступні — введіть обидві суми вручну"
   },
   "categories": {
     "title": "Категорії",

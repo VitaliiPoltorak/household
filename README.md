@@ -26,7 +26,7 @@ Shared libraries in `libs/`: `common` (config, filters, JWT verify, gateway sign
 | api-gateway | 3000 | Single REST entry point, JWT auth, proxy, Swagger |
 | auth-service | 3001 | Google / Apple / Facebook OAuth, JWT, Redis sessions, public user directory |
 | household-service | 3002 | Households, members, roles, invites |
-| finance-service | 3003 | Accounts, transactions, categories, recurring payments |
+| finance-service | 3003 | Accounts, transactions (incl. cross-currency transfers), categories, recurring payments |
 | shopping-service | 3004 | Stores, products, shopping lists |
 | realtime-gateway | 3010 | Socket.IO, presence, live updates |
 | **web** | **5173** | **React SPA — dashboard, finance, shopping, household** |
@@ -163,7 +163,7 @@ pnpm gateway | pnpm auth | pnpm household | pnpm finance | pnpm shopping | pnpm 
 
 # Web app
 pnpm --filter @household/web dev          # start dev server
-pnpm --filter @household/web test:run     # Vitest integration tests (56 tests, no Docker needed)
+pnpm --filter @household/web test:run     # Vitest integration tests (no Docker needed)
 pnpm --filter @household/web test:ui      # Vitest UI
 
 # Backend integration tests per service (requires docker compose up -d)
@@ -232,7 +232,7 @@ Each completed feature has a manual testing checklist in the [Testing milestone]
 
 ### Web — Vitest
 
-The web app has 56 integration tests using **Vitest + @testing-library/react + MSW** (Mock Service Worker intercepts fetch at the network level). No Docker needed.
+The web app has integration tests using **Vitest + @testing-library/react + MSW** (Mock Service Worker intercepts fetch at the network level). No Docker needed.
 
 ```bash
 pnpm --filter @household/web test:run   # run once
@@ -240,7 +240,7 @@ pnpm --filter @household/web test       # watch mode
 pnpm --filter @household/web test:ui    # browser UI
 ```
 
-**Covered flows:** login, dashboard (empty state + create household + multi-currency total with per-currency breakdown and PrivatBank conversion), accounts (list/create/archive + multi-currency estimated total), transactions (list/create/delete/filter/transfer), shopping lists (list/create/select/mark purchased).
+**Covered flows:** login, dashboard (empty state + create household + multi-currency total with per-currency breakdown and PrivatBank conversion), accounts (list/create/archive + multi-currency estimated total), transactions (list/create/delete/filter/transfer incl. cross-currency with auto-rate + manual override), shopping lists (list/create/select/mark purchased).
 
 ## Architecture overview
 
