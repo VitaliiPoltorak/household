@@ -280,6 +280,145 @@ describe('Transactions (integration)', () => {
     });
   });
 
+  describe('GET /transactions — transfer pair collapsing (#167)', () => {
+    it('surfaces a transfer as a SINGLE row with counterAccountId + counterTransactionId', async () => {
+      const fromId = await createAccount(app, 'Bank');
+      const toId = await createAccount(app, 'Cash', 'cash');
+      await request(app.getHttpServer())
+        .post('/transactions')
+        .set('X-User-Id', U).set('X-Household-Id', H)
+        .send({ accountId: fromId, type: 'income', amount: 2000, currency: 'UAH', date: '2026-07-30' });
+      const transferRes = await request(app.getHttpServer())
+        .post('/transactions/transfer')
+        .set('X-User-Id', U).set('X-Household-Id', H)
+        .send({ fromAccountId: fromId, toAccountId: toId, amount: 500, currency: 'UAH', date: '2026-07-30' });
+      const [debit, credit] = transferRes.body as Array<{ id: string; transferPairId: string }>;
+
+      const list = await request(app.getHttpServer())
+        .get('/transactions?type=transfer')
+        .set('X-User-Id', U).set('X-Household-Id', H)
+        .expect(200);
+
+      // Exactly one row for the pair (not two)
+      expect(list.body).toHaveLength(1);
+      const row = list.body[0];
+      // Primary = debit leg (source account) by default
+      expect(row.id).toBe(debit.id);
+      expect(row.accountId).toBe(fromId);
+      expect(row.transferDirection).toBe('debit');
+      expect(row.transferPairId).toBe(debit.transferPairId);
+      // Counterparty metadata attached
+      expect(row.counterAccountId).toBe(toId);
+      expect(row.counterTransactionId).toBe(credit.id);
+      expect(row.counterAmount).toBe(500);
+      expect(row.counterCurrency).toBe('UAH');
+    });
+
+    it('list without any filter also collapses each transfer to one row', async () => {
+      const fromId = await createAccount(app, 'Bank');
+      const toId = await createAccount(app, 'Cash', 'cash');
+      await request(app.getHttpServer())
+        .post('/transactions')
+        .set('X-User-Id', U).set('X-Household-Id', H)
+        .send({ accountId: fromId, type: 'income', amount: 2000, currency: 'UAH', date: '2026-07-30' });
+      await request(app.getHttpServer())
+        .post('/transactions/transfer')
+        .set('X-User-Id', U).set('X-Household-Id', H)
+        .send({ fromAccountId: fromId, toAccountId: toId, amount: 500, currency: 'UAH', date: '2026-07-30' });
+
+      const list = await request(app.getHttpServer())
+        .get('/transactions')
+        .set('X-User-Id', U).set('X-Household-Id', H)
+        .expect(200);
+
+      // income + 1 transfer row (not 3)
+      expect(list.body).toHaveLength(2);
+      const transfers = list.body.filter((t: { type: string }) => t.type === 'transfer');
+      expect(transfers).toHaveLength(1);
+    });
+
+    it('filter by SOURCE account surfaces the transfer with the source as primary', async () => {
+      const fromId = await createAccount(app, 'Bank');
+      const toId = await createAccount(app, 'Cash', 'cash');
+      await request(app.getHttpServer())
+        .post('/transactions')
+        .set('X-User-Id', U).set('X-Household-Id', H)
+        .send({ accountId: fromId, type: 'income', amount: 2000, currency: 'UAH', date: '2026-07-30' });
+      await request(app.getHttpServer())
+        .post('/transactions/transfer')
+        .set('X-User-Id', U).set('X-Household-Id', H)
+        .send({ fromAccountId: fromId, toAccountId: toId, amount: 500, currency: 'UAH', date: '2026-07-30' });
+
+      const list = await request(app.getHttpServer())
+        .get(`/transactions?accountId=${fromId}&type=transfer`)
+        .set('X-User-Id', U).set('X-Household-Id', H)
+        .expect(200);
+
+      expect(list.body).toHaveLength(1);
+      expect(list.body[0].accountId).toBe(fromId);
+      expect(list.body[0].counterAccountId).toBe(toId);
+    });
+
+    it('filter by DESTINATION account also surfaces the transfer, with destination as primary', async () => {
+      const fromId = await createAccount(app, 'Bank');
+      const toId = await createAccount(app, 'Cash', 'cash');
+      await request(app.getHttpServer())
+        .post('/transactions')
+        .set('X-User-Id', U).set('X-Household-Id', H)
+        .send({ accountId: fromId, type: 'income', amount: 2000, currency: 'UAH', date: '2026-07-30' });
+      await request(app.getHttpServer())
+        .post('/transactions/transfer')
+        .set('X-User-Id', U).set('X-Household-Id', H)
+        .send({ fromAccountId: fromId, toAccountId: toId, amount: 500, currency: 'UAH', date: '2026-07-30' });
+
+      const list = await request(app.getHttpServer())
+        .get(`/transactions?accountId=${toId}&type=transfer`)
+        .set('X-User-Id', U).set('X-Household-Id', H)
+        .expect(200);
+
+      expect(list.body).toHaveLength(1);
+      // Primary flipped — the filtered account is on the "own" side
+      expect(list.body[0].accountId).toBe(toId);
+      expect(list.body[0].counterAccountId).toBe(fromId);
+    });
+
+    it('cross-household isolation: household B does not see household A transfers', async () => {
+      const fromId = await createAccount(app, 'Bank');
+      const toId = await createAccount(app, 'Cash', 'cash');
+      await request(app.getHttpServer())
+        .post('/transactions')
+        .set('X-User-Id', U).set('X-Household-Id', H)
+        .send({ accountId: fromId, type: 'income', amount: 2000, currency: 'UAH', date: '2026-07-30' });
+      await request(app.getHttpServer())
+        .post('/transactions/transfer')
+        .set('X-User-Id', U).set('X-Household-Id', H)
+        .send({ fromAccountId: fromId, toAccountId: toId, amount: 500, currency: 'UAH', date: '2026-07-30' });
+
+      const foreign = await request(app.getHttpServer())
+        .get('/transactions')
+        .set('X-User-Id', U).set('X-Household-Id', 'other-household')
+        .expect(200);
+      expect(foreign.body).toHaveLength(0);
+    });
+
+    it('non-transfer rows keep counter* fields null', async () => {
+      const accountId = await createAccount(app, 'Bank');
+      await request(app.getHttpServer())
+        .post('/transactions')
+        .set('X-User-Id', U).set('X-Household-Id', H)
+        .send({ accountId, type: 'income', amount: 1000, currency: 'UAH', date: '2026-07-30' });
+
+      const list = await request(app.getHttpServer())
+        .get('/transactions')
+        .set('X-User-Id', U).set('X-Household-Id', H);
+      expect(list.body).toHaveLength(1);
+      expect(list.body[0].counterAccountId).toBeNull();
+      expect(list.body[0].counterTransactionId).toBeNull();
+      expect(list.body[0].counterAmount).toBeNull();
+      expect(list.body[0].counterCurrency).toBeNull();
+    });
+  });
+
   describe('DELETE /transactions/:id — transfer', () => {
     it('reverses both accounts and deletes both legs when deleting a transfer', async () => {
       const fromId = await createAccount(app, 'Bank');
@@ -319,6 +458,31 @@ describe('Transactions (integration)', () => {
         .get('/transactions?type=transfer')
         .set('X-User-Id', U).set('X-Household-Id', H);
       expect(list.body).toHaveLength(0);
+    });
+
+    it('rejects cross-household delete of the other household\'s transfer', async () => {
+      // Household A creates a transfer
+      const fromA = await createAccount(app, 'Bank A');
+      const toA = await createAccount(app, 'Cash A', 'cash');
+      await request(app.getHttpServer())
+        .post('/transactions')
+        .set('X-User-Id', U).set('X-Household-Id', H)
+        .send({ accountId: fromA, type: 'income', amount: 2000, currency: 'UAH', date: '2026-07-30' });
+      const transferRes = await request(app.getHttpServer())
+        .post('/transactions/transfer')
+        .set('X-User-Id', U).set('X-Household-Id', H)
+        .send({ fromAccountId: fromA, toAccountId: toA, amount: 500, currency: 'UAH', date: '2026-07-30' });
+      const [debit] = transferRes.body as Array<{ id: string }>;
+
+      // Household B tries to delete
+      await request(app.getHttpServer())
+        .delete(`/transactions/${debit.id}`)
+        .set('X-User-Id', U).set('X-Household-Id', 'other-household')
+        .expect(404);
+
+      // Both legs still exist, balances unchanged
+      expect(await getBalance(app, fromA)).toBe(1500);
+      expect(await getBalance(app, toA)).toBe(500);
     });
 
     it('deleting the credit leg also reverses both balances', async () => {

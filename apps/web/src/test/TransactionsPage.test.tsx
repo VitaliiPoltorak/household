@@ -87,6 +87,93 @@ describe('TransactionsPage', () => {
     expect(screen.queryByLabelText('From')).not.toBeInTheDocument();
   });
 
+  it('renders a transfer as a SINGLE row showing "From → To" (#167)', async () => {
+    // Backend returns one row per transfer pair (deduped), with counter fields.
+    server.use(
+      http.get('/api/v1/accounts', () =>
+        HttpResponse.json([
+          MOCK_ACCOUNT,
+          { ...MOCK_ACCOUNT, id: 'acc-2', name: 'Cash' },
+        ]),
+      ),
+      http.get('/api/v1/transactions', () =>
+        HttpResponse.json([
+          {
+            ...MOCK_TRANSACTION,
+            id: 'tx-debit',
+            type: 'transfer',
+            amount: 500,
+            description: null,
+            transferPairId: 'pair-1',
+            transferDirection: 'debit',
+            accountId: 'acc-1',
+            counterAccountId: 'acc-2',
+            counterTransactionId: 'tx-credit',
+            counterAmount: 500,
+            counterCurrency: 'UAH',
+          },
+        ]),
+      ),
+    );
+
+    renderWithProviders(<TransactionsPage />);
+
+    // Both account names appear in ONE row — once in the description-fallback
+    // span, once in the meta line under it. If we had rendered two rows (the
+    // old bug), we'd see 4 matches. Two is the invariant.
+    await waitFor(
+      () => expect(screen.getAllByText(/Mono Card → Cash/)).toHaveLength(2),
+      { timeout: 3000 },
+    );
+    // Only ONE 'transfer' badge in the list body (the row). Note the
+    // TxFilters dropdown also contains the word 'transfer' capitalised
+    // ('Transfer') via the type filter option, but the Badge renders the
+    // raw lowercase enum — so we check the lowercase form and expect === 1.
+    expect(screen.getAllByText('transfer')).toHaveLength(1);
+  });
+
+  it('cascades a transfer delete → both legs disappear on re-fetch (#167)', async () => {
+    let deleted = false;
+    server.use(
+      http.get('/api/v1/accounts', () =>
+        HttpResponse.json([
+          MOCK_ACCOUNT,
+          { ...MOCK_ACCOUNT, id: 'acc-2', name: 'Cash' },
+        ]),
+      ),
+      http.get('/api/v1/transactions', () =>
+        HttpResponse.json(deleted ? [] : [
+          {
+            ...MOCK_TRANSACTION,
+            id: 'tx-debit',
+            type: 'transfer',
+            amount: 500,
+            description: 'Rent transfer',
+            transferPairId: 'pair-1',
+            transferDirection: 'debit',
+            accountId: 'acc-1',
+            counterAccountId: 'acc-2',
+            counterTransactionId: 'tx-credit',
+            counterAmount: 500,
+            counterCurrency: 'UAH',
+          },
+        ]),
+      ),
+      http.delete('/api/v1/transactions/:id', () => {
+        // Backend cascades — single DELETE removes BOTH legs.
+        deleted = true;
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+
+    renderWithProviders(<TransactionsPage />);
+    await waitFor(() => screen.getByText('Rent transfer'), { timeout: 3000 });
+    await userEvent.click(screen.getByText('✕'));
+
+    // Row disappears after refetch (accounts + transactions invalidated together).
+    await waitFor(() => expect(screen.queryByText('Rent transfer')).not.toBeInTheDocument(), { timeout: 3000 });
+  });
+
   it('filters by type: selecting expense shows no income transactions', async () => {
     server.use(
       http.get('/api/v1/transactions', ({ request }) => {

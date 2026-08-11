@@ -125,7 +125,8 @@
     "selectType": "Select type…",
     "editTitle": "Edit transaction",
     "fromDate": "From date",
-    "toDate": "To date"
+    "toDate": "To date",
+    "transferPair": "{{from}} → {{to}}"
   },
   "categories": {
     "title": "Categories",

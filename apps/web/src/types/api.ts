@@ -76,7 +76,19 @@ export interface AccountSummary {
 }
 
 export type TransactionType = 'income' | 'expense' | 'transfer' | 'adjustment';
+export type TransferDirection = 'debit' | 'credit';
 
+/**
+ * Wire shape of GET /transactions rows. Transfers surface as a SINGLE row per
+ * pair (#167) — the primary side (accountId + amount) is the DEBIT leg by
+ * default, or the leg matching the account filter when one is active. The
+ * `counter*` fields describe the other leg so the UI can render
+ * "From X → To Y" without knowing the pair internals.
+ *
+ * `counterAmount` + `counterCurrency` are same as `amount` + `currency` today,
+ * but they're distinct fields so cross-currency transfers (#162) can plug in
+ * without a shape change.
+ */
 export interface Transaction {
   id: string;
   householdId: string;
@@ -90,7 +102,13 @@ export interface Transaction {
   date: string;
   createdBy: string;
   transferPairId: string | null;
+  transferDirection: TransferDirection | null;
   createdAt: string;
+  // Transfer counterpart (null for non-transfers).
+  counterAccountId: string | null;
+  counterTransactionId: string | null;
+  counterAmount: number | null;
+  counterCurrency: string | null;
 }
 
 export interface Category {

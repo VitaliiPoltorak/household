@@ -6,8 +6,10 @@ import { nextDayIso } from '@household/common';
 import { AccountsService } from '../accounts/accounts.service';
 import { CategoriesService } from '../categories/categories.service';
 import { IncomeSourcesService } from '../income-sources/income-sources.service';
-import { Transaction, TransactionType } from './entities/transaction.entity';
-import { CreateTransactionDto, CreateTransferDto, UpdateTransactionDto } from './dto/transaction.dto';
+import { Transaction, TransactionType, TransferDirection } from './entities/transaction.entity';
+import {
+  CreateTransactionDto, CreateTransferDto, TransactionResponseDto, UpdateTransactionDto,
+} from './dto/transaction.dto';
 import { BalanceAdjustmentService } from './balance-adjustment.service';
 import { TransferDomainService } from './transfer-domain.service';
 
@@ -92,23 +94,145 @@ export class TransactionsService {
     return this.transfers.createPair(householdId, userId, dto);
   }
 
-  findAll(
+  /**
+   * Returns the household's transactions with transfer pairs collapsed to a
+   * single row (#167). Each returned row carries `counterAccountId` +
+   * `counterTransactionId` when it represents a transfer.
+   *
+   * Filter-by-account rule: a transfer surfaces when EITHER leg matches the
+   * filtered account. The row returned is the matched leg (so the user sees
+   * "their" account as the primary side), and the counterparty is the other
+   * side of the pair.
+   *
+   * Ordering: keeps DESC-by-date. For transfers where the DEBIT and CREDIT
+   * legs are always inserted with the same date, the debit leg's date wins.
+   */
+  async findAll(
     householdId: string,
     query: { type?: TransactionType; accountId?: string; categoryId?: string; from?: string; to?: string },
-  ): Promise<Transaction[]> {
-    const where: Record<string, unknown> = { householdId };
-    if (query.type) where['type'] = query.type;
-    if (query.accountId) where['accountId'] = query.accountId;
-    if (query.categoryId) where['categoryId'] = query.categoryId;
+  ): Promise<TransactionResponseDto[]> {
+    // Base query — always household-scoped; date and type filters are also
+    // simple WHEREs. accountId is applied AFTER dedupe so we don't drop the
+    // paired counterpart mid-flight.
+    const qb = this.repo.createQueryBuilder('t')
+      .where('t.householdId = :householdId', { householdId });
 
-    const qb = this.repo.createQueryBuilder('t').where(where);
+    if (query.type) qb.andWhere('t.type = :type', { type: query.type });
+    if (query.categoryId) qb.andWhere('t.categoryId = :categoryId', { categoryId: query.categoryId });
 
     // Half-open interval on the upper bound so the query stays correct if
     // Transaction.date is ever migrated from DATE to TIMESTAMP (#82).
     if (query.from) qb.andWhere('t.date >= :from', { from: query.from });
     if (query.to) qb.andWhere('t.date < :toExclusive', { toExclusive: nextDayIso(query.to) });
 
-    return qb.orderBy('t.date', 'DESC').take(LIST_HARD_LIMIT).getMany();
+    // If the caller filtered by account, we must include BOTH legs of any
+    // transfer that touches that account (so we can pick the matched leg
+    // AND still have the counterparty available to attach). SQL: match if
+    // either accountId or the pair's other leg matches. We do this via a
+    // subquery lookup on transferPairId.
+    if (query.accountId) {
+      qb.andWhere(
+        `(t.accountId = :accountId
+          OR t.transferPairId IN (
+            SELECT tp.transfer_pair_id
+            FROM finance.transactions tp
+            WHERE tp.household_id = :householdId
+              AND tp.account_id = :accountId
+              AND tp.transfer_pair_id IS NOT NULL
+          ))`,
+        { accountId: query.accountId, householdId },
+      );
+    }
+
+    const rows = await qb.orderBy('t.date', 'DESC').addOrderBy('t.createdAt', 'DESC')
+      .take(LIST_HARD_LIMIT).getMany();
+
+    return this.collapseTransferPairs(rows, query.accountId);
+  }
+
+  /**
+   * Groups transfer legs by `transferPairId` and returns one row per pair.
+   *
+   * Which leg becomes the "primary" row:
+   *   - If the caller filtered by an account and one leg matches → that one.
+   *   - Otherwise → the DEBIT leg (source account), so the UI reads left→right
+   *     as "money leaving X, arriving at Y".
+   *   - If direction is missing (legacy), fall back to insertion order (the
+   *     older row = debit) — same rule as TransferDomainService.removePair.
+   *
+   * Non-transfer rows pass through untouched (with all counter* fields null).
+   *
+   * Rows whose transferPairId points at a leg the caller cannot see (dropped
+   * by householdId — should never happen given the WHERE clause, but belt +
+   * suspenders) fall through as a plain row rather than crashing.
+   */
+  private collapseTransferPairs(
+    rows: Transaction[],
+    filterAccountId: string | undefined,
+  ): TransactionResponseDto[] {
+    // Group transfer legs by pair id, keep everything else as-is.
+    const pairs = new Map<string, Transaction[]>();
+    const singles: Transaction[] = [];
+
+    for (const row of rows) {
+      if (row.isTransferLeg() && row.transferPairId) {
+        const bucket = pairs.get(row.transferPairId) ?? [];
+        bucket.push(row);
+        pairs.set(row.transferPairId, bucket);
+      } else {
+        singles.push(row);
+      }
+    }
+
+    const collapsed: Array<{ primary: Transaction; counter: Transaction | null }> = [];
+
+    for (const legs of pairs.values()) {
+      if (legs.length === 1) {
+        // Half-paired (orphan) — surface as a plain transfer row without a
+        // counterparty. Shouldn't happen post-#167 but stays safe.
+        collapsed.push({ primary: legs[0], counter: null });
+        continue;
+      }
+      const { primary, counter } = this.pickPrimaryLeg(legs, filterAccountId);
+      collapsed.push({ primary, counter });
+    }
+
+    for (const single of singles) {
+      collapsed.push({ primary: single, counter: null });
+    }
+
+    // Re-sort after collapse so pairs land at the correct date position.
+    collapsed.sort((a, b) => {
+      if (a.primary.date !== b.primary.date) return a.primary.date < b.primary.date ? 1 : -1;
+      return a.primary.createdAt < b.primary.createdAt ? 1 : -1;
+    });
+
+    return collapsed.map(({ primary, counter }) => TransactionResponseDto.fromEntity(primary, counter));
+  }
+
+  private pickPrimaryLeg(
+    legs: Transaction[],
+    filterAccountId: string | undefined,
+  ): { primary: Transaction; counter: Transaction } {
+    // Filter-by-account wins: whichever leg matches becomes primary so the
+    // user's filtered account reads as the "own" side of the transfer.
+    if (filterAccountId) {
+      const matched = legs.find((l) => l.accountId === filterAccountId);
+      if (matched) {
+        const other = legs.find((l) => l.id !== matched.id)!;
+        return { primary: matched, counter: other };
+      }
+    }
+    // Default: debit leg (source) is primary.
+    const debit = legs.find((l) => l.transferDirection === TransferDirection.DEBIT);
+    const credit = legs.find((l) => l.transferDirection === TransferDirection.CREDIT);
+    if (debit && credit) return { primary: debit, counter: credit };
+
+    // Legacy fallback: older insert = debit, newer = credit.
+    const sorted = [...legs].sort((a, b) =>
+      a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : a.id < b.id ? -1 : 1,
+    );
+    return { primary: sorted[0], counter: sorted[1] };
   }
 
   async findOne(id: string, householdId: string): Promise<Transaction> {
