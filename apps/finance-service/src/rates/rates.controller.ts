@@ -1,11 +1,23 @@
-import { BadRequestException, Controller, Get, Query } from '@nestjs/common';
+import {
+  BadRequestException,
+  Controller,
+  Get,
+  Headers,
+  Logger,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiOperation, ApiTags, ApiQuery } from '@nestjs/swagger';
 import { RatesService } from './rates.service';
 import { RateDto } from './dto/rate.dto';
+import { RatesRefreshThrottleGuard } from './rates-refresh-throttle.guard';
 
 @ApiTags('Rates')
 @Controller('rates')
 export class RatesController {
+  private readonly logger = new Logger(RatesController.name);
+
   constructor(private readonly svc: RatesService) {}
 
   @Get('latest')
@@ -31,6 +43,25 @@ export class RatesController {
       throw new BadRequestException('from/to must be ISO dates (YYYY-MM-DD)');
     }
     return this.svc.findRange(ccy, from, to);
+  }
+
+  @Post('refresh')
+  @UseGuards(RatesRefreshThrottleGuard)
+  @ApiOperation({
+    summary: 'Manually trigger a fresh sync from PrivatBank',
+    description:
+      'On-demand refresh of exchange rates. Rate-limited to 1 request per minute per user. ' +
+      'Returns the freshly-synced rates so clients do not need a follow-up GET /rates/latest.',
+  })
+  async refresh(
+    @Headers('x-user-id') userId?: string,
+  ): Promise<{ inserted: number; date: string; rates: RateDto[] }> {
+    const result = await this.svc.syncToday();
+    const rates = await this.svc.findLatest();
+    this.logger.log(
+      `Manual rates refresh by user=${userId ?? 'unknown'} → inserted=${result.inserted} date=${result.date}`,
+    );
+    return { ...result, rates };
   }
 }
 
