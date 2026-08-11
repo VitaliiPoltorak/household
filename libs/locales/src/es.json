@@ -52,7 +52,16 @@
     "upcomingPayments": "Próximos pagos (30 días)",
     "noHousehold": "Aún no tienes un hogar.",
     "createFirst": "Crear tu primer hogar",
-    "newHome": "+ Nuevo hogar"
+    "newHome": "+ Nuevo hogar",
+    "byCurrency": "Por moneda",
+    "convertedFrom": "convertido desde {{count}} monedas con tasas de PrivatBank",
+    "convertedFromCached": "convertido desde {{count}} monedas con tasas en caché",
+    "mixedCurrencies": "monedas mezcladas — totales mostrados sin conversión",
+    "rates": {
+      "loading": "Obteniendo tipos de cambio…",
+      "unavailableShort": "no disponible",
+      "unavailableDesc": "Tipos de cambio no disponibles — total oculto"
+    }
   },
   "accounts": {
     "title": "Cuentas",

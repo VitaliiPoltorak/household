@@ -163,7 +163,7 @@ pnpm gateway | pnpm auth | pnpm household | pnpm finance | pnpm shopping | pnpm 
 
 # Web app
 pnpm --filter @household/web dev          # start dev server
-pnpm --filter @household/web test:run     # Vitest integration tests (42 tests, no Docker needed)
+pnpm --filter @household/web test:run     # Vitest integration tests (56 tests, no Docker needed)
 pnpm --filter @household/web test:ui      # Vitest UI
 
 # Backend integration tests per service (requires docker compose up -d)
@@ -232,7 +232,7 @@ Each completed feature has a manual testing checklist in the [Testing milestone]
 
 ### Web — Vitest
 
-The web app has 42 integration tests using **Vitest + @testing-library/react + MSW** (Mock Service Worker intercepts fetch at the network level). No Docker needed.
+The web app has 56 integration tests using **Vitest + @testing-library/react + MSW** (Mock Service Worker intercepts fetch at the network level). No Docker needed.
 
 ```bash
 pnpm --filter @household/web test:run   # run once
@@ -240,7 +240,7 @@ pnpm --filter @household/web test       # watch mode
 pnpm --filter @household/web test:ui    # browser UI
 ```
 
-**Covered flows:** login, dashboard (empty state + create household), accounts (list/create/archive), transactions (list/create/delete/filter/transfer), shopping lists (list/create/select/mark purchased).
+**Covered flows:** login, dashboard (empty state + create household + multi-currency total with per-currency breakdown and PrivatBank conversion), accounts (list/create/archive + multi-currency estimated total), transactions (list/create/delete/filter/transfer), shopping lists (list/create/select/mark purchased).
 
 ## Architecture overview
 
