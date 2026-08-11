@@ -215,53 +215,53 @@ export function AccountsPage() {
     ? ratesState.at.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     : null;
 
-  if (!activeHousehold) return <p className="text-gray-500">{t('common.selectHousehold')}</p>;
+  if (!activeHousehold) return <p className="text-gray-500 dark:text-gray-400">{t('common.selectHousehold')}</p>;
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">{t('accounts.title')}</h1>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{t('accounts.title')}</h1>
 
           {/* Per-currency breakdown */}
           <div className="mt-1 flex flex-wrap gap-3">
             {Object.entries(byCurrency).map(([ccy, total]) => (
-              <span key={ccy} className="text-sm text-gray-500">
-                {ccy}: <span className="font-semibold text-gray-800">{fmt(total, ccy)}</span>
+              <span key={ccy} className="text-sm text-gray-500 dark:text-gray-400">
+                {ccy}: <span className="font-semibold text-gray-800 dark:text-gray-200">{fmt(total, ccy)}</span>
               </span>
             ))}
           </div>
 
           {/* Grand total in base currency */}
           {accounts.length > 0 && Object.keys(byCurrency).length > 1 && (
-            <div className="mt-1 flex items-center gap-2 flex-wrap">
-              <span className="text-sm text-gray-400">{t('accounts.estimatedTotal')}:</span>
+            <div className="mt-1 flex flex-wrap items-center gap-2">
+              <span className="text-sm text-gray-400 dark:text-gray-500">{t('accounts.estimatedTotal')}:</span>
               {ratesState.status === 'ready' && grandTotal !== null ? (
                 <>
-                  <span className="font-bold text-gray-900">{fmt(grandTotal, baseCurrency)}</span>
+                  <span className="font-bold text-gray-900 dark:text-gray-100">{fmt(grandTotal, baseCurrency)}</span>
                   <select
                     value={baseCurrency}
                     onChange={(e) => handleBaseCurrencyChange(e.target.value)}
-                    className="rounded border border-gray-200 px-1.5 py-0.5 text-xs text-gray-600"
+                    className="rounded border border-gray-200 bg-white px-1.5 py-0.5 text-xs text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
                     title={t('accounts.displayIn')}
                   >
                     {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
                   </select>
                   {ratesTime && (
-                    <span className="text-xs text-gray-300">
+                    <span className="text-xs text-gray-300 dark:text-gray-600">
                       {t('accounts.ratesBy')} {ratesTime}
                       {ratesState.source === 'cache' && (
-                        <span className="ml-1 text-amber-500">({t('accounts.rates.cached')})</span>
+                        <span className="ml-1 text-amber-500 dark:text-amber-400">({t('accounts.rates.cached')})</span>
                       )}
                     </span>
                   )}
                 </>
               ) : ratesState.status === 'loading' ? (
-                <span className="text-xs text-gray-400">{t('accounts.loading')}</span>
+                <span className="text-xs text-gray-400 dark:text-gray-500">{t('accounts.loading')}</span>
               ) : (
                 <span
-                  className="text-xs text-amber-600 bg-amber-50 rounded px-2 py-0.5"
+                  className="rounded bg-amber-50 px-2 py-0.5 text-xs text-amber-600 dark:bg-amber-900/30 dark:text-amber-300"
                   title={t('accounts.rates.unavailableDesc')}
                 >
                   {t('accounts.rates.unavailable')}
@@ -272,9 +272,9 @@ export function AccountsPage() {
 
           {/* Simple total when single currency */}
           {Object.keys(byCurrency).length <= 1 && (
-            <p className="text-sm text-gray-500 mt-0.5">
+            <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
               {t('accounts.total')}:{' '}
-              <span className="font-semibold text-gray-800">
+              <span className="font-semibold text-gray-800 dark:text-gray-200">
                 {fmt(Object.values(byCurrency)[0] ?? 0, Object.keys(byCurrency)[0] ?? 'UAH')}
               </span>
             </p>
@@ -397,9 +397,9 @@ function AccountCard({ account, archiveLabel, onArchive, onEdit, onNameSave, onQ
   };
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm group">
+    <div className="group rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900 dark:shadow-black/20">
       <div className="flex items-start justify-between">
-        <div className="flex-1 min-w-0">
+        <div className="min-w-0 flex-1">
           <Badge label={account.type} />
           {editingName ? (
             <input
@@ -411,11 +411,11 @@ function AccountCard({ account, archiveLabel, onArchive, onEdit, onNameSave, onQ
                 if (e.key === 'Enter') save();
                 if (e.key === 'Escape') cancel();
               }}
-              className="mt-2 w-full rounded border border-primary-400 px-1 py-0.5 text-sm font-semibold text-gray-900 focus:outline-none focus:ring-1 focus:ring-primary-500"
+              className="mt-2 w-full rounded border border-primary-400 bg-white px-1 py-0.5 text-sm font-semibold text-gray-900 focus:outline-none focus:ring-1 focus:ring-primary-500 dark:bg-gray-800 dark:text-gray-100"
             />
           ) : (
             <p
-              className="mt-2 font-semibold text-gray-900 cursor-text truncate"
+              className="mt-2 cursor-text truncate font-semibold text-gray-900 dark:text-gray-100"
               onDoubleClick={() => setEditingName(true)}
               title="Double-click to edit"
             >
@@ -423,17 +423,17 @@ function AccountCard({ account, archiveLabel, onArchive, onEdit, onNameSave, onQ
             </p>
           )}
         </div>
-        <div className="flex gap-1 ml-2 opacity-0 group-hover:opacity-100 transition-opacity">
+        <div className="ml-2 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
           <button
             onClick={onEdit}
-            className="text-gray-400 hover:text-primary-600 text-sm"
+            className="text-sm text-gray-400 hover:text-primary-600 dark:text-gray-500 dark:hover:text-primary-400"
             title="Edit"
           >
             ✏️
           </button>
           <button
             onClick={onArchive}
-            className="text-gray-400 hover:text-red-400 text-sm"
+            className="text-sm text-gray-400 hover:text-red-400 dark:text-gray-500 dark:hover:text-red-400"
             title={archiveLabel}
           >
             🗑
@@ -441,14 +441,14 @@ function AccountCard({ account, archiveLabel, onArchive, onEdit, onNameSave, onQ
         </div>
       </div>
       <p
-        className="mt-3 text-2xl font-bold text-gray-800 cursor-pointer hover:text-primary-600 transition-colors"
+        className="mt-3 cursor-pointer text-2xl font-bold text-gray-800 transition-colors hover:text-primary-600 dark:text-gray-200 dark:hover:text-primary-400"
         onClick={onAdjust}
         title={t('accounts.adjustBalance')}
       >
         {fmt(Number(account.balance), account.currency)}
       </p>
-      <div className="flex items-center justify-between mt-0.5">
-        <p className="text-xs text-gray-400">{account.currency}</p>
+      <div className="mt-0.5 flex items-center justify-between">
+        <p className="text-xs text-gray-400 dark:text-gray-500">{account.currency}</p>
         <QuickTxDropdown onSelect={onQuickTx} />
       </div>
     </div>
@@ -472,28 +472,28 @@ function QuickTxDropdown({ onSelect }: { onSelect: (type: QuickTxType) => void }
   }, []);
 
   const options: { type: QuickTxType; label: string; color: string }[] = [
-    { type: 'income',   label: `+ ${t('transactions.types.income')}`,   color: 'text-green-600 hover:bg-green-50' },
-    { type: 'expense',  label: `− ${t('transactions.types.expense')}`,  color: 'text-red-600 hover:bg-red-50' },
-    { type: 'transfer', label: `⇄ ${t('transactions.types.transfer')}`, color: 'text-blue-600 hover:bg-blue-50' },
+    { type: 'income',   label: `+ ${t('transactions.types.income')}`,   color: 'text-green-600 hover:bg-green-50 dark:text-green-400 dark:hover:bg-green-900/30' },
+    { type: 'expense',  label: `− ${t('transactions.types.expense')}`,  color: 'text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/30' },
+    { type: 'transfer', label: `⇄ ${t('transactions.types.transfer')}`, color: 'text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/30' },
   ];
 
   return (
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen((o) => !o)}
-        className="flex h-7 w-7 items-center justify-center rounded-full bg-primary-100 text-primary-600 text-lg font-bold hover:bg-primary-200 transition-colors"
+        className="flex h-7 w-7 items-center justify-center rounded-full bg-primary-100 text-lg font-bold text-primary-600 transition-colors hover:bg-primary-200 dark:bg-primary-900/40 dark:text-primary-300 dark:hover:bg-primary-900/60"
         title={t('accounts.quickTx')}
       >
         +
       </button>
 
       {open && (
-        <div className="absolute bottom-full right-0 mb-1 min-w-[150px] rounded-xl border border-gray-200 bg-white shadow-lg z-10 overflow-hidden">
+        <div className="absolute bottom-full right-0 z-10 mb-1 min-w-[150px] overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-800">
           {options.map(({ type, label, color }) => (
             <button
               key={type}
               onClick={() => { onSelect(type); setOpen(false); }}
-              className={`w-full px-4 py-2.5 text-left text-sm font-medium ${color} transition-colors`}
+              className={`w-full px-4 py-2.5 text-left text-sm font-medium transition-colors ${color}`}
             >
               {label}
             </button>
@@ -659,16 +659,16 @@ function QuickTxModal({ account, txType, hid, accounts, categories, onClose, onC
     <Modal title={`${t(titleKey as never)} — ${account.name}`} onClose={onClose}>
       <form onSubmit={submit} className="space-y-3">
         {/* From account — read-only info */}
-        <div className="rounded-lg bg-gray-50 px-3 py-2 text-sm text-gray-500">
+        <div className="rounded-lg bg-gray-50 px-3 py-2 text-sm text-gray-500 dark:bg-gray-800 dark:text-gray-400">
           <span className="font-medium">{t('transactions.account')}:</span>{' '}
           {account.name}{' '}
-          <span className="text-gray-400">({fmt(Number(account.balance), account.currency)})</span>
+          <span className="text-gray-400 dark:text-gray-500">({fmt(Number(account.balance), account.currency)})</span>
         </div>
 
         {/* Transfer: target account */}
         {isTransfer && (
           otherAccounts.length === 0 ? (
-            <p className="text-sm text-amber-600 bg-amber-50 rounded-lg px-3 py-2">
+            <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-600 dark:bg-amber-900/30 dark:text-amber-300">
               You need at least 2 accounts to make a transfer.
             </p>
           ) : (
@@ -754,7 +754,12 @@ function AdjustBalanceModal({ account, hid, onClose, onAdjusted }: {
 
   const parsed = parseFloat(newBalance);
   const delta = Number.isFinite(parsed) ? parsed - currentBalance : 0;
-  const deltaClass = delta > 0 ? 'text-green-600' : delta < 0 ? 'text-red-600' : 'text-gray-400';
+  const deltaClass =
+    delta > 0
+      ? 'text-green-600 dark:text-green-400'
+      : delta < 0
+        ? 'text-red-600 dark:text-red-400'
+        : 'text-gray-400 dark:text-gray-500';
   const deltaSign = delta > 0 ? '+' : '';
 
   const submit = async (e: React.FormEvent) => {
@@ -785,9 +790,9 @@ function AdjustBalanceModal({ account, hid, onClose, onAdjusted }: {
   return (
     <Modal title={`${t('accounts.adjustBalance')} — ${account.name}`} onClose={onClose}>
       <form onSubmit={submit} className="space-y-3">
-        <div className="rounded-lg bg-gray-50 px-3 py-2 text-sm text-gray-500">
+        <div className="rounded-lg bg-gray-50 px-3 py-2 text-sm text-gray-500 dark:bg-gray-800 dark:text-gray-400">
           <span className="font-medium">{t('accounts.adjust.current')}:</span>{' '}
-          <span className="text-gray-800">{fmt(currentBalance, account.currency)}</span>
+          <span className="text-gray-800 dark:text-gray-200">{fmt(currentBalance, account.currency)}</span>
         </div>
 
         <Input
@@ -801,7 +806,7 @@ function AdjustBalanceModal({ account, hid, onClose, onAdjusted }: {
         />
 
         <div className="text-sm">
-          <span className="text-gray-500">{t('accounts.adjust.delta')}:</span>{' '}
+          <span className="text-gray-500 dark:text-gray-400">{t('accounts.adjust.delta')}:</span>{' '}
           <span className={`font-semibold ${deltaClass}`}>
             {deltaSign}{fmt(delta, account.currency)}
           </span>
@@ -815,10 +820,10 @@ function AdjustBalanceModal({ account, hid, onClose, onAdjusted }: {
         />
 
         {error && (
-          <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>
+          <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600 dark:bg-red-900/30 dark:text-red-300">{error}</p>
         )}
 
-        <p className="text-xs text-gray-400">
+        <p className="text-xs text-gray-400 dark:text-gray-500">
           {t('accounts.adjust.hint')}
         </p>
 
@@ -841,7 +846,7 @@ function Spinner() {
 
 function Empty({ text, action, actionLabel }: { text: string; action?: () => void; actionLabel?: string }) {
   return (
-    <div className="flex flex-col items-center justify-center py-16 text-gray-400">
+    <div className="flex flex-col items-center justify-center py-16 text-gray-400 dark:text-gray-500">
       <p className="mb-3">{text}</p>
       {action && actionLabel && (
         <Button variant="secondary" size="sm" onClick={action}>{actionLabel}</Button>

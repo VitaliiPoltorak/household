@@ -9,7 +9,7 @@ export function OnlineUsers() {
     <div className="flex items-center gap-1" title={`${onlineUsers.length} online`}>
       {onlineUsers.slice(0, 5).map((u) => <Avatar key={u.userId} user={u} />)}
       {onlineUsers.length > 5 && (
-        <span className="text-xs text-gray-400">+{onlineUsers.length - 5}</span>
+        <span className="text-xs text-gray-400 dark:text-gray-500">+{onlineUsers.length - 5}</span>
       )}
     </div>
   );
@@ -22,7 +22,7 @@ function Avatar({ user }: { user: PresenceUser }) {
   return (
     <div
       title={`${user.displayName}${isEditing ? ` (editing ${user.editingEntity})` : ''}`}
-      className={`relative flex h-7 w-7 items-center justify-center rounded-full text-xs font-medium text-white ring-2 ${isEditing ? 'ring-amber-400' : 'ring-white'}`}
+      className={`relative flex h-7 w-7 items-center justify-center rounded-full text-xs font-medium text-white ring-2 ${isEditing ? 'ring-amber-400' : 'ring-white dark:ring-gray-900'}`}
       style={{ backgroundColor: stringToColor(user.userId) }}
     >
       {user.avatarUrl
@@ -30,7 +30,7 @@ function Avatar({ user }: { user: PresenceUser }) {
         : initials
       }
       {/* Green dot = online */}
-      <span className="absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full bg-green-400 ring-1 ring-white" />
+      <span className="absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full bg-green-400 ring-1 ring-white dark:ring-gray-900" />
     </div>
   );
 }

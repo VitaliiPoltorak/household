@@ -58,32 +58,32 @@ export function PermanentDeleteModal({ category, householdId, onClose }: Props) 
     !!impact && (impact.transactions + impact.recurringPayments + impact.subcategories) > 0;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 dark:bg-black/60">
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="permdel-title"
-        className="w-full max-w-md rounded-xl bg-white shadow-xl"
+        className="w-full max-w-md rounded-xl bg-white shadow-xl dark:bg-gray-900"
       >
-        <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
-          <h2 id="permdel-title" className="text-base font-semibold text-gray-900">
+        <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4 dark:border-gray-800">
+          <h2 id="permdel-title" className="text-base font-semibold text-gray-900 dark:text-gray-100">
             {t('categoryMgmt.deletePermanent.title', { name: category.name })}
           </h2>
           <button
             type="button"
             onClick={onClose}
             aria-label={t('common.close')}
-            className="text-gray-400 hover:text-gray-600 text-xl leading-none"
+            className="text-xl leading-none text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
           >
             ×
           </button>
         </div>
 
-        <div className="px-6 py-4 text-sm text-gray-700 space-y-3">
-          {isLoading && <p className="text-gray-500">{t('common.loading')}</p>}
+        <div className="space-y-3 px-6 py-4 text-sm text-gray-700 dark:text-gray-200">
+          {isLoading && <p className="text-gray-500 dark:text-gray-400">{t('common.loading')}</p>}
 
           {impactError && !impact && (
-            <p className="text-red-600">{t('common.error')}</p>
+            <p className="text-red-600 dark:text-red-400">{t('common.error')}</p>
           )}
 
           {impact && !isBlocked && (
@@ -93,7 +93,7 @@ export function PermanentDeleteModal({ category, householdId, onClose }: Props) 
           {impact && isBlocked && (
             <>
               <p>{t('categoryMgmt.deletePermanent.warningBlocked')}</p>
-              <ul className="list-disc pl-5 text-gray-800">
+              <ul className="list-disc pl-5 text-gray-800 dark:text-gray-200">
                 {impact.transactions > 0 && (
                   <li>
                     {t('categoryMgmt.deletePermanent.impact.transactions', { count: impact.transactions })}
@@ -110,12 +110,12 @@ export function PermanentDeleteModal({ category, householdId, onClose }: Props) 
                   </li>
                 )}
               </ul>
-              <p className="text-xs text-gray-500">{t('categoryMgmt.deletePermanent.reassignSoonHint')}</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">{t('categoryMgmt.deletePermanent.reassignSoonHint')}</p>
             </>
           )}
         </div>
 
-        <div className="flex justify-end gap-2 border-t border-gray-100 px-6 py-3">
+        <div className="flex justify-end gap-2 border-t border-gray-100 px-6 py-3 dark:border-gray-800">
           {impact && !isBlocked ? (
             <>
               <Button

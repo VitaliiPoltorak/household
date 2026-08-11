@@ -5,9 +5,9 @@ interface Props {
 }
 
 const COLORS: Record<Props['color'], string> = {
-  blue: 'bg-blue-50 text-blue-700',
-  green: 'bg-green-50 text-green-700',
-  red: 'bg-red-50 text-red-700',
+  blue: 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-200',
+  green: 'bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-200',
+  red: 'bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-200',
 };
 
 /** Coloured summary card shown on the dashboard. */

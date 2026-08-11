@@ -195,7 +195,14 @@
     "logoutAll": "Cerrar sesión en todos los dispositivos",
     "logoutAllDesc": "Finaliza todas las sesiones activas de tu cuenta en todos los navegadores y dispositivos. Útil si sospechas que te robaron un token de refresco.",
     "logoutAllWarning": "También se cerrará tu sesión aquí. Tendrás que iniciar sesión de nuevo.",
-    "logoutAllConfirm": "Cerrar sesión en todas partes"
+    "logoutAllConfirm": "Cerrar sesión en todas partes",
+    "theme": "Tema",
+    "themes": {
+      "light": "Claro",
+      "dark": "Oscuro",
+      "system": "Sistema"
+    },
+    "themeHint": "«Sistema» sigue la apariencia de tu sistema operativo."
   },
   "categoryMgmt": {
     "title": "Categorías",

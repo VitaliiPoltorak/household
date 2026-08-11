@@ -6,11 +6,14 @@ import { authApi } from '../api/auth';
 import { Button } from '../components/ui/Button';
 import { Input, Select } from '../components/ui/Input';
 import { supportedLngs, type SupportedLng } from '@household/locales';
+import { useTheme, type ThemePreference } from '../contexts/ThemeContext';
 
 const CURRENCIES = ['UAH', 'USD', 'EUR'];
 const DEFAULT_CURRENCY_KEY = 'accounts:baseCurrency';
 
 const FLAG: Record<SupportedLng, string> = { en: '🇬🇧', uk: '🇺🇦', de: '🇩🇪', es: '🇪🇸' };
+const THEME_ICON: Record<ThemePreference, string> = { light: '☀️', dark: '🌙', system: '🖥️' };
+const THEME_OPTIONS: ThemePreference[] = ['light', 'dark', 'system'];
 
 export function SettingsPage() {
   const { t, i18n } = useTranslation();
@@ -19,7 +22,7 @@ export function SettingsPage() {
 
   return (
     <div className="max-w-lg space-y-8">
-      <h1 className="text-2xl font-bold text-gray-900">{t('settings.title')}</h1>
+      <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{t('settings.title')}</h1>
 
       <ProfileSection user={user} />
       <PreferencesSection i18n={i18n} />
@@ -59,15 +62,15 @@ function SecuritySection({
 
   return (
     <Section title={t('settings.security')}>
-      <div className="rounded-xl border border-gray-200 bg-white p-4 space-y-3">
-        <p className="text-sm text-gray-600">{t('settings.logoutAllDesc')}</p>
+      <div className="space-y-3 rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+        <p className="text-sm text-gray-600 dark:text-gray-300">{t('settings.logoutAllDesc')}</p>
         {!showConfirm ? (
           <Button variant="secondary" size="sm" onClick={() => setShowConfirm(true)}>
             {t('settings.logoutAll')}
           </Button>
         ) : (
           <div className="space-y-2">
-            <p className="text-sm text-amber-700">{t('settings.logoutAllWarning')}</p>
+            <p className="text-sm text-amber-700 dark:text-amber-300">{t('settings.logoutAllWarning')}</p>
             <div className="flex gap-2">
               <Button
                 variant="secondary"
@@ -97,14 +100,14 @@ function ManageSection() {
   const { t } = useTranslation();
   return (
     <Section title={t('settings.manage')}>
-      <ul className="divide-y divide-gray-100 rounded-xl border border-gray-200 bg-white">
+      <ul className="divide-y divide-gray-100 rounded-xl border border-gray-200 bg-white dark:divide-gray-800 dark:border-gray-800 dark:bg-gray-900">
         <li>
           <Link
             to="/settings/categories"
-            className="flex items-center justify-between px-4 py-3 hover:bg-gray-50"
+            className="flex items-center justify-between px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800"
           >
-            <span className="text-sm text-gray-900">{t('categoryMgmt.title')}</span>
-            <span className="text-gray-400" aria-hidden>›</span>
+            <span className="text-sm text-gray-900 dark:text-gray-100">{t('categoryMgmt.title')}</span>
+            <span className="text-gray-400 dark:text-gray-500" aria-hidden>›</span>
           </Link>
         </li>
       </ul>
@@ -142,20 +145,20 @@ function ProfileSection({ user }: { user: ReturnType<typeof useAuth>['user'] }) 
   return (
     <Section title={t('settings.profile')}>
       <form onSubmit={save} className="space-y-4">
-        <div className="flex items-center gap-4 mb-2">
+        <div className="mb-2 flex items-center gap-4">
           {(avatarUrl || user?.avatarUrl) ? (
             <img
               src={avatarUrl || user?.avatarUrl || ''}
               alt=""
-              className="h-16 w-16 rounded-full object-cover border border-gray-200"
+              className="h-16 w-16 rounded-full border border-gray-200 object-cover dark:border-gray-700"
               onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
             />
           ) : (
-            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary-100 text-2xl font-bold text-primary-600">
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary-100 text-2xl font-bold text-primary-600 dark:bg-primary-900/40 dark:text-primary-300">
               {(displayName || user?.displayName || '?')[0]?.toUpperCase()}
             </div>
           )}
-          <div className="text-sm text-gray-500">{user?.email}</div>
+          <div className="text-sm text-gray-500 dark:text-gray-400">{user?.email}</div>
         </div>
 
         <Input
@@ -173,8 +176,8 @@ function ProfileSection({ user }: { user: ReturnType<typeof useAuth>['user'] }) 
 
         {/* Language */}
         <div className="flex flex-col gap-1">
-          <label className="text-sm font-medium text-gray-700">{t('settings.language')}</label>
-          <div className="flex gap-2 flex-wrap">
+          <label className="text-sm font-medium text-gray-700 dark:text-gray-300">{t('settings.language')}</label>
+          <div className="flex flex-wrap gap-2">
             {supportedLngs.map((lng) => (
               <button
                 key={lng}
@@ -182,8 +185,8 @@ function ProfileSection({ user }: { user: ReturnType<typeof useAuth>['user'] }) 
                 onClick={() => handleLocaleChange(lng)}
                 className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm transition-colors ${
                   i18n.resolvedLanguage === lng
-                    ? 'border-primary-500 bg-primary-50 text-primary-700 font-medium'
-                    : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                    ? 'border-primary-500 bg-primary-50 font-medium text-primary-700 dark:border-primary-500 dark:bg-primary-900/40 dark:text-primary-300'
+                    : 'border-gray-200 text-gray-600 hover:border-gray-300 dark:border-gray-700 dark:text-gray-300 dark:hover:border-gray-600'
                 }`}
               >
                 <span>{FLAG[lng]}</span>
@@ -198,7 +201,7 @@ function ProfileSection({ user }: { user: ReturnType<typeof useAuth>['user'] }) 
             {status === 'saving' ? t('settings.saving') : t('common.save')}
           </Button>
           {status === 'saved' && (
-            <span className="text-sm text-green-600">✓ {t('settings.saved')}</span>
+            <span className="text-sm text-green-600 dark:text-green-400">✓ {t('settings.saved')}</span>
           )}
         </div>
       </form>
@@ -211,6 +214,7 @@ function ProfileSection({ user }: { user: ReturnType<typeof useAuth>['user'] }) 
 // ──────────────────────────────────────────────
 function PreferencesSection({ i18n: _i18n }: { i18n: ReturnType<typeof useTranslation>['i18n'] }) {
   const { t } = useTranslation();
+  const { theme, setTheme } = useTheme();
   const [currency, setCurrency] = useState(
     () => localStorage.getItem(DEFAULT_CURRENCY_KEY) ?? 'UAH',
   );
@@ -223,6 +227,29 @@ function PreferencesSection({ i18n: _i18n }: { i18n: ReturnType<typeof useTransl
   return (
     <Section title={t('settings.preferences')}>
       <div className="space-y-4">
+        {/* Theme */}
+        <div className="flex flex-col gap-1">
+          <label className="text-sm font-medium text-gray-700 dark:text-gray-300">{t('settings.theme')}</label>
+          <div className="flex flex-wrap gap-2">
+            {THEME_OPTIONS.map((opt) => (
+              <button
+                key={opt}
+                type="button"
+                onClick={() => setTheme(opt)}
+                className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm transition-colors ${
+                  theme === opt
+                    ? 'border-primary-500 bg-primary-50 font-medium text-primary-700 dark:border-primary-500 dark:bg-primary-900/40 dark:text-primary-300'
+                    : 'border-gray-200 text-gray-600 hover:border-gray-300 dark:border-gray-700 dark:text-gray-300 dark:hover:border-gray-600'
+                }`}
+              >
+                <span aria-hidden>{THEME_ICON[opt]}</span>
+                <span>{t(`settings.themes.${opt}`)}</span>
+              </button>
+            ))}
+          </div>
+          <p className="text-xs text-gray-400 dark:text-gray-500">{t('settings.themeHint')}</p>
+        </div>
+
         <Select
           label={t('settings.defaultCurrency')}
           value={currency}
@@ -230,7 +257,7 @@ function PreferencesSection({ i18n: _i18n }: { i18n: ReturnType<typeof useTransl
         >
           {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
         </Select>
-        <p className="text-xs text-gray-400">
+        <p className="text-xs text-gray-400 dark:text-gray-500">
           {t('settings.defaultCurrency')} — used as base currency for multi-currency total on Accounts page.
         </p>
       </div>
@@ -267,8 +294,8 @@ function DangerSection({
 
   return (
     <Section title={t('settings.account')}>
-      <div className="rounded-xl border border-red-200 bg-red-50 p-4 space-y-3">
-        <p className="text-sm text-red-700">{t('settings.deleteWarning')}</p>
+      <div className="space-y-3 rounded-xl border border-red-200 bg-red-50 p-4 dark:border-red-900/50 dark:bg-red-900/20">
+        <p className="text-sm text-red-700 dark:text-red-300">{t('settings.deleteWarning')}</p>
 
         {!showConfirm ? (
           <Button variant="danger" size="sm" onClick={() => setShowConfirm(true)}>
@@ -306,7 +333,7 @@ function DangerSection({
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
-      <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-gray-500">{title}</h2>
+      <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{title}</h2>
       {children}
     </div>
   );

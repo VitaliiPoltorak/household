@@ -195,7 +195,14 @@
     "logoutAll": "Von allen Geräten abmelden",
     "logoutAllDesc": "Beendet jede aktive Sitzung Ihres Kontos in allen Browsern und auf allen Geräten. Nützlich, wenn Sie einen gestohlenen Refresh-Token vermuten.",
     "logoutAllWarning": "Sie werden auch hier abgemeldet und müssen sich neu anmelden.",
-    "logoutAllConfirm": "Überall abmelden"
+    "logoutAllConfirm": "Überall abmelden",
+    "theme": "Design",
+    "themes": {
+      "light": "Hell",
+      "dark": "Dunkel",
+      "system": "System"
+    },
+    "themeHint": "„System“ übernimmt das Erscheinungsbild Ihres Betriebssystems."
   },
   "categoryMgmt": {
     "title": "Kategorien",

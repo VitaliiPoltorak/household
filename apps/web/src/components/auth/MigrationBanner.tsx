@@ -38,19 +38,19 @@ export function MigrationBanner({ children }: { children: ReactNode }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/60 p-4">
-      <div className="w-full max-w-md rounded-2xl bg-white p-8 shadow-2xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/60 p-4 dark:bg-black/70">
+      <div className="w-full max-w-md rounded-2xl bg-white p-8 shadow-2xl dark:bg-gray-900">
         <div className="mb-6 flex justify-center text-4xl">🔒</div>
-        <h2 className="mb-3 text-center text-xl font-bold text-gray-900">
+        <h2 className="mb-3 text-center text-xl font-bold text-gray-900 dark:text-gray-100">
           {t('auth.migration.title')}
         </h2>
-        <p className="mb-6 text-center text-sm text-gray-600">
+        <p className="mb-6 text-center text-sm text-gray-600 dark:text-gray-300">
           {t('auth.migration.body')}
         </p>
         <button
           type="button"
           onClick={handleReAuth}
-          className="w-full rounded-lg bg-primary-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-primary-700"
+          className="w-full rounded-lg bg-primary-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-primary-700 dark:bg-primary-600 dark:hover:bg-primary-500"
         >
           {t('auth.migration.cta')}
         </button>
