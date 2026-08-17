@@ -87,6 +87,10 @@
     "loading": "Loading…",
     "quickTx": "Quick transaction",
     "adjustBalance": "Adjust balance",
+    "view": {
+      "grid": "Grid view",
+      "list": "List view"
+    },
     "adjust": {
       "current": "Current balance",
       "newBalance": "New balance",

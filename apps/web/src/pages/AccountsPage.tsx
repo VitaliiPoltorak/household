@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useHousehold } from '../contexts/HouseholdContext';
 import { financeApi } from '../api/finance';
 import type { Account, AccountType, Category } from '../types/api';
@@ -10,8 +10,14 @@ import { Input, Select } from '../components/ui/Input';
 import { Badge } from '../components/ui/Badge';
 import { formatMoney } from '../lib/money';
 import { useRatesState, convert, BASE_CURRENCY_KEY } from '../hooks/useRates';
+import { useAccountActions, type QuickTxType } from '../hooks/useAccountActions';
+import { useInlineNameEdit } from '../hooks/useInlineNameEdit';
 
-type QuickTxType = 'income' | 'expense' | 'transfer';
+// Persisted view preference (#164). Global across households by design —
+// user picks a density once and every household inherits it.
+export const ACCOUNTS_VIEW_KEY = 'accounts:view';
+type ViewMode = 'grid' | 'list';
+const isViewMode = (v: string | null): v is ViewMode => v === 'grid' || v === 'list';
 
 const ACCOUNT_TYPES: readonly AccountType[] = ['cash', 'bank', 'crypto', 'investment', 'deposit'];
 const CURRENCIES = ['UAH', 'USD', 'EUR'];
@@ -31,12 +37,28 @@ export function AccountsPage() {
   const hid = activeHousehold?.id ?? '';
 
   const [showCreate, setShowCreate] = useState(false);
-  const [editAccount, setEditAccount] = useState<Account | null>(null);
-  const [quickTx, setQuickTx] = useState<{ account: Account; type: QuickTxType } | null>(null);
-  const [adjustAccount, setAdjustAccount] = useState<Account | null>(null);
   const [baseCurrency, setBaseCurrency] = useState<string>(
     () => localStorage.getItem(BASE_CURRENCY_KEY) ?? 'UAH',
   );
+  const [viewMode, setViewMode] = useState<ViewMode>(() => {
+    const stored = localStorage.getItem(ACCOUNTS_VIEW_KEY);
+    return isViewMode(stored) ? stored : 'grid';
+  });
+
+  // Cross-tab sync: a viewMode change in another tab reflects here without
+  // a hard reload (same pattern as baseCurrency).
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === ACCOUNTS_VIEW_KEY && isViewMode(e.newValue)) setViewMode(e.newValue);
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
+
+  const handleViewModeChange = (v: ViewMode) => {
+    setViewMode(v);
+    localStorage.setItem(ACCOUNTS_VIEW_KEY, v);
+  };
 
   const { data: accounts = [], isLoading } = useQuery({
     queryKey: ['accounts', hid],
@@ -58,20 +80,7 @@ export function AccountsPage() {
   const ratesNeeded = sortedAccounts.some(a => a.currency !== baseCurrency);
   const ratesState = useRatesState(ratesNeeded);
 
-  const archive = useMutation({
-    mutationFn: (id: string) => financeApi.archiveAccount(id, hid),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['accounts', hid] }),
-  });
-
-  const updateAccount = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: object }) =>
-      financeApi.updateAccount(id, hid, data),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['accounts', hid] });
-      // Currency changes affect transaction display totals; refresh both lists.
-      qc.invalidateQueries({ queryKey: ['transactions', hid] });
-    },
-  });
+  const actions = useAccountActions(hid);
 
   // Per-currency totals
   const byCurrency: Record<string, number> = {};
@@ -168,10 +177,12 @@ export function AccountsPage() {
             </p>
           )}
         </div>
-        <Button onClick={() => setShowCreate(true)}>{t('accounts.new')}</Button>
+        <div className="flex items-center gap-2">
+          <ViewToggle value={viewMode} onChange={handleViewModeChange} />
+          <Button onClick={() => setShowCreate(true)}>{t('accounts.new')}</Button>
+        </div>
       </div>
 
-      {/* Grid */}
       {isLoading ? (
         <Spinner />
       ) : sortedAccounts.length === 0 ? (
@@ -180,21 +191,39 @@ export function AccountsPage() {
           action={() => setShowCreate(true)}
           actionLabel={t('accounts.addFirst')}
         />
-      ) : (
+      ) : viewMode === 'grid' ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {sortedAccounts.map((a) => (
             <AccountCard
               key={a.id}
               account={a}
               archiveLabel={t('common.archive')}
-              onArchive={() => archive.mutate(a.id)}
-              onEdit={() => setEditAccount(a)}
-              onNameSave={(name) => updateAccount.mutate({ id: a.id, data: { name } })}
-              onQuickTx={(type) => setQuickTx({ account: a, type })}
-              onAdjust={() => setAdjustAccount(a)}
+              onArchive={() => actions.handlers.onArchive(a)}
+              onEdit={() => actions.handlers.onEdit(a)}
+              onNameSave={(name) => actions.handlers.onNameSave(a, name)}
+              onQuickTx={(type) => actions.handlers.onQuickTx(a, type)}
+              onAdjust={() => actions.handlers.onAdjust(a)}
             />
           ))}
         </div>
+      ) : (
+        <ul
+          role="list"
+          className="divide-y divide-gray-100 overflow-hidden rounded-xl border border-gray-200 bg-white dark:divide-gray-800 dark:border-gray-800 dark:bg-gray-900"
+        >
+          {sortedAccounts.map((a) => (
+            <AccountRow
+              key={a.id}
+              account={a}
+              archiveLabel={t('common.archive')}
+              onArchive={() => actions.handlers.onArchive(a)}
+              onEdit={() => actions.handlers.onEdit(a)}
+              onNameSave={(name) => actions.handlers.onNameSave(a, name)}
+              onQuickTx={(type) => actions.handlers.onQuickTx(a, type)}
+              onAdjust={() => actions.handlers.onAdjust(a)}
+            />
+          ))}
+        </ul>
       )}
 
       {showCreate && (
@@ -208,43 +237,43 @@ export function AccountsPage() {
         />
       )}
 
-      {editAccount && (
+      {actions.modals.editAccount && (
         <EditAccountModal
-          account={editAccount}
+          account={actions.modals.editAccount}
           hid={hid}
-          onClose={() => setEditAccount(null)}
+          onClose={actions.closeEdit}
           onSaved={() => {
             qc.invalidateQueries({ queryKey: ['accounts', hid] });
             qc.invalidateQueries({ queryKey: ['transactions', hid] });
-            setEditAccount(null);
+            actions.closeEdit();
           }}
         />
       )}
 
-      {quickTx && (
+      {actions.modals.quickTx && (
         <QuickTxModal
-          account={quickTx.account}
-          txType={quickTx.type}
+          account={actions.modals.quickTx.account}
+          txType={actions.modals.quickTx.type}
           hid={hid}
           accounts={accounts}
           categories={categories}
-          onClose={() => setQuickTx(null)}
+          onClose={actions.closeQuickTx}
           onCreated={() => {
             qc.invalidateQueries({ queryKey: ['accounts', hid] });
-            setQuickTx(null);
+            actions.closeQuickTx();
           }}
         />
       )}
 
-      {adjustAccount && (
+      {actions.modals.adjustAccount && (
         <AdjustBalanceModal
-          account={adjustAccount}
+          account={actions.modals.adjustAccount}
           hid={hid}
-          onClose={() => setAdjustAccount(null)}
+          onClose={actions.closeAdjust}
           onAdjusted={() => {
             qc.invalidateQueries({ queryKey: ['accounts', hid] });
             qc.invalidateQueries({ queryKey: ['transactions', hid] });
-            setAdjustAccount(null);
+            actions.closeAdjust();
           }}
         />
       )}
@@ -253,9 +282,38 @@ export function AccountsPage() {
 }
 
 // ──────────────────────────────────────────────
-// Account card with inline name edit
+// Grid / list view toggle
 // ──────────────────────────────────────────────
-function AccountCard({ account, archiveLabel, onArchive, onEdit, onNameSave, onQuickTx, onAdjust }: {
+function ViewToggle({ value, onChange }: { value: ViewMode; onChange: (v: ViewMode) => void }) {
+  const { t } = useTranslation();
+  const btn = (mode: ViewMode, glyph: string, label: string) => {
+    const active = value === mode;
+    return (
+      <button
+        type="button"
+        aria-label={label}
+        aria-pressed={active}
+        onClick={() => onChange(mode)}
+        className={`flex h-8 w-8 items-center justify-center text-base transition-colors ${
+          active
+            ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/40 dark:text-primary-200'
+            : 'bg-white text-gray-500 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700'
+        }`}
+      >
+        {glyph}
+      </button>
+    );
+  };
+  return (
+    <div className="inline-flex overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700">
+      {btn('grid', '⊞', t('accounts.view.grid'))}
+      {btn('list', '☰', t('accounts.view.list'))}
+    </div>
+  );
+}
+
+// Shared props for both grid card and list row so they don't drift (#164).
+interface AccountViewProps {
   account: Account;
   archiveLabel: string;
   onArchive: () => void;
@@ -263,48 +321,29 @@ function AccountCard({ account, archiveLabel, onArchive, onEdit, onNameSave, onQ
   onNameSave: (name: string) => void;
   onQuickTx: (type: QuickTxType) => void;
   onAdjust: () => void;
-}) {
+}
+
+// ──────────────────────────────────────────────
+// Account card with inline name edit
+// ──────────────────────────────────────────────
+function AccountCard({ account, archiveLabel, onArchive, onEdit, onNameSave, onQuickTx, onAdjust }: AccountViewProps) {
   const { t } = useTranslation();
-  const [editingName, setEditingName] = useState(false);
-  const [nameVal, setNameVal] = useState(account.name);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (editingName) inputRef.current?.select();
-  }, [editingName]);
-
-  const save = () => {
-    const trimmed = nameVal.trim();
-    if (trimmed && trimmed !== account.name) onNameSave(trimmed);
-    setEditingName(false);
-  };
-
-  const cancel = () => {
-    setNameVal(account.name);
-    setEditingName(false);
-  };
+  const name = useInlineNameEdit(account.name, onNameSave);
 
   return (
     <div className="group rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900 dark:shadow-black/20">
       <div className="flex items-start justify-between">
         <div className="min-w-0 flex-1">
           <Badge label={account.type} />
-          {editingName ? (
+          {name.editing ? (
             <input
-              ref={inputRef}
-              value={nameVal}
-              onChange={(e) => setNameVal(e.target.value)}
-              onBlur={save}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') save();
-                if (e.key === 'Escape') cancel();
-              }}
+              {...name.inputProps}
               className="mt-2 w-full rounded border border-primary-400 bg-white px-1 py-0.5 text-sm font-semibold text-gray-900 focus:outline-none focus:ring-1 focus:ring-primary-500 dark:bg-gray-800 dark:text-gray-100"
             />
           ) : (
             <p
               className="mt-2 cursor-text truncate font-semibold text-gray-900 dark:text-gray-100"
-              onDoubleClick={() => setEditingName(true)}
+              onDoubleClick={name.enter}
               title="Double-click to edit"
             >
               {account.name}
@@ -340,6 +379,62 @@ function AccountCard({ account, archiveLabel, onArchive, onEdit, onNameSave, onQ
         <QuickTxDropdown onSelect={onQuickTx} />
       </div>
     </div>
+  );
+}
+
+// ──────────────────────────────────────────────
+// Account row (list view) — compact horizontal layout with the same
+// interactions as AccountCard (#164).
+// ──────────────────────────────────────────────
+function AccountRow({ account, archiveLabel, onArchive, onEdit, onNameSave, onQuickTx, onAdjust }: AccountViewProps) {
+  const { t } = useTranslation();
+  const name = useInlineNameEdit(account.name, onNameSave);
+
+  return (
+    <li className="group flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-800/50">
+      <Badge label={account.type} />
+      <div className="min-w-0 flex-1">
+        {name.editing ? (
+          <input
+            {...name.inputProps}
+            className="w-full max-w-xs rounded border border-primary-400 bg-white px-1 py-0.5 text-sm font-semibold text-gray-900 focus:outline-none focus:ring-1 focus:ring-primary-500 dark:bg-gray-800 dark:text-gray-100"
+          />
+        ) : (
+          <p
+            className="cursor-text truncate font-medium text-gray-900 dark:text-gray-100"
+            onDoubleClick={name.enter}
+            title="Double-click to edit"
+          >
+            {account.name}
+          </p>
+        )}
+      </div>
+      <button
+        onClick={onAdjust}
+        title={t('accounts.adjustBalance')}
+        className="cursor-pointer whitespace-nowrap text-right text-sm font-semibold text-gray-800 transition-colors hover:text-primary-600 dark:text-gray-200 dark:hover:text-primary-400"
+      >
+        {fmt(Number(account.balance), account.currency)}
+      </button>
+      <span className="w-10 text-right text-xs text-gray-400 dark:text-gray-500">{account.currency}</span>
+      <QuickTxDropdown onSelect={onQuickTx} />
+      <div className="flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+        <button
+          onClick={onEdit}
+          className="text-sm text-gray-400 hover:text-primary-600 dark:text-gray-500 dark:hover:text-primary-400"
+          title="Edit"
+        >
+          ✏️
+        </button>
+        <button
+          onClick={onArchive}
+          className="text-sm text-gray-400 hover:text-red-400 dark:text-gray-500 dark:hover:text-red-400"
+          title={archiveLabel}
+        >
+          🗑
+        </button>
+      </div>
+    </li>
   );
 }
 
