@@ -63,7 +63,7 @@ describe('cookies (#60/#61)', () => {
   });
 
   describe('setAuthCookies', () => {
-    it('sets both cookies with Path, SameSite=none, Secure by default', () => {
+    it('sets both cookies with SameSite=none, Secure by default and different Paths', () => {
       const cookie = jest.fn();
       const res = { cookie } as unknown as Response;
 
@@ -74,9 +74,14 @@ describe('cookies (#60/#61)', () => {
       expect(refreshCall).toBeDefined();
       expect(csrfCall).toBeDefined();
 
-      // refresh cookie is HttpOnly, csrf is not (needs to be JS-readable for double-submit)
+      // Refresh cookie is HttpOnly and scoped to /api/v1/auth — never rides
+      // regular API requests, only reaches the auth endpoints that need it.
       expect(refreshCall![2]).toMatchObject({ httpOnly: true, secure: true, sameSite: 'none', path: '/api/v1/auth', maxAge: 60_000 });
-      expect(csrfCall![2]).toMatchObject({ httpOnly: false, secure: true, sameSite: 'none', path: '/api/v1/auth', maxAge: 60_000 });
+      // CSRF cookie is Path=/ so document.cookie on the SPA (which lives at
+      // /, /dashboard, /accounts…) can read it. If we ever scope it back to
+      // /api/v1/auth the auto-refresh flow breaks silently on F5 —
+      // readCsrfCookie() would return null and AuthContext skips refresh.
+      expect(csrfCall![2]).toMatchObject({ httpOnly: false, secure: true, sameSite: 'none', path: '/', maxAge: 60_000 });
     });
 
     it('allows secure:false for local dev over HTTP', () => {
@@ -90,14 +95,17 @@ describe('cookies (#60/#61)', () => {
   });
 
   describe('clearAuthCookies', () => {
-    it('overwrites both cookies with empty value and maxAge 0', () => {
+    it('overwrites each cookie with empty value + maxAge 0 using its own Path', () => {
       const cookie = jest.fn();
       const res = { cookie } as unknown as Response;
 
       clearAuthCookies(res);
 
-      expect(cookie).toHaveBeenCalledWith(REFRESH_COOKIE, '', expect.objectContaining({ maxAge: 0, httpOnly: true }));
-      expect(cookie).toHaveBeenCalledWith(CSRF_COOKIE, '', expect.objectContaining({ maxAge: 0, httpOnly: false }));
+      // Browser identifies cookies by (name, domain, path) — clearing with
+      // the wrong path leaves the real cookie in place. This test locks in
+      // that we clear on the exact paths we set.
+      expect(cookie).toHaveBeenCalledWith(REFRESH_COOKIE, '', expect.objectContaining({ maxAge: 0, httpOnly: true, path: '/api/v1/auth' }));
+      expect(cookie).toHaveBeenCalledWith(CSRF_COOKIE, '', expect.objectContaining({ maxAge: 0, httpOnly: false, path: '/' }));
     });
   });
 

@@ -4,17 +4,25 @@ import type { Request, Response } from 'express';
 /**
  * HttpOnly cookie flow for refresh tokens (#60) and double-submit CSRF (#61).
  *
- * Two cookies are stamped together on every login/refresh:
+ * Two cookies are stamped together on every login/refresh, with **different
+ * Path scopes on purpose**:
  *
  * - `household_refresh` (HttpOnly, Secure, SameSite=None, Path=/api/v1/auth)
  *     Base64 of `${sessionId}.${refreshToken}` — HttpOnly means no JS can read
  *     it, closing the XSS-exfiltration path localStorage had. Path scopes it
  *     to auth endpoints only so regular API calls don't carry it around.
  *
- * - `household_csrf` (Secure, SameSite=None, Path=/api/v1/auth) — NOT HttpOnly
+ * - `household_csrf` (Secure, SameSite=None, Path=/) — NOT HttpOnly
  *     A random opaque value the SPA reads via document.cookie and echoes back
  *     in the `X-CSRF-Token` header on /auth/refresh. Cross-origin attackers
  *     can't read the cookie (Same-Origin Policy), so can't forge the header.
+ *     Path=/ is required: the SPA lives at `/`, `/dashboard`, `/accounts` etc.
+ *     and `document.cookie` only exposes cookies whose Path is a prefix of
+ *     the current URL. If we scoped this to /api/v1/auth (as originally),
+ *     the SPA would never see it on any real page, `readCsrfCookie()` would
+ *     return null, and the auto-refresh flow would silently give up — the
+ *     symptom users hit as "F5 logs me out even though the refresh cookie
+ *     is still valid".
  *
  * SameSite=None is a deliberate choice for the cross-domain deployment
  * (`app.foo.com` + `api.bar.com`). It requires CSRF as above.
@@ -24,7 +32,12 @@ export const REFRESH_COOKIE = 'household_refresh';
 export const CSRF_COOKIE = 'household_csrf';
 export const CSRF_HEADER = 'x-csrf-token';
 
-const PATH = '/api/v1/auth';
+// Refresh cookie is secret and only needed by auth endpoints. Narrow scope
+// keeps it out of every other request.
+const REFRESH_PATH = '/api/v1/auth';
+// CSRF cookie is not secret (its whole job is to be readable by JS) and MUST
+// be visible on SPA pages so the double-submit token can be echoed back.
+const CSRF_PATH = '/';
 
 interface CookiePayload {
   sessionId: string;
@@ -70,24 +83,33 @@ export function setAuthCookies(
   opts: SetCookieOpts,
 ): void {
   const common = {
-    path: PATH,
     secure: opts.secure ?? true,
     sameSite: 'none' as const,
     maxAge: opts.maxAgeSec * 1000,
   };
-  res.cookie(REFRESH_COOKIE, encodeRefreshCookie(payload), { ...common, httpOnly: true });
-  res.cookie(CSRF_COOKIE, csrfToken, { ...common, httpOnly: false });
+  res.cookie(REFRESH_COOKIE, encodeRefreshCookie(payload), {
+    ...common,
+    path: REFRESH_PATH,
+    httpOnly: true,
+  });
+  res.cookie(CSRF_COOKIE, csrfToken, {
+    ...common,
+    path: CSRF_PATH,
+    httpOnly: false,
+  });
 }
 
 export function clearAuthCookies(res: Response, opts: { secure?: boolean } = {}): void {
   const common = {
-    path: PATH,
     secure: opts.secure ?? true,
     sameSite: 'none' as const,
     maxAge: 0,
   };
-  res.cookie(REFRESH_COOKIE, '', { ...common, httpOnly: true });
-  res.cookie(CSRF_COOKIE, '', { ...common, httpOnly: false });
+  // Each cookie must be cleared with the *same* Path it was set on — the
+  // browser keys on (name, domain, path) so a mismatched path leaves the
+  // real cookie in place.
+  res.cookie(REFRESH_COOKIE, '', { ...common, path: REFRESH_PATH, httpOnly: true });
+  res.cookie(CSRF_COOKIE, '', { ...common, path: CSRF_PATH, httpOnly: false });
 }
 
 export function readRefreshCookie(req: Request): CookiePayload | null {
