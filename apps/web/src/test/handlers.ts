@@ -134,7 +134,11 @@ export const handlers = [
 
   // Reports
   http.get(`${BASE}/reports/monthly`, () =>
-    HttpResponse.json({ period: '2026-07', totalIncome: 5000, totalExpense: 0, net: 5000, byDay: [] }),
+    HttpResponse.json({
+      period: '2026-07',
+      byCurrency: { UAH: { income: 5000, expense: 0, net: 5000 } },
+      byDay: [{ date: '2026-07-01', currency: 'UAH', income: 5000, expense: 0 }],
+    }),
   ),
   http.get(`${BASE}/reports/net-worth`, () =>
     HttpResponse.json({ totalBalance: 5000, byCurrency: { UAH: 5000 }, accounts: [MOCK_ACCOUNT] }),

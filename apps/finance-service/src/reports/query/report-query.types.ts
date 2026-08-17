@@ -13,12 +13,14 @@ export interface DateRange {
 
 export interface DailyIncomeExpense {
   date: string;
+  currency: string;
   income: number;
   expense: number;
 }
 
 export interface CategoryAggregate {
   categoryId: string | null;
+  currency: string;
   total: number;
   count: number;
 }

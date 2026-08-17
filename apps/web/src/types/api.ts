@@ -143,10 +143,13 @@ export interface RecurringPayment {
 
 export interface MonthlyReport {
   period: string;
-  totalIncome: number;
-  totalExpense: number;
-  net: number;
-  byDay: { date: string; income: number; expense: number }[];
+  /**
+   * Per-currency income/expense/net. A household with UAH + USD accounts
+   * gets two entries; summing across currencies without conversion is
+   * arithmetically meaningless (#175), so the caller converts via rates.
+   */
+  byCurrency: Record<string, { income: number; expense: number; net: number }>;
+  byDay: { date: string; currency: string; income: number; expense: number }[];
 }
 
 export interface NetWorthReport {

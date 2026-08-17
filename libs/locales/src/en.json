@@ -56,7 +56,6 @@
     "byCurrency": "By currency",
     "convertedFrom": "converted from {{count}} currencies at PrivatBank rates",
     "convertedFromCached": "converted from {{count}} currencies at cached rates",
-    "mixedCurrencies": "mixed currencies — totals shown without conversion",
     "rates": {
       "loading": "Fetching exchange rates…",
       "unavailableShort": "unavailable",
