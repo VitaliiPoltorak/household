@@ -60,6 +60,15 @@
       "loading": "Wechselkurse werden geladen…",
       "unavailableShort": "nicht verfügbar",
       "unavailableDesc": "Wechselkurse nicht verfügbar — Gesamtsumme ausgeblendet"
+    },
+    "charts": {
+      "title": "Vermögensverteilung",
+      "byType": "Nach Kontotyp",
+      "byAccount": "Nach Konto",
+      "byCurrency": "Nach Währung",
+      "other": "Andere",
+      "empty": "Fügen Sie ein Konto hinzu, um Diagramme zu sehen",
+      "ratesUnavailable": "Diagramme ausgeblendet — Wechselkurse nicht verfügbar"
     }
   },
   "accounts": {
