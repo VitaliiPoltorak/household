@@ -56,7 +56,6 @@
     "byCurrency": "Nach Währung",
     "convertedFrom": "aus {{count}} Währungen mit PrivatBank-Kursen umgerechnet",
     "convertedFromCached": "aus {{count}} Währungen mit gecachten Kursen umgerechnet",
-    "mixedCurrencies": "gemischte Währungen — Summen ohne Umrechnung",
     "rates": {
       "loading": "Wechselkurse werden geladen…",
       "unavailableShort": "nicht verfügbar",

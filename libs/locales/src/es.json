@@ -56,7 +56,6 @@
     "byCurrency": "Por moneda",
     "convertedFrom": "convertido desde {{count}} monedas con tasas de PrivatBank",
     "convertedFromCached": "convertido desde {{count}} monedas con tasas en caché",
-    "mixedCurrencies": "monedas mezcladas — totales mostrados sin conversión",
     "rates": {
       "loading": "Obteniendo tipos de cambio…",
       "unavailableShort": "no disponible",

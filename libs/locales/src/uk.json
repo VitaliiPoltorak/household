@@ -56,7 +56,6 @@
     "byCurrency": "За валютами",
     "convertedFrom": "конвертовано з {{count}} валют за курсом ПриватБанку",
     "convertedFromCached": "конвертовано з {{count}} валют за курсом із кешу",
-    "mixedCurrencies": "різні валюти — суму показано без конвертації",
     "rates": {
       "loading": "Отримання курсів валют…",
       "unavailableShort": "недоступно",

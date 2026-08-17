@@ -63,7 +63,16 @@ export function DashboardPage() {
   const singleCurrency = currencies.length === 1 ? currencies[0] : null;
   const isMulti = currencies.length > 1;
 
-  const ratesNeeded = accounts.some((a) => a.currency !== baseCurrency);
+  // Post-#175: monthly.byCurrency replaces the naïve totalIncome/totalExpense
+  // scalars. Rates may now be needed for the month even if all *live*
+  // accounts share baseCurrency — e.g. an archived USD account still has
+  // July USD transactions.
+  const monthlyByCurrency = monthly?.byCurrency ?? {};
+  const monthlyCurrencies = Object.keys(monthlyByCurrency);
+
+  const ratesNeeded =
+    accounts.some((a) => a.currency !== baseCurrency) ||
+    monthlyCurrencies.some((c) => c !== baseCurrency);
   const ratesState = useRatesState(ratesNeeded);
 
   // Grand total in base currency — same discipline as AccountsPage: if any
@@ -109,15 +118,44 @@ export function DashboardPage() {
     return t('dashboard.rates.unavailableDesc');
   })();
 
-  // Monthly income/expense hint. Note: `financeApi.getMonthlyReport` returns
-  // `totalIncome` / `totalExpense` as a naïve SUM across currencies with no
-  // currency dimension (see reports.service.ts + typeorm-transaction-query
-  // repository — SUM(amount) grouped by day only). Until the backend surfaces
-  // a per-currency breakdown, we can't honestly convert these; show a
-  // "mixed currencies" caveat when the household has accounts in >1 currency
-  // so the user knows the number is arithmetically mixed rather than
-  // trustworthy in one currency.
-  const monthlySubtitle: string | null = isMulti ? t('dashboard.mixedCurrencies') : null;
+  // Renders a monthly income/expense card value with the same rates
+  // discipline as the Total balance card. Single-currency month → shown in
+  // its native currency, no conversion. Multi-currency + rates ready →
+  // converted to baseCurrency. Otherwise → "unavailable" rather than
+  // leaking a partially-converted or arithmetically mixed number.
+  const renderMonthlyBucket = (pick: (b: { income: number; expense: number; net: number }) => number): string => {
+    if (!monthly) return '—';
+    if (monthlyCurrencies.length === 0) return fmt(0, baseCurrency);
+    if (monthlyCurrencies.length === 1) {
+      const c = monthlyCurrencies[0];
+      return fmt(pick(monthlyByCurrency[c]), c);
+    }
+    if (ratesState.status !== 'ready') return t('dashboard.rates.unavailableShort');
+    let total = 0;
+    for (const c of monthlyCurrencies) {
+      const converted = convert(pick(monthlyByCurrency[c]), c, baseCurrency, ratesState.rates);
+      if (converted === null) return t('dashboard.rates.unavailableShort');
+      total += converted;
+    }
+    return fmt(total, baseCurrency);
+  };
+
+  const incomeValue = renderMonthlyBucket((b) => b.income);
+  const expenseValue = renderMonthlyBucket((b) => b.expense);
+
+  // Same "converted from N currencies" / "unavailable" subtitle logic as the
+  // Total balance card, gated on the month actually spanning >1 currency.
+  const isMonthMulti = monthlyCurrencies.length > 1;
+  const monthlySubtitle: string | null = (() => {
+    if (!isMonthMulti) return null;
+    if (ratesState.status === 'ready') {
+      return ratesState.source === 'cache'
+        ? t('dashboard.convertedFromCached', { count: monthlyCurrencies.length })
+        : t('dashboard.convertedFrom', { count: monthlyCurrencies.length });
+    }
+    if (ratesState.status === 'loading') return t('dashboard.rates.loading');
+    return t('dashboard.rates.unavailableDesc');
+  })();
 
   if (!activeHousehold) {
     return (
@@ -166,13 +204,13 @@ export function DashboardPage() {
         />
         <StatCard
           label={t('dashboard.incomeThisMonth')}
-          value={monthly ? fmt(monthly.totalIncome) : '—'}
+          value={incomeValue}
           color="green"
           subtitle={monthlySubtitle}
         />
         <StatCard
           label={t('dashboard.expensesThisMonth')}
-          value={monthly ? fmt(monthly.totalExpense) : '—'}
+          value={expenseValue}
           color="red"
           subtitle={monthlySubtitle}
         />

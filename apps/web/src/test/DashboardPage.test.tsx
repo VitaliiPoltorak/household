@@ -167,4 +167,88 @@ describe('DashboardPage', () => {
       expect(screen.queryByText(/mixed currencies/)).not.toBeInTheDocument();
     });
   });
+
+  describe('Multi-currency monthly income/expense (#175)', () => {
+    const UAH_ACCOUNT = { ...MOCK_ACCOUNT, id: 'acc-uah', name: 'UAH Bank', currency: 'UAH', balance: 5000 };
+    const USD_ACCOUNT = { ...MOCK_ACCOUNT, id: 'acc-usd', name: 'USD Savings', currency: 'USD', balance: 100 };
+
+    // Cross-currency month: 5000 UAH income + 800 UAH expense
+    //                    + 100 USD income + 30 USD expense
+    const MULTI_CCY_MONTHLY = {
+      period: '2026-07',
+      byCurrency: {
+        UAH: { income: 5000, expense: 800, net: 4200 },
+        USD: { income: 100, expense: 30, net: 70 },
+      },
+      byDay: [
+        { date: '2026-07-01', currency: 'UAH', income: 5000, expense: 0 },
+        { date: '2026-07-02', currency: 'UAH', income: 0, expense: 800 },
+        { date: '2026-07-03', currency: 'USD', income: 100, expense: 0 },
+        { date: '2026-07-04', currency: 'USD', income: 0, expense: 30 },
+      ],
+    };
+
+    beforeEach(() => {
+      localStorage.removeItem('accounts:ratesCache');
+      localStorage.setItem('accounts:baseCurrency', 'UAH');
+    });
+
+    it('renders income + expense converted to baseCurrency when rates are ready', async () => {
+      server.use(
+        http.get('/api/v1/accounts/summary', () =>
+          HttpResponse.json({ totalBalance: 5100, accounts: [UAH_ACCOUNT, USD_ACCOUNT] }),
+        ),
+        http.get('/api/v1/reports/monthly', () => HttpResponse.json(MULTI_CCY_MONTHLY)),
+        http.get('/api/v1/rates/latest', () =>
+          HttpResponse.json([{ ccy: 'USD', base_ccy: 'UAH', buy: '41.50', sale: '42.00' }]),
+        ),
+      );
+
+      renderWithProviders(<DashboardPage />);
+
+      // Income: 5000 UAH + (100 USD * 41.50) = 9150 UAH.
+      // Total balance in this fixture also converts to 9150 UAH (same
+      // per-currency amounts as monthly income) — both cards render the
+      // same value, so getAllByText matches ≥2 elements.
+      await waitFor(
+        () => expect(screen.getAllByText(/9[\s ,]?150,00/).length).toBeGreaterThanOrEqual(2),
+        { timeout: 3000 },
+      );
+      // Expense: 800 UAH + (30 USD * 41.50) = 2045 UAH — unique on the page.
+      expect(screen.getByText(/2[\s ,]?045,00/)).toBeInTheDocument();
+    });
+
+    it('shows "unavailable" for monthly cards when rates fail — no naïve sum leaks', async () => {
+      server.use(
+        http.get('/api/v1/accounts/summary', () =>
+          HttpResponse.json({ totalBalance: 5100, accounts: [UAH_ACCOUNT, USD_ACCOUNT] }),
+        ),
+        http.get('/api/v1/reports/monthly', () => HttpResponse.json(MULTI_CCY_MONTHLY)),
+        http.get('/api/v1/rates/latest', () => new HttpResponse(null, { status: 503 })),
+      );
+
+      renderWithProviders(<DashboardPage />);
+
+      // Three "unavailable" labels: Total balance + Income + Expense cards.
+      await waitFor(
+        () => expect(screen.getAllByText(/unavailable/).length).toBeGreaterThanOrEqual(3),
+        { timeout: 3000 },
+      );
+      // The old bug's smoking gun: 5100 (naïve income+expense across ccys) or
+      // 5100/830/etc. must not appear as the card value.
+      expect(screen.queryByText(/^5[\s ,]?100,00/)).not.toBeInTheDocument();
+    });
+
+    it('single-currency month shows unadorned native amount (no rates call needed)', async () => {
+      // Default handler → single UAH account + single-UAH month.
+      // Regression check that we didn't break the base case.
+      renderWithProviders(<DashboardPage />);
+
+      await waitFor(() => expect(screen.getByText('Mono Card')).toBeInTheDocument());
+      // Default MSW monthly handler returns UAH income = 5000.
+      // Total balance card also shows 5000 UAH → we assert the count.
+      const uahAmounts = screen.getAllByText(/5[\s ,]?000,00/);
+      expect(uahAmounts.length).toBeGreaterThanOrEqual(2); // total balance + income card
+    });
+  });
 });

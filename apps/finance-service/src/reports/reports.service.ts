@@ -32,14 +32,21 @@ export class ReportsService {
 
     const byDay = await this.txQuery.getDailyIncomeExpense(householdId, { from, to });
 
-    const totalIncome = byDay.reduce((s, r) => s + r.income, 0);
-    const totalExpense = byDay.reduce((s, r) => s + r.expense, 0);
+    // Roll up per-currency. Summing across currencies without conversion is
+    // arithmetically meaningless (#175) — the client converts via PrivatBank
+    // rates with the same rates-unavailable discipline as the Total balance
+    // card.
+    const byCurrency: Record<string, { income: number; expense: number; net: number }> = {};
+    for (const r of byDay) {
+      const bucket = (byCurrency[r.currency] ??= { income: 0, expense: 0, net: 0 });
+      bucket.income += r.income;
+      bucket.expense += r.expense;
+      bucket.net = bucket.income - bucket.expense;
+    }
 
     return {
       period: `${year}-${pad(month)}`,
-      totalIncome,
-      totalExpense,
-      net: totalIncome - totalExpense,
+      byCurrency,
       byDay,
     };
   }
@@ -68,6 +75,7 @@ export class ReportsService {
     return rows.map((r) => ({
       categoryId: r.categoryId,
       categoryName: r.categoryId ? (categoryMap.get(r.categoryId) ?? null) : null,
+      currency: r.currency,
       total: r.total,
       count: r.count,
     }));
