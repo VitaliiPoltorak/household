@@ -9,5 +9,6 @@ export function useAccounts(hid: string) {
     queryFn: () => financeApi.getAccounts(hid),
     enabled: !!hid,
     initialData: [] as Account[],
+    initialDataUpdatedAt: 0,
   });
 }

@@ -9,5 +9,6 @@ export function useCategories(hid: string) {
     queryFn: () => financeApi.getCategories(hid),
     enabled: !!hid,
     initialData: [] as Category[],
+    initialDataUpdatedAt: 0,
   });
 }
