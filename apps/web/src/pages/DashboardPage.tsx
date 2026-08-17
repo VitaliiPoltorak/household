@@ -6,8 +6,16 @@ import { financeApi } from '../api/finance';
 import { CreateHouseholdModal } from '../components/households/CreateHouseholdModal';
 import { StatCard } from '../components/dashboard/StatCard';
 import { Section } from '../components/dashboard/Section';
+import { DonutChart, type DonutSlice } from '../components/dashboard/DonutChart';
 import { formatMoney } from '../lib/money';
 import { useRatesState, convert, BASE_CURRENCY_KEY } from '../hooks/useRates';
+import type { AccountSummary } from '../types/api';
+
+// Cap the "By account" chart at N slices so a household with 20 accounts
+// doesn't produce an unreadable ring; the tail is folded into a single
+// "Other" slice (its size is often small in practice — matches the
+// intuition that "top X sources of wealth" is what the user cares about).
+const MAX_ACCOUNT_SLICES = 6;
 
 const fmt = (n: number, currency = 'UAH') => formatMoney(n, currency, 'uk-UA');
 
@@ -157,6 +165,12 @@ export function DashboardPage() {
     return t('dashboard.rates.unavailableDesc');
   })();
 
+  // Chart datasets (#161) — computed in baseCurrency so slices are
+  // comparable. `null` when we can't produce honest numbers: multi-currency
+  // household without ready rates. Single-currency households (or the
+  // trivial all-in-base case) don't need rates and get charts immediately.
+  const chartData = buildChartData(accounts, baseCurrency, ratesState, t('dashboard.charts.other'));
+
   if (!activeHousehold) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-4">
@@ -234,6 +248,22 @@ export function DashboardPage() {
         </div>
       )}
 
+      {accounts.length > 0 && (
+        <Section title={t('dashboard.charts.title')}>
+          {chartData ? (
+            <div className="grid grid-cols-1 gap-6 rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900 sm:grid-cols-3">
+              <ChartPanel title={t('dashboard.charts.byType')} data={chartData.byType} baseCurrency={baseCurrency} />
+              <ChartPanel title={t('dashboard.charts.byAccount')} data={chartData.byAccount} baseCurrency={baseCurrency} />
+              <ChartPanel title={t('dashboard.charts.byCurrency')} data={chartData.byCurrency} baseCurrency={baseCurrency} />
+            </div>
+          ) : (
+            <div className="rounded-xl border border-gray-200 bg-white p-4 text-sm text-gray-500 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-400">
+              {t('dashboard.charts.ratesUnavailable')}
+            </div>
+          )}
+        </Section>
+      )}
+
       {summary && summary.accounts.length > 0 && (
         <Section title={t('dashboard.accounts')}>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -265,4 +295,95 @@ export function DashboardPage() {
       )}
     </div>
   );
+}
+
+// ──────────────────────────────────────────────
+// Chart section — small wrapper so each donut carries its own title
+// while sharing formatting with siblings.
+// ──────────────────────────────────────────────
+function ChartPanel({ title, data, baseCurrency }: {
+  title: string;
+  data: DonutSlice[];
+  baseCurrency: string;
+}) {
+  const format = (n: number) => formatMoney(n, baseCurrency, 'uk-UA');
+  return (
+    <div className="flex flex-col items-center gap-3">
+      <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">{title}</h3>
+      <DonutChart data={data} formatValue={format} formatTotal={format} />
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────
+// Chart data derivation — extracted so it's easy to reason about (and
+// unit-test in isolation later). Returns null when we can't honestly
+// produce baseCurrency-comparable slices (multi-currency household with
+// no ready rates).
+// ──────────────────────────────────────────────
+function buildChartData(
+  accounts: AccountSummary['accounts'],
+  baseCurrency: string,
+  ratesState: ReturnType<typeof useRatesState>,
+  otherLabel: string,
+): { byType: DonutSlice[]; byAccount: DonutSlice[]; byCurrency: DonutSlice[] } | null {
+  if (accounts.length === 0) return null;
+
+  const needsRates = accounts.some((a) => a.currency !== baseCurrency);
+  if (needsRates && ratesState.status !== 'ready') return null;
+
+  // Convert every account balance to baseCurrency up-front. If any leg
+  // fails to convert (rate map is missing that currency), we refuse the
+  // whole section — same discipline as the Total balance card.
+  const inBase: Array<{ id: string; name: string; type: string; currency: string; base: number }> = [];
+  for (const a of accounts) {
+    const raw = Number(a.balance);
+    if (!Number.isFinite(raw)) continue;
+    if (!needsRates) {
+      inBase.push({ id: a.id, name: a.name, type: a.type, currency: a.currency, base: raw });
+      continue;
+    }
+    if (ratesState.status !== 'ready') return null;
+    const c = convert(raw, a.currency, baseCurrency, ratesState.rates);
+    if (c === null) return null;
+    inBase.push({ id: a.id, name: a.name, type: a.type, currency: a.currency, base: c });
+  }
+
+  // Positive balances only — donuts of "how wealth is distributed" don't
+  // make sense with negative slices (a credit card in the red would flip
+  // the ring). Users still see per-account raw numbers below.
+  const positive = inBase.filter((a) => a.base > 0);
+
+  const groupBy = <T,>(items: T[], keyOf: (t: T) => string, valueOf: (t: T) => number, labelOf: (t: T) => string): DonutSlice[] => {
+    const map = new Map<string, { label: string; value: number }>();
+    for (const it of items) {
+      const key = keyOf(it);
+      const cur = map.get(key);
+      if (cur) cur.value += valueOf(it);
+      else map.set(key, { label: labelOf(it), value: valueOf(it) });
+    }
+    return Array.from(map, ([key, { label, value }]) => ({ key, label, value }))
+      .sort((a, b) => b.value - a.value);
+  };
+
+  const byType = groupBy(positive, (a) => a.type, (a) => a.base, (a) => a.type);
+  const byCurrency = groupBy(positive, (a) => a.currency, (a) => a.base, (a) => a.currency);
+
+  // By-account: top N + "Other" bucket so the ring stays readable for
+  // large households.
+  const perAccount: DonutSlice[] = positive
+    .map((a) => ({ key: a.id, label: a.name, value: a.base }))
+    .sort((a, b) => b.value - a.value);
+  const byAccount = perAccount.length <= MAX_ACCOUNT_SLICES
+    ? perAccount
+    : [
+        ...perAccount.slice(0, MAX_ACCOUNT_SLICES),
+        {
+          key: '__other__',
+          label: otherLabel,
+          value: perAccount.slice(MAX_ACCOUNT_SLICES).reduce((s, x) => s + x.value, 0),
+        },
+      ];
+
+  return { byType, byAccount, byCurrency };
 }

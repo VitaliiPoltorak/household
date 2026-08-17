@@ -22,8 +22,10 @@ describe('DashboardPage', () => {
   it('shows account grid from API response', async () => {
     renderWithProviders(<DashboardPage />);
 
+    // "Mono Card" now appears both in the accounts grid and (#161) in the
+    // "By account" chart legend, so multiple hits are expected.
     await waitFor(() => {
-      expect(screen.getByText('Mono Card')).toBeInTheDocument();
+      expect(screen.getAllByText('Mono Card').length).toBeGreaterThanOrEqual(1);
     });
   });
 
@@ -112,8 +114,10 @@ describe('DashboardPage', () => {
       renderWithProviders(<DashboardPage />);
 
       // 5000 UAH + (100 USD * 41.50) = 9150 UAH — must beat the backend's
-      // naïve 5100 sum and show the honest converted total.
-      await waitFor(() => expect(screen.getByText(/9[\s ,]?150,00/)).toBeInTheDocument(), { timeout: 3000 });
+      // naïve 5100 sum and show the honest converted total. Number now
+      // appears in the Total balance card AND in the chart centre-total
+      // (#161), so multiple matches are expected.
+      await waitFor(() => expect(screen.getAllByText(/9[\s ,]?150,00/).length).toBeGreaterThanOrEqual(1), { timeout: 3000 });
       expect(screen.getByText(/converted from 2 currencies/)).toBeInTheDocument();
     });
 
@@ -127,8 +131,11 @@ describe('DashboardPage', () => {
 
       renderWithProviders(<DashboardPage />);
 
+      // "unavailable" now appears in Total balance + income + expense cards
+      // *and* in the chart section's "Charts hidden — exchange rates
+      // unavailable" copy (#161). Multiple matches expected.
       await waitFor(
-        () => expect(screen.getByText(/unavailable/)).toBeInTheDocument(),
+        () => expect(screen.getAllByText(/unavailable/).length).toBeGreaterThanOrEqual(1),
         { timeout: 3000 },
       );
       // Backend's naïve 5100 sum must NOT leak through as the total.
@@ -149,11 +156,10 @@ describe('DashboardPage', () => {
 
       renderWithProviders(<DashboardPage />);
 
-      // In USD base: 100 USD + (5000 UAH / 41.50) ≈ 220.48 USD.
-      // Use a loose regex on the digit sequence — the currency symbol
-      // formatting differs by locale.
+      // In USD base: 100 USD + (5000 UAH / 41.50) ≈ 220.48 USD. Shown in
+      // both the Total balance card and the chart centre-total (#161).
       await waitFor(
-        () => expect(screen.getByText(/220,48/)).toBeInTheDocument(),
+        () => expect(screen.getAllByText(/220,48/).length).toBeGreaterThanOrEqual(1),
         { timeout: 3000 },
       );
     });
@@ -162,8 +168,12 @@ describe('DashboardPage', () => {
       // Default handler already returns a single UAH account; just assert the
       // breakdown panel is absent and no rates request would be needed.
       renderWithProviders(<DashboardPage />);
-      await waitFor(() => expect(screen.getByText('Mono Card')).toBeInTheDocument());
-      expect(screen.queryByText(/By currency/)).not.toBeInTheDocument();
+      await waitFor(() => expect(screen.getAllByText('Mono Card').length).toBeGreaterThanOrEqual(1));
+      // The per-currency breakdown badge is a "<span> By currency: </span>"
+      // (dashboard.byCurrency). Chart panels also carry a "By currency"
+      // title (dashboard.charts.byCurrency). Use an exact-only search that
+      // excludes the badge form (which is followed by a colon).
+      expect(screen.queryByText(/By currency:/)).not.toBeInTheDocument();
       expect(screen.queryByText(/mixed currencies/)).not.toBeInTheDocument();
     });
   });
@@ -244,11 +254,106 @@ describe('DashboardPage', () => {
       // Regression check that we didn't break the base case.
       renderWithProviders(<DashboardPage />);
 
-      await waitFor(() => expect(screen.getByText('Mono Card')).toBeInTheDocument());
-      // Default MSW monthly handler returns UAH income = 5000.
-      // Total balance card also shows 5000 UAH → we assert the count.
+      await waitFor(() => expect(screen.getAllByText('Mono Card').length).toBeGreaterThanOrEqual(1));
+      // Default MSW monthly handler returns UAH income = 5000. Total
+      // balance card also shows 5000 UAH; chart centre-total adds a third.
       const uahAmounts = screen.getAllByText(/5[\s ,]?000,00/);
-      expect(uahAmounts.length).toBeGreaterThanOrEqual(2); // total balance + income card
+      expect(uahAmounts.length).toBeGreaterThanOrEqual(2);
+    });
+  });
+
+  describe('Wealth breakdown charts (#161)', () => {
+    const UAH_ACCOUNT = { ...MOCK_ACCOUNT, id: 'acc-uah', name: 'UAH Bank', type: 'bank', currency: 'UAH', balance: 5000 };
+    const USD_ACCOUNT = { ...MOCK_ACCOUNT, id: 'acc-usd', name: 'USD Savings', type: 'bank', currency: 'USD', balance: 100 };
+    const CASH_ACCOUNT = { ...MOCK_ACCOUNT, id: 'acc-cash', name: 'Wallet', type: 'cash', currency: 'UAH', balance: 200 };
+
+    beforeEach(() => {
+      localStorage.removeItem('accounts:ratesCache');
+      localStorage.setItem('accounts:baseCurrency', 'UAH');
+    });
+
+    it('renders three charts when household is single-currency (no rates needed)', async () => {
+      server.use(
+        http.get('/api/v1/accounts/summary', () =>
+          HttpResponse.json({ totalBalance: 5200, accounts: [UAH_ACCOUNT, CASH_ACCOUNT] }),
+        ),
+      );
+
+      renderWithProviders(<DashboardPage />);
+
+      await waitFor(() => expect(screen.getByText('Wealth breakdown')).toBeInTheDocument(), { timeout: 3000 });
+      expect(screen.getByText('By account type')).toBeInTheDocument();
+      expect(screen.getByText('By account')).toBeInTheDocument();
+      // "By currency" also appears as the section heading elsewhere on the
+      // page (locale key "dashboard.byCurrency"), so scope the check to
+      // the h3 title of the third chart panel.
+      const headings = screen.getAllByRole('heading', { level: 3 });
+      expect(headings.some((h) => h.textContent === 'By currency')).toBe(true);
+
+      // Legend labels reflect the two account types — "bank" also appears
+      // in the account grid tile below, hence getAllByText.
+      expect(screen.getAllByText('bank').length).toBeGreaterThanOrEqual(1);
+      expect(screen.getAllByText('cash').length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('renders charts when multi-currency + rates are ready', async () => {
+      server.use(
+        http.get('/api/v1/accounts/summary', () =>
+          HttpResponse.json({ totalBalance: 5100, accounts: [UAH_ACCOUNT, USD_ACCOUNT] }),
+        ),
+        http.get('/api/v1/rates/latest', () =>
+          HttpResponse.json([{ ccy: 'USD', base_ccy: 'UAH', buy: '41.50', sale: '42.00' }]),
+        ),
+      );
+
+      renderWithProviders(<DashboardPage />);
+
+      // Wait for chart panel titles — appear only once chartData is
+      // non-null (rates ready). Charts hidden with "Charts hidden" text
+      // until then.
+      await waitFor(
+        () => expect(screen.getByText('By account type')).toBeInTheDocument(),
+        { timeout: 3000 },
+      );
+      // "By currency" legend row shows both currency labels.
+      const uahLabels = screen.getAllByText('UAH');
+      expect(uahLabels.length).toBeGreaterThanOrEqual(1);
+      const usdLabels = screen.getAllByText('USD');
+      expect(usdLabels.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('hides charts and shows "rates unavailable" when multi-currency and rates fail', async () => {
+      server.use(
+        http.get('/api/v1/accounts/summary', () =>
+          HttpResponse.json({ totalBalance: 5100, accounts: [UAH_ACCOUNT, USD_ACCOUNT] }),
+        ),
+        http.get('/api/v1/rates/latest', () => new HttpResponse(null, { status: 503 })),
+      );
+
+      renderWithProviders(<DashboardPage />);
+
+      await waitFor(
+        () => expect(screen.getByText(/Charts hidden — exchange rates unavailable/)).toBeInTheDocument(),
+        { timeout: 3000 },
+      );
+      // The chart panel titles must NOT be rendered when the honest data
+      // isn't available.
+      expect(screen.queryByText('By account type')).not.toBeInTheDocument();
+      expect(screen.queryByText('By account')).not.toBeInTheDocument();
+    });
+
+    it('omits the chart section entirely when the household has no accounts', async () => {
+      server.use(
+        http.get('/api/v1/accounts/summary', () =>
+          HttpResponse.json({ totalBalance: 0, accounts: [] }),
+        ),
+      );
+
+      renderWithProviders(<DashboardPage />);
+
+      // Wait for header to render so we know the page loaded.
+      await waitFor(() => expect(screen.getByText('Total balance')).toBeInTheDocument(), { timeout: 3000 });
+      expect(screen.queryByText('Wealth breakdown')).not.toBeInTheDocument();
     });
   });
 });

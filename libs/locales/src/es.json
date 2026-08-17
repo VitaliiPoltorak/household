@@ -60,6 +60,15 @@
       "loading": "Obteniendo tipos de cambio…",
       "unavailableShort": "no disponible",
       "unavailableDesc": "Tipos de cambio no disponibles — total oculto"
+    },
+    "charts": {
+      "title": "Distribución del patrimonio",
+      "byType": "Por tipo de cuenta",
+      "byAccount": "Por cuenta",
+      "byCurrency": "Por moneda",
+      "other": "Otros",
+      "empty": "Añade una cuenta para ver los gráficos",
+      "ratesUnavailable": "Gráficos ocultos — tipos de cambio no disponibles"
     }
   },
   "accounts": {

@@ -60,6 +60,15 @@
       "loading": "Fetching exchange rates…",
       "unavailableShort": "unavailable",
       "unavailableDesc": "Exchange rates unavailable — grand total hidden"
+    },
+    "charts": {
+      "title": "Wealth breakdown",
+      "byType": "By account type",
+      "byAccount": "By account",
+      "byCurrency": "By currency",
+      "other": "Other",
+      "empty": "Add an account to see charts",
+      "ratesUnavailable": "Charts hidden — exchange rates unavailable"
     }
   },
   "accounts": {
