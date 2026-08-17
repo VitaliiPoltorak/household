@@ -137,11 +137,12 @@ export function DonutChart({
                 r={radius}
                 fill="none"
                 stroke={s.color}
-                strokeWidth={hovered === s.index ? thickness + 4 : thickness}
+                strokeWidth={thickness}
+                strokeOpacity={hovered === s.index ? 1 : 0.7}
                 strokeDasharray={`${s.dashLen} ${circumference - s.dashLen}`}
                 strokeDashoffset={s.offset}
                 onMouseEnter={() => setHovered(s.index)}
-                style={{ cursor: 'pointer', transition: 'stroke-width 120ms ease' }}
+                style={{ cursor: 'pointer', transition: 'stroke-opacity 120ms ease' }}
               />
             ))}
           </g>
