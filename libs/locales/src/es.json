@@ -87,6 +87,10 @@
     "loading": "Cargando…",
     "quickTx": "Transacción rápida",
     "adjustBalance": "Ajustar saldo",
+    "view": {
+      "grid": "Vista de cuadrícula",
+      "list": "Vista de lista"
+    },
     "adjust": {
       "current": "Saldo actual",
       "newBalance": "Nuevo saldo",

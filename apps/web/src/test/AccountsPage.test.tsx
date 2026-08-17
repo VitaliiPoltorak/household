@@ -7,6 +7,12 @@ import { server } from './setup';
 import { MOCK_ACCOUNT } from './handlers';
 
 describe('AccountsPage', () => {
+  beforeEach(() => {
+    // View toggle is persisted globally; reset so cases don't leak into
+    // each other (#164).
+    localStorage.removeItem('accounts:view');
+  });
+
   it('renders list of accounts from API', async () => {
     renderWithProviders(<AccountsPage />);
     await waitFor(() => expect(screen.getByText('Mono Card')).toBeInTheDocument(), { timeout: 3000 });
@@ -171,6 +177,79 @@ describe('AccountsPage', () => {
       // Simple total renders, no banner, no rates request
       expect(screen.queryByText(/Exchange rates unavailable/)).not.toBeInTheDocument();
       expect(pbCalls).toBe(0);
+    });
+  });
+
+  describe('View toggle (#164)', () => {
+    // A dedicated fixture with >1 account so grid (multi cards) vs list
+    // (single <ul>) is visually distinguishable in the DOM tree.
+    const TWO_ACCOUNTS = [
+      { ...MOCK_ACCOUNT, id: 'a1', name: 'Alpha Bank' },
+      { ...MOCK_ACCOUNT, id: 'a2', name: 'Beta Cash', type: 'cash' as const },
+    ];
+
+    it('renders in grid view by default (no <ul role="list">)', async () => {
+      server.use(http.get('/api/v1/accounts', () => HttpResponse.json(TWO_ACCOUNTS)));
+
+      renderWithProviders(<AccountsPage />);
+      await waitFor(() => screen.getByText('Alpha Bank'), { timeout: 3000 });
+
+      // AccountRow renders as <li> inside a <ul role="list">. Grid uses
+      // plain <div>s — so absence of role="list" ≡ grid mode.
+      expect(screen.queryByRole('list')).not.toBeInTheDocument();
+    });
+
+    it('switches to list view and persists the choice to localStorage', async () => {
+      server.use(http.get('/api/v1/accounts', () => HttpResponse.json(TWO_ACCOUNTS)));
+
+      renderWithProviders(<AccountsPage />);
+      await waitFor(() => screen.getByText('Alpha Bank'), { timeout: 3000 });
+
+      await userEvent.click(screen.getByRole('button', { name: 'List view' }));
+
+      // Now rendered as a role="list" with two <li> children.
+      const listEl = await screen.findByRole('list');
+      expect(listEl).toBeInTheDocument();
+      expect(screen.getAllByRole('listitem')).toHaveLength(2);
+
+      expect(localStorage.getItem('accounts:view')).toBe('list');
+
+      // aria-pressed reflects active state so the toggle is a11y-correct.
+      expect(screen.getByRole('button', { name: 'List view' })).toHaveAttribute('aria-pressed', 'true');
+      expect(screen.getByRole('button', { name: 'Grid view' })).toHaveAttribute('aria-pressed', 'false');
+    });
+
+    it('restores list view from localStorage on next mount', async () => {
+      localStorage.setItem('accounts:view', 'list');
+      server.use(http.get('/api/v1/accounts', () => HttpResponse.json(TWO_ACCOUNTS)));
+
+      renderWithProviders(<AccountsPage />);
+      await waitFor(() => screen.getByText('Alpha Bank'), { timeout: 3000 });
+
+      expect(screen.getByRole('list')).toBeInTheDocument();
+      expect(screen.getAllByRole('listitem')).toHaveLength(2);
+    });
+
+    it('archive action works in list view (shared handlers via useAccountActions)', async () => {
+      // Prove list ≠ dead UI: the same mutation fires and the DOM updates.
+      let archived = false;
+      localStorage.setItem('accounts:view', 'list');
+      server.use(
+        http.get('/api/v1/accounts', () => HttpResponse.json(archived ? [TWO_ACCOUNTS[1]] : TWO_ACCOUNTS)),
+        http.delete('/api/v1/accounts/:id', () => {
+          archived = true;
+          return new HttpResponse(null, { status: 204 });
+        }),
+      );
+
+      renderWithProviders(<AccountsPage />);
+      await waitFor(() => screen.getByText('Alpha Bank'), { timeout: 3000 });
+
+      // Two rows → two 🗑 buttons. Click the first (Alpha Bank's row).
+      await userEvent.click(screen.getAllByText('🗑')[0]);
+
+      await waitFor(() => expect(screen.queryByText('Alpha Bank')).not.toBeInTheDocument(), { timeout: 3000 });
+      expect(screen.getByText('Beta Cash')).toBeInTheDocument();
     });
   });
 });
