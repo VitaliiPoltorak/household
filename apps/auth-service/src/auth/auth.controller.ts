@@ -28,6 +28,11 @@ import {
   OAuthAuthDto,
 } from './dto/oauth-callback.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
+import { RegisterDto } from './dto/register.dto';
+import { VerifyEmailDto } from './dto/verify-email.dto';
+import { ResendVerificationDto } from './dto/resend-verification.dto';
+import { LoginWithPasswordDto } from './dto/login-with-password.dto';
+import { UnlockAccountDto } from './dto/unlock-account.dto';
 import {
   clearAuthCookies,
   generateCsrfToken,
@@ -57,6 +62,72 @@ export class AuthController {
     // Browsers require SameSite=None cookies to also be Secure — EXCEPT on
     // localhost, where Chrome/FF allow Secure over http.
     this.cookieSecure = config.get<string>('AUTH_COOKIE_SECURE', 'true') !== 'false';
+  }
+
+  @Post('register')
+  @HttpCode(HttpStatus.ACCEPTED)
+  @ApiOperation({
+    summary: 'Register with email + password (mailbox verification required)',
+  })
+  async register(@Body() dto: RegisterDto) {
+    const result = await this.auth.register({
+      email: dto.email,
+      password: dto.password,
+      displayName: dto.displayName,
+    });
+    // 202 + narrow body: no access token yet, the caller must verify first.
+    return { userId: result.userId, email: result.email };
+  }
+
+  @Post('verify-email')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Confirm the 6-digit code and sign in',
+  })
+  async verifyEmail(
+    @Body() dto: VerifyEmailDto,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<LoginResponse> {
+    const tokens = await this.auth.verifyEmail({
+      email: dto.email,
+      code: dto.code,
+      deviceInfo: dto.deviceInfo,
+    });
+    return this.buildLoginResponse(tokens, res);
+  }
+
+  @Post('verify-email/resend')
+  @HttpCode(HttpStatus.ACCEPTED)
+  @ApiOperation({ summary: 'Regenerate the verification code' })
+  async resendVerification(@Body() dto: ResendVerificationDto) {
+    // Uniform 202 no matter what the underlying state is — do not disclose
+    // whether the email is registered or already verified.
+    await this.auth.resendVerification(dto.email);
+    return { ok: true };
+  }
+
+  @Post('login')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Sign in with email + password' })
+  async login(
+    @Body() dto: LoginWithPasswordDto,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<LoginResponse> {
+    const tokens = await this.auth.loginWithPassword({
+      email: dto.email,
+      password: dto.password,
+      deviceInfo: dto.deviceInfo,
+    });
+    return this.buildLoginResponse(tokens, res);
+  }
+
+  @Post('unlock')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary: 'Consume a single-use unlock token from the account-locked email',
+  })
+  async unlock(@Body() dto: UnlockAccountDto): Promise<void> {
+    await this.auth.unlockAccount(dto.token);
   }
 
   // Provider-specific endpoints are retained for backward compatibility with

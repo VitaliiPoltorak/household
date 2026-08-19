@@ -17,3 +17,17 @@ delete process.env.GATEWAY_SIGNING_SECRET;
 if (!process.env.JWT_SECRET) {
   process.env.JWT_SECRET = 'test-jwt-secret';
 }
+
+// Argon2id at production parameters (m=19456,t=2) takes ~40 ms per hash on
+// commodity hardware — across the full email/password integration suite
+// that adds up to minutes. Drop to the crate's floor (m=8,t=1) in test only;
+// production still enforces OWASP baseline via PasswordHasherService's
+// startup guard.
+if (!process.env.ARGON2_MEMORY_KIB) process.env.ARGON2_MEMORY_KIB = '8';
+if (!process.env.ARGON2_ITERATIONS) process.env.ARGON2_ITERATIONS = '1';
+if (!process.env.ARGON2_PARALLELISM) process.env.ARGON2_PARALLELISM = '1';
+
+// Skip the Have-I-Been-Pwned network call — integration tests must be
+// hermetic. The HibpService unit spec covers the real client behaviour
+// against a mocked fetch.
+if (!process.env.HIBP_ENABLED) process.env.HIBP_ENABLED = 'false';

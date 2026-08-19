@@ -42,7 +42,7 @@ export class UsersService {
   }
 
   async findByEmail(email: string): Promise<User | null> {
-    return this.userRepo.findOne({ where: { email } });
+    return this.userRepo.findOne({ where: { email: email.toLowerCase() } });
   }
 
   async findByProvider(
@@ -73,9 +73,11 @@ export class UsersService {
     }
 
     user = this.userRepo.create({
-      email: profile.email,
+      email: profile.email.toLowerCase(),
       displayName: profile.displayName,
       avatarUrl: profile.avatarUrl ?? null,
+      // Provider already verified the mailbox — no need to send our own code.
+      emailVerifiedAt: new Date(),
     });
     user = await this.userRepo.save(user);
 
@@ -88,6 +90,40 @@ export class UsersService {
     );
 
     return { user, isNew: true };
+  }
+
+  /**
+   * Creates an unverified user for the manual email/password flow. Caller is
+   * responsible for hashing the password and issuing the verification code —
+   * this method just handles the row.
+   */
+  async createWithPassword(input: {
+    email: string;
+    displayName: string;
+    passwordHash: string;
+  }): Promise<User> {
+    const user = this.userRepo.create({
+      email: input.email.toLowerCase(),
+      displayName: input.displayName,
+      passwordHash: input.passwordHash,
+      avatarUrl: null,
+      emailVerifiedAt: null,
+    });
+    return this.userRepo.save(user);
+  }
+
+  async markEmailVerified(userId: string): Promise<void> {
+    await this.userRepo.update(userId, { emailVerifiedAt: new Date() });
+  }
+
+  /**
+   * Replaces the stored hash without touching any other field. Called by the
+   * login flow when the stored parameters fall below current Argon2 policy
+   * (see PasswordHasherService.needsRehash) so users migrate to stronger
+   * settings on next successful sign-in without any user-facing prompt.
+   */
+  async updatePasswordHash(userId: string, passwordHash: string): Promise<void> {
+    await this.userRepo.update(userId, { passwordHash });
   }
 
   async updateProfile(

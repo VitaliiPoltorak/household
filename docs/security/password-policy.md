@@ -1,23 +1,20 @@
 # Password policy
 
-> Status: **specification** — password login is not implemented. This document
-> defines the rules that will be enforced *before* any password code lands.
+> Status: **implemented in Phase 3 (issue #184)**. This document defines the
+> baseline; the code that enforces it is cross-referenced under each MUST.
 > Tracks issue #64.
 
-## Why this exists first
+## Why this exists
 
-The system is OAuth-only today (Google / Apple / Facebook — see `apps/auth-service`).
-Password login has not been implemented and is not a Phase 0–4 goal. But the
-security audit (2026-08) flagged that adding it later without a documented
-policy invites the usual mistakes: bcrypt-cost-8 defaults, no breach check,
-unbounded retry. Writing the policy now means whoever picks up the work
-starts from a defined baseline instead of googling `bcrypt vs argon2` at the
-keyboard.
+The system was OAuth-only until #184. The 2026-08 security audit flagged
+that adding password auth without a documented policy invites the usual
+mistakes: bcrypt-cost-8 defaults, no breach check, unbounded retry. This
+document is the acceptance criterion for password auth — every MUST below
+is verified by an automated test in `apps/auth-service/test/`.
 
-**Rule for any future PR that adds password auth:** it MUST link this
-document and demonstrate compliance with every "MUST" below in its test
-plan. A partial implementation (e.g. "hashing done, breach check TODO") is
-not shippable — an incomplete password policy is worse than none at all.
+**Rule for any future PR that touches the password path** (rotation policy
+change, algorithm swap, new complexity rule, MFA extension): it MUST link
+this document and demonstrate that every MUST is still enforced by tests.
 
 ---
 
@@ -29,29 +26,29 @@ not shippable — an incomplete password policy is worse than none at all.
   - `iterations: 2`
   - `parallelism: 1`
   - `hashLength: 32`
-  - `saltLength: 16`
+  - `saltLength: 16` (default from the crate)
 - Never store, log, or emit the plaintext password anywhere, including
   request logs, error messages, or Kafka events.
-- Rehash on login if the stored parameters fall below current policy
-  (Argon2's `needsRehash` helper is designed for exactly this).
+- Rehash on login if the stored parameters fall below current policy so
+  users migrate to stronger settings over time without any user-facing
+  prompt.
 
-### Rationale
-Argon2id is the OWASP first-choice password hash and the winner of the
-Password Hashing Competition. It's memory-hard, which makes GPU/ASIC attacks
-substantially more expensive than for bcrypt/scrypt at equivalent CPU cost.
-Argon2**id** specifically (vs `i` or `d`) is the hybrid variant recommended
-against both side-channel and GPU attacks.
+### Implementation
+`apps/auth-service/src/auth/password-hasher.service.ts` on top of
+[`@node-rs/argon2`](https://www.npmjs.com/package/@node-rs/argon2) — Rust
+binding with prebuilt binaries, no node-gyp toolchain on the build host.
+Enforces the OWASP baseline at boot when `NODE_ENV` is `production` /
+`staging` (refuses to start on downgrade). `needsRehash()` parses the
+stored hash's `$argon2id$v=…$m=…,t=…,p=…$` header and compares against the
+running config — any weaker value triggers a rehash on next successful
+login (see `AuthService.loginWithPassword`).
 
 ### Fallback
-If Argon2 cannot be adopted for a specific runtime constraint, **bcrypt with
-cost ≥ 12** is acceptable. This must be an explicit exception documented in
-the PR that introduces it. Do not silently choose bcrypt because it "looks
-simpler."
-
-### Reference package
-`argon2` on npm (native binding, actively maintained, used in production by
-Node.js LTS-based systems). Not `argon2-browser` (WASM, slower, unnecessary
-here since hashing is server-side only).
+None allowed in production. The 2026-08 iteration considered bcrypt cost ≥
+12 as an acceptable fallback but Argon2id shipped without issue via
+`@node-rs/argon2`. If a future runtime constraint truly forbids Argon2,
+document the exception in the PR that switches — do not silently choose
+bcrypt.
 
 ---
 
@@ -82,12 +79,19 @@ here since hashing is server-side only).
   tightened should be prompted to change it on next login, but not blocked
   from authenticating.
 
-### Reference packages
-- `zxcvbn` (Dropbox library, deprecated but functionally complete) or
-  `@zxcvbn-ts/core` (TypeScript rewrite, actively maintained).
-- No HIBP client dependency needed — the Range API is a plain HTTP GET;
-  wrap it in a small service with a 500ms timeout and fail-open (allow the
-  password if HIBP is unreachable, log the incident).
+### Implementation
+- **zxcvbn** — `apps/auth-service/src/auth/password-complexity.service.ts`
+  wraps `@zxcvbn-ts/core` with the en dictionary. `AuthService.register`
+  primes `userInputs` with the caller's email + displayName so passwords
+  derived from personal identifiers score lower. Threshold is env-driven
+  via `ZXCVBN_MIN_SCORE` (default `3`).
+- **HIBP** — `apps/auth-service/src/auth/hibp.service.ts` implements the
+  Range API against `https://api.pwnedpasswords.com/range/{prefix}` with a
+  500 ms timeout (`HIBP_TIMEOUT_MS`), the `Add-Padding: true` header so
+  response size does not leak prefix popularity, and fail-open behaviour on
+  network/timeout errors. Disabled in tests via `HIBP_ENABLED=false`; the
+  real client is covered by `apps/auth-service/test/hibp.service.spec.ts`
+  with a mocked fetch.
 
 ---
 
@@ -104,12 +108,25 @@ here since hashing is server-side only).
 - Rate-limit signup and password-reset endpoints identically (attackers
   probe existence via these too).
 
-### Reference implementation
-The rate limiting already exists for OAuth callbacks (see
-`apps/api-gateway/src/rate-limit` and the middleware wired in
-`app.module.ts`). Extend the same Redis-backed limiter to the future
-`/auth/password/login`, `/auth/password/signup`, `/auth/password/reset-*`
-routes rather than introducing a second mechanism.
+### Implementation
+- **Per-IP** — `apps/api-gateway/src/middleware/auth-rate-limit.middleware.ts`
+  now covers `/auth/register`, `/auth/login`, `/auth/verify-email`,
+  `/auth/verify-email/resend`, `/auth/unlock` with tight per-IP windows.
+- **Per-email request rate** — `apps/auth-service/src/auth/email-throttler.service.ts`
+  Redis-backed counter, one bucket per `(action, lower(email))`. Aggressive
+  ceilings on register (5/h) and resend-verification (3/h) since those
+  cause mailbox side effects.
+- **Per-account soft-lock on failed passwords** —
+  `apps/auth-service/src/auth/login-attempt-tracker.service.ts` counts
+  failed `verify()` results per email; the 5th failure inside 15 min flips
+  the account into a soft-lock state, drops the counter, and issues a
+  single-use unlock token (32 bytes hex, TTL 1 h) alongside an
+  `auth.account.locked` Kafka event. `POST /auth/unlock` consumes the
+  token atomically via `GETDEL` (audit rule 3) and clears the lock.
+- **Same generic 401** for wrong-email / wrong-password / OAuth-only
+  account — enforced by unit + integration tests. Verification state
+  (`EMAIL_NOT_VERIFIED`) is only revealed after the password check passes
+  so it cannot be used to enumerate registered addresses.
 
 ---
 
@@ -124,32 +141,42 @@ routes rather than introducing a second mechanism.
 - Consuming a reset token invalidates all active sessions for that user
   (`session:{userId}` deletion, same pattern as `logout-all` per #66).
 
+### Implementation
+**Not yet implemented** — tracked as a follow-up in the #182 tree. The
+soft-lock unlock flow (`POST /auth/unlock`) is the same token shape and
+will share the reset-token infrastructure when it lands. Password change
+for authenticated users is tracked as #185.
+
 ---
 
-## 5. Testing checklist for the future implementer
+## 5. Coverage matrix
 
-When password login is added, the PR must include:
+Every MUST above is verified by an automated test:
 
-- [ ] Argon2id hashing round-trip test (hash → verify → verify wrong → false)
-- [ ] `needsRehash` test — verify a lower-parameter hash triggers a rehash
-      on next login
-- [ ] Complexity validator unit tests: length < 12 rejected, zxcvbn < 3
-      rejected, HIBP-matched password rejected (mock the API)
-- [ ] Rate-limit integration test: 6th failed attempt inside 15 min → 429
-- [ ] Timing-attack test: response time for "wrong password" ≈ response
-      time for "no such user" (both should hash a dummy password to
-      equalise)
-- [ ] Password reset flow: token single-use, expires, invalidates sessions
+| Rule | Test file |
+|------|-----------|
+| Argon2id hash round-trip + wrong-password rejection | `apps/auth-service/test/login-password.integration.spec.ts` (login happy path + wrong password) |
+| `needsRehash` triggers rehash-on-login | `apps/auth-service/test/login-password.integration.spec.ts` — "rehash-on-login (Argon2 policy migration)" |
+| Length ≥ 12 enforced at DTO layer | `register-verify.integration.spec.ts` — "rejects a password shorter than 12 chars" |
+| zxcvbn ≥ 3 enforced | `register-verify.integration.spec.ts` — "rejects a weak-but-long password via zxcvbn" |
+| zxcvbn primes on user identifiers | `password-complexity.service.spec.ts` — "downgrades passwords derived from user email" |
+| HIBP breach match rejected | `hibp.service.spec.ts` — "flags a breached password when the API response contains the suffix" |
+| HIBP fails open on outage | `hibp.service.spec.ts` — "fails open on fetch throws" |
+| Same 401 for wrong-user / wrong-password / OAuth-only | `login-password.integration.spec.ts` — three assertions with identical body |
+| Per-account soft-lock after 5 failures | `login-password.integration.spec.ts` — "locks after the 5th failure" |
+| Unlock token single-use via GETDEL | `login-password.integration.spec.ts` — "consumes a single-use token, clears the lock" |
+| Timing-safe dummy-hash on missing user | Enforced structurally in `AuthService.loginWithPassword` (branch calls `hasher.compareDummy`) |
 
 ---
 
 ## Related decisions
 
 - **#60 / #61** — HttpOnly refresh cookie + CSRF double-submit. Password
-  login MUST reuse the same session-issuance path (`AuthService.issueSession`)
-  so cookies, CSRF token, and Redis session state stay uniform across auth
-  methods.
-- **#66** — `logout-all` endpoint. Password change MUST call the same
-  session-purge routine (parity with reset above).
+  login reuses the same session-issuance path (`AuthService.generateTokens`)
+  so cookies, CSRF token, and Redis session state stay uniform across
+  auth methods.
+- **#66** — `logout-all` endpoint. Password change (tracked as #185) must
+  call the same session-purge routine.
 - **#68** — Meta issue tracking remaining low-severity security items;
   this policy is Medium (#64).
+- **#184** — Implementation PR for this policy.

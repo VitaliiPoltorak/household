@@ -13,7 +13,7 @@ Family finance & shopping management — NestJS microservices monorepo.
 | Real-time | Socket.IO + `@socket.io/redis-adapter` |
 | Web | React 18 + Vite 5 + TanStack Query + Tailwind CSS (class-based dark mode with light / dark / system toggle) |
 | i18n | react-i18next, shared `libs/locales` (en / uk / de / es) |
-| Auth | Google / Apple / Facebook OAuth · HttpOnly refresh cookie + CSRF (double-submit) · logout-all · Redis sessions |
+| Auth | Google / Apple / Facebook OAuth · Email + password with 6-digit mailbox verification · HttpOnly refresh cookie + CSRF (double-submit) · logout-all · Redis sessions |
 | Security | Helmet · gateway-signed trust headers · JWT algorithm allowlist · per-endpoint rate limiting · audit_log · Swagger gated behind `NODE_ENV !== 'production'` |
 | Mobile | React Native / Expo (Phase 5) |
 
@@ -24,7 +24,7 @@ Shared libraries in `libs/`: `common` (config, filters, JWT verify, gateway sign
 | Service | Port | Description |
 |---------|------|-------------|
 | api-gateway | 3000 | Single REST entry point, JWT auth, proxy, Swagger |
-| auth-service | 3001 | Google / Apple / Facebook OAuth, JWT, Redis sessions, public user directory |
+| auth-service | 3001 | Google / Apple / Facebook OAuth, email + password (with mailbox verification), JWT, Redis sessions, public user directory |
 | household-service | 3002 | Households, members, roles, invites |
 | finance-service | 3003 | Accounts, transactions (incl. cross-currency transfers), categories, recurring payments |
 | shopping-service | 3004 | Stores, products, shopping lists |
@@ -146,6 +146,12 @@ Copy `.env.example` to `.env`. Full annotated reference lives in [`.env.example`
 | `PROXY_ROUTES_JSON` / `PROXY_ROUTES_PATH` | ships with `apps/api-gateway/src/proxy/routes.default.json` | Override the gateway's proxy table without recompiling (#88). |
 | `THROTTLE_TTL` / `THROTTLE_LIMIT` | `60` / `100` | Redis rate limiting on `api-gateway`. |
 | `APPLE_CLIENT_ID` | — | Required for Apple login (App Store mandatory once other providers are enabled). |
+| `ARGON2_MEMORY_KIB` / `ARGON2_ITERATIONS` / `ARGON2_PARALLELISM` | `19456` / `2` / `1` | Argon2id parameters (OWASP 2024 baseline). Production refuses to start below these — see `docs/security/password-policy.md`. Tests use `8` / `1` / `1` for speed. |
+| `EMAIL_VERIFICATION_TTL_SEC` | `900` | How long a 6-digit signup code is valid (15 min). |
+| `EMAIL_VERIFICATION_MAX_ATTEMPTS` | `5` | Wrong-code attempts before the code is invalidated and the user must request a new one. |
+| `ZXCVBN_MIN_SCORE` | `3` | zxcvbn strength threshold for new passwords (0–4). Score 3 = "safely unguessable — moderate protection". |
+| `HIBP_ENABLED` / `HIBP_BASE_URL` / `HIBP_TIMEOUT_MS` | `true` / `https://api.pwnedpasswords.com/range` / `500` | Have-I-Been-Pwned Range API check on signup. Fails open on outage. Tests set `HIBP_ENABLED=false`. |
+| `LOGIN_MAX_FAILS` / `LOGIN_FAILS_WINDOW_SEC` / `LOGIN_LOCK_TTL_SEC` / `UNLOCK_TOKEN_TTL_SEC` | `5` / `900` / `3600` / `3600` | Per-account soft-lock after 5 failed password attempts in 15 min; unlock link valid for 1 h. |
 
 ## Development commands
 
