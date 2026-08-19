@@ -7,6 +7,44 @@ export interface LoginResponse {
   expiresIn: number;
 }
 
+/**
+ * Machine-readable `code` field the backend sets on 4xx bodies for the
+ * email/password flow (#184, #185). Kept in one place so error mappers
+ * cannot drift from what the server actually emits.
+ *   - EMAIL_NOT_VERIFIED   (403 on POST /auth/login)
+ *   - ACCOUNT_LOCKED       (403 on POST /auth/login after 5 fails)
+ *   - INVALID_UNLOCK_TOKEN (400 on POST /auth/unlock)
+ *   - CODE_INVALID / CODE_ATTEMPTS_EXHAUSTED / CODE_EXPIRED_OR_MISSING
+ *     (400 on POST /auth/verify-email)
+ *   - WEAK_PASSWORD / PASSWORD_PWNED / SAME_PASSWORD / NO_PASSWORD_SET
+ *     (400 on register / password-change)
+ */
+export type AuthErrorCode =
+  | 'EMAIL_NOT_VERIFIED'
+  | 'ACCOUNT_LOCKED'
+  | 'INVALID_UNLOCK_TOKEN'
+  | 'CODE_INVALID'
+  | 'CODE_ATTEMPTS_EXHAUSTED'
+  | 'CODE_EXPIRED_OR_MISSING'
+  | 'WEAK_PASSWORD'
+  | 'PASSWORD_PWNED'
+  | 'SAME_PASSWORD'
+  | 'NO_PASSWORD_SET';
+
+/** Extra fields the backend puts alongside `code` on the WEAK_PASSWORD body. */
+export interface WeakPasswordDetails {
+  code: 'WEAK_PASSWORD';
+  score: number;
+  warning?: string;
+  suggestions?: string[];
+}
+
+/** Register only echoes back the id + normalized email (no access token — verify first). */
+export interface RegisterResponse {
+  userId: string;
+  email: string;
+}
+
 export interface User {
   id: string;
   email: string;

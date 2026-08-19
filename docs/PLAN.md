@@ -815,7 +815,7 @@ pnpm test:integration                                       # all services
 
 ```
 ✔ React 18 + Vite 5 + TypeScript + TanStack Query + Tailwind
-✔ Auth flow — Google OAuth (@react-oauth/google), HttpOnly cookie refresh, CSRF header
+✔ Auth flow — Google OAuth (@react-oauth/google), email + password (register, verify-email, login, unlock, change-password) with react-hook-form + zod, HttpOnly cookie refresh, CSRF header
 ✔ Layout: sidebar, household switcher
 ✔ Pages:
     ✔ Dashboard (balances, upcoming payments)

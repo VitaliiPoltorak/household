@@ -11,7 +11,7 @@ Family finance & shopping management — NestJS microservices monorepo.
 | Cache / Sessions | Redis 7 |
 | Message bus | Apache Kafka (KRaft) — HMAC-signed envelopes, retry + DLQ |
 | Real-time | Socket.IO + `@socket.io/redis-adapter` |
-| Web | React 18 + Vite 5 + TanStack Query + Tailwind CSS (class-based dark mode with light / dark / system toggle) |
+| Web | React 18 + Vite 5 + TanStack Query + Tailwind CSS (class-based dark mode with light / dark / system toggle) · react-hook-form + zod for typed auth forms |
 | i18n | react-i18next, shared `libs/locales` (en / uk / de / es) |
 | Auth | Google / Apple / Facebook OAuth · Email + password with 6-digit mailbox verification · HttpOnly refresh cookie + CSRF (double-submit) · logout-all · Redis sessions |
 | Security | Helmet · gateway-signed trust headers · JWT algorithm allowlist · per-endpoint rate limiting · audit_log · Swagger gated behind `NODE_ENV !== 'production'` |
@@ -29,7 +29,7 @@ Shared libraries in `libs/`: `common` (config, filters, JWT verify, gateway sign
 | finance-service | 3003 | Accounts, transactions (incl. cross-currency transfers), categories, recurring payments |
 | shopping-service | 3004 | Stores, products, shopping lists |
 | realtime-gateway | 3010 | Socket.IO, presence, live updates |
-| **web** | **5173** | **React SPA — dashboard, finance, shopping, household** |
+| **web** | **5173** | **React SPA — dashboard, finance, shopping, household, email/password auth (register + verify + login + unlock + password change)** |
 
 ## Prerequisites
 

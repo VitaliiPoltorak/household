@@ -62,13 +62,27 @@ export const MOCK_TRANSACTION = {
 
 // --- Handlers ---
 export const handlers = [
-  // Auth
+  // Auth — OAuth + session lifecycle
   http.post(`${BASE}/auth/google`, () => HttpResponse.json(MOCK_LOGIN_RESPONSE)),
   http.post(`${BASE}/auth/refresh`, () => HttpResponse.json(MOCK_LOGIN_RESPONSE)),
   http.post(`${BASE}/auth/logout`, () => new HttpResponse(null, { status: 204 })),
   http.post(`${BASE}/auth/logout-all`, () => new HttpResponse(null, { status: 204 })),
   http.get(`${BASE}/auth/me`, () => HttpResponse.json(MOCK_USER)),
   http.patch(`${BASE}/auth/me`, () => HttpResponse.json(MOCK_USER)),
+
+  // Auth — email + password flow (#184, #185). Defaults are the happy path;
+  // individual tests override via server.use(...) for error cases.
+  http.post(`${BASE}/auth/register`, async ({ request }) => {
+    const body = (await request.json()) as { email: string };
+    return HttpResponse.json({ userId: 'user-new', email: body.email }, { status: 202 });
+  }),
+  http.post(`${BASE}/auth/verify-email`, () => HttpResponse.json(MOCK_LOGIN_RESPONSE)),
+  http.post(`${BASE}/auth/verify-email/resend`, () =>
+    HttpResponse.json({ ok: true }, { status: 202 }),
+  ),
+  http.post(`${BASE}/auth/login`, () => HttpResponse.json(MOCK_LOGIN_RESPONSE)),
+  http.post(`${BASE}/auth/unlock`, () => new HttpResponse(null, { status: 204 })),
+  http.post(`${BASE}/auth/password/change`, () => HttpResponse.json(MOCK_LOGIN_RESPONSE)),
 
   // Bulk public profile lookup for member lists (#166). Filters MOCK_USER-only
   // by default; individual tests can override with server.use(...) for
