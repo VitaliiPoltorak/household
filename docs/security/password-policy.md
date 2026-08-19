@@ -142,10 +142,17 @@ bcrypt.
   (`session:{userId}` deletion, same pattern as `logout-all` per #66).
 
 ### Implementation
-**Not yet implemented** — tracked as a follow-up in the #182 tree. The
-soft-lock unlock flow (`POST /auth/unlock`) is the same token shape and
-will share the reset-token infrastructure when it lands. Password change
-for authenticated users is tracked as #185.
+- **Authenticated password change** — `POST /auth/password/change` (#185).
+  Verifies `currentPassword` with Argon2, refuses OAuth-only accounts with
+  `NO_PASSWORD_SET`, runs the same zxcvbn + HIBP guards as register, plus
+  a `SAME_PASSWORD` guard. On success, `deleteAllUserSessions` revokes
+  every session (parity with `logout-all` per #66) and a fresh session is
+  issued for the calling device so the user stays signed in on the tab
+  they just used. Audit-logged via `@Audit()`.
+- **Password reset via email** — not yet implemented (`pwreset:{token}`
+  scheme is a follow-up in the #182 tree). The soft-lock unlock flow
+  (`POST /auth/unlock`) uses the same single-use token shape and will
+  share the reset-token infrastructure when it lands.
 
 ---
 
@@ -166,6 +173,10 @@ Every MUST above is verified by an automated test:
 | Per-account soft-lock after 5 failures | `login-password.integration.spec.ts` — "locks after the 5th failure" |
 | Unlock token single-use via GETDEL | `login-password.integration.spec.ts` — "consumes a single-use token, clears the lock" |
 | Timing-safe dummy-hash on missing user | Enforced structurally in `AuthService.loginWithPassword` (branch calls `hasher.compareDummy`) |
+| Authenticated password change: OAuth-only refused | `apps/auth-service/test/password-change.integration.spec.ts` — "rejects OAuth-only accounts with 400 NO_PASSWORD_SET" |
+| Password change: wrong current password → generic 401 | `password-change.integration.spec.ts` — "rejects wrong current password with generic 401" |
+| Password change: same-password reuse guard | `password-change.integration.spec.ts` — "rejects reuse of the same password with 400 SAME_PASSWORD" |
+| Password change: revokes every other session | `password-change.integration.spec.ts` — "revokes every prior session belonging to the user" |
 
 ---
 
