@@ -17,6 +17,14 @@ const AUTH_RULES: Rule[] = [
   { method: 'POST', pathPrefix: '/api/v1/auth/google', limit: 10, windowSeconds: 3600 },
   { method: 'POST', pathPrefix: '/api/v1/auth/apple', limit: 10, windowSeconds: 3600 },
   { method: 'POST', pathPrefix: '/api/v1/auth/facebook', limit: 10, windowSeconds: 3600 },
+  // Manual email/password (auth-service adds a per-email throttler on top of
+  // this per-IP one — see apps/auth-service/src/auth/email-throttler.service.ts).
+  // /verify-email/resend matches the /verify-email prefix intentionally: both
+  // deserve the same aggressive per-IP ceiling.
+  { method: 'POST', pathPrefix: '/api/v1/auth/register', limit: 20, windowSeconds: 3600 },
+  { method: 'POST', pathPrefix: '/api/v1/auth/verify-email', limit: 30, windowSeconds: 900 },
+  { method: 'POST', pathPrefix: '/api/v1/auth/login', limit: 30, windowSeconds: 900 },
+  { method: 'POST', pathPrefix: '/api/v1/auth/unlock', limit: 10, windowSeconds: 3600 },
 ];
 
 const logger = new Logger('AuthRateLimit');

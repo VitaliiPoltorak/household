@@ -14,6 +14,12 @@ import { AppleStrategy } from './strategies/apple.strategy';
 import { FacebookStrategy } from './strategies/facebook.strategy';
 import { OAUTH_STRATEGIES } from './strategies/oauth-strategy.interface';
 import { OAuthStrategyRegistry } from './strategies/oauth-strategy.registry';
+import { PasswordHasherService } from './password-hasher.service';
+import { EmailVerificationService } from './email-verification.service';
+import { EmailThrottlerService } from './email-throttler.service';
+import { HibpService } from './hibp.service';
+import { PasswordComplexityService } from './password-complexity.service';
+import { LoginAttemptTrackerService } from './login-attempt-tracker.service';
 @Module({
   imports: [
     UsersModule,
@@ -60,6 +66,12 @@ import { OAuthStrategyRegistry } from './strategies/oauth-strategy.registry';
       inject: [GoogleStrategy, AppleStrategy, FacebookStrategy],
     },
     OAuthStrategyRegistry,
+    PasswordHasherService,
+    EmailVerificationService,
+    EmailThrottlerService,
+    HibpService,
+    PasswordComplexityService,
+    LoginAttemptTrackerService,
   ],
 })
 export class AuthModule {}
