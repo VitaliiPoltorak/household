@@ -1,6 +1,8 @@
 import { fireEvent, screen, waitFor } from '@testing-library/react';
+import i18n from 'i18next';
 import { renderWithProviders } from './wrapper';
 import { LanguageSwitcher } from '../components/layout/LanguageSwitcher';
+import { supportedLngs } from '@household/locales';
 
 describe('LanguageSwitcher', () => {
   it('renders a single flag button (collapsed) by default', () => {
@@ -11,18 +13,17 @@ describe('LanguageSwitcher', () => {
     expect(screen.queryByRole('menu')).not.toBeInTheDocument();
   });
 
-  it('opens dropdown with all four languages on click', () => {
+  it('opens dropdown with all supported languages on click', () => {
     renderWithProviders(<LanguageSwitcher />, { preloadTokens: false });
     fireEvent.click(screen.getByRole('button'));
 
     expect(screen.getByRole('menu')).toBeInTheDocument();
-    // 4 language options
-    expect(screen.getAllByRole('menuitemradio')).toHaveLength(4);
-    // All labels present (English is the default active label)
-    expect(screen.getByText('English')).toBeInTheDocument();
-    expect(screen.getByText('Українська')).toBeInTheDocument();
-    expect(screen.getByText('Deutsch')).toBeInTheDocument();
-    expect(screen.getByText('Español')).toBeInTheDocument();
+    // One menu item per supported language
+    expect(screen.getAllByRole('menuitemradio')).toHaveLength(supportedLngs.length);
+    // Each language's native label (fetched via i18n, so this file stays English-only)
+    for (const lng of supportedLngs) {
+      expect(screen.getByText(i18n.t(`lang.${lng}`))).toBeInTheDocument();
+    }
   });
 
   it('marks the active language and closes on Escape', async () => {
@@ -43,7 +44,7 @@ describe('LanguageSwitcher', () => {
     renderWithProviders(<LanguageSwitcher />, { preloadTokens: false });
     fireEvent.click(screen.getByRole('button'));
 
-    const german = screen.getByText('Deutsch');
+    const german = screen.getByText(i18n.t('lang.de'));
     fireEvent.click(german);
 
     await waitFor(() => {
