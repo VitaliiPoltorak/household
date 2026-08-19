@@ -335,6 +335,106 @@ export class AuthService {
   }
 
   /**
+   * Authenticated password change. Reuses every guard from the register /
+   * login flows so a rotation cannot downgrade the account's security
+   * posture:
+   *   1. OAuth-only accounts (no passwordHash) are refused with a distinct
+   *      NO_PASSWORD_SET code so the client can route to a "set-initial-
+   *      password" flow (out of scope here).
+   *   2. currentPassword is verified with Argon2 verify — wrong current pw
+   *      returns the same generic 401 as login.
+   *   3. New password must pass zxcvbn + HIBP + SAME_PASSWORD checks. The
+   *      SAME_PASSWORD check is a UX guard, not a security one — reusing
+   *      the same string is not exploitable, but it defeats the point of
+   *      the operation.
+   *   4. All existing sessions are revoked (parity with policy §4 reset
+   *      flow and #66 logout-all). A fresh session is issued for the
+   *      calling device so the caller does not have to re-authenticate
+   *      immediately after changing the password.
+   */
+  async changePassword(
+    userId: string,
+    input: {
+      currentPassword: string;
+      newPassword: string;
+      deviceInfo?: string;
+    },
+  ): Promise<TokenPair> {
+    const user = await this.users.findById(userId);
+    if (!user) {
+      // JWT was valid but the user is gone. Treat as unauthenticated —
+      // this is the same shape the profile / logout-all endpoints return.
+      throw new UnauthorizedException('User not found');
+    }
+
+    if (!user.passwordHash) {
+      throw new BadRequestException({
+        code: 'NO_PASSWORD_SET',
+        message:
+          'This account signs in via an OAuth provider and does not have a password. Set an initial password from account settings first.',
+      });
+    }
+
+    // Per-email throttle — the same limiter that guards login / register /
+    // resend. Distinct action bucket so a burst of password-change requests
+    // doesn't block the user from logging in.
+    await this.emailThrottler.consume('password-change', user.email);
+
+    const currentOk = await this.hasher.compare(
+      input.currentPassword,
+      user.passwordHash,
+    );
+    if (!currentOk) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
+
+    const complexity = this.complexity.check(input.newPassword, [
+      user.email,
+      user.displayName,
+    ]);
+    if (!complexity.ok) {
+      throw new BadRequestException({
+        code: 'WEAK_PASSWORD',
+        message:
+          'New password is too easy to guess. Try a longer or less common phrase.',
+        score: complexity.score,
+        warning: complexity.warning,
+        suggestions: complexity.suggestions,
+      });
+    }
+
+    const breach = await this.hibp.check(input.newPassword);
+    if (breach.breached) {
+      throw new BadRequestException({
+        code: 'PASSWORD_PWNED',
+        message:
+          'This password has appeared in a public breach and is unsafe to use. Please choose another.',
+      });
+    }
+
+    // Reuse check runs LAST — after we've paid for zxcvbn + HIBP — because
+    // "same as current" is the least common case and Argon2 verify is
+    // expensive. Failing this returns a specific code the UI can act on
+    // ("your new password matches the old one").
+    if (await this.hasher.compare(input.newPassword, user.passwordHash)) {
+      throw new BadRequestException({
+        code: 'SAME_PASSWORD',
+        message: 'New password must be different from the current one.',
+      });
+    }
+
+    const newHash = await this.hasher.hash(input.newPassword);
+    await this.users.updatePasswordHash(user.id, newHash);
+
+    // Nuke every session — every device is signed out, including this one.
+    // Then issue a fresh session for the current device so the response
+    // carries valid cookies + access token and the caller stays signed in
+    // right here. Other devices will hit 401 on their next refresh.
+    await this.sessions.deleteAllUserSessions(user.id);
+    return this.generateTokens(user, input.deviceInfo);
+  }
+
+  /**
    * Consumes a single-use unlock token (from the account-locked email) and
    * clears the soft-lock. Returns 204 semantics — no body — so no
    * information leaks about which account the token belonged to.

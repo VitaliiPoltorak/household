@@ -33,6 +33,7 @@ import { VerifyEmailDto } from './dto/verify-email.dto';
 import { ResendVerificationDto } from './dto/resend-verification.dto';
 import { LoginWithPasswordDto } from './dto/login-with-password.dto';
 import { UnlockAccountDto } from './dto/unlock-account.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import {
   clearAuthCookies,
   generateCsrfToken,
@@ -128,6 +129,28 @@ export class AuthController {
   })
   async unlock(@Body() dto: UnlockAccountDto): Promise<void> {
     await this.auth.unlockAccount(dto.token);
+  }
+
+  @Post('password/change')
+  @HttpCode(HttpStatus.OK)
+  @Audit({ action: 'auth.password.change', resourceType: 'user' })
+  @ApiOperation({
+    summary:
+      'Change the account password. Revokes every other session and returns a fresh one for this device.',
+  })
+  @ApiHeader({ name: 'x-user-id', required: true })
+  async changePassword(
+    @Headers('x-user-id') userId: string,
+    @Body() dto: ChangePasswordDto,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<LoginResponse> {
+    this.requireUserId(userId);
+    const tokens = await this.auth.changePassword(userId, {
+      currentPassword: dto.currentPassword,
+      newPassword: dto.newPassword,
+      deviceInfo: dto.deviceInfo,
+    });
+    return this.buildLoginResponse(tokens, res);
   }
 
   // Provider-specific endpoints are retained for backward compatibility with

@@ -25,6 +25,9 @@ const AUTH_RULES: Rule[] = [
   { method: 'POST', pathPrefix: '/api/v1/auth/verify-email', limit: 30, windowSeconds: 900 },
   { method: 'POST', pathPrefix: '/api/v1/auth/login', limit: 30, windowSeconds: 900 },
   { method: 'POST', pathPrefix: '/api/v1/auth/unlock', limit: 10, windowSeconds: 3600 },
+  // Authenticated route, but still worth a per-IP ceiling — a compromised
+  // session should not be able to burn through password-change attempts.
+  { method: 'POST', pathPrefix: '/api/v1/auth/password/change', limit: 10, windowSeconds: 3600 },
 ];
 
 const logger = new Logger('AuthRateLimit');

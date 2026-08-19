@@ -152,6 +152,7 @@ Backend → Web → Mobile → Integrations → Deployment → App Store
 |----------------|
 | OAuth 2.0: Google, Apple, Facebook (all three strategies implemented; registration through `OAuthStrategyRegistry` — #85) |
 | Email + password with mandatory 6-digit mailbox verification, Argon2id hashing (OWASP 2024 params), zxcvbn ≥ 3, HIBP breach check, per-account soft-lock after 5 failed attempts with single-use unlock link — #184; full spec in `docs/security/password-policy.md` |
+| Authenticated password change (`POST /auth/password/change`) — reuses zxcvbn + HIBP + SAME_PASSWORD guards, revokes every other session on rotation, issues a fresh session for the calling device (#185) |
 | JWT access (15 min) + refresh (30 days), algorithm on an allowlist (#52) |
 | Refresh token in HttpOnly + Secure + SameSite=None cookie, paired CSRF double-submit cookie (#60, #61) |
 | Login from multiple devices; `POST /auth/logout-all` invalidates all sessions for the user (#66) |
@@ -163,11 +164,12 @@ Backend → Web → Mobile → Integrations → Deployment → App Store
 
 > **App Store:** if third-party social logins exist — **Sign in with Apple is mandatory** ([Guideline 4.8](https://developer.apple.com/app-store/review/guidelines/)).
 
-> **Password login (implemented in #184):** Argon2id via `@node-rs/argon2`,
-> zxcvbn ≥ 3, HIBP breach check (fail-open), per-account soft-lock with
-> unlock link. Full acceptance matrix in
+> **Password login (implemented in #184 + #185):** Argon2id via
+> `@node-rs/argon2`, zxcvbn ≥ 3, HIBP breach check (fail-open), per-account
+> soft-lock with unlock link, authenticated password change with full
+> session revocation. Full acceptance matrix in
 > [`docs/security/password-policy.md`](security/password-policy.md).
-> Password change endpoint (#185) and web UI (#186) ship separately.
+> Web UI (#186) ships separately.
 
 ---
 
@@ -502,6 +504,7 @@ Finance Service → Kafka: finance.transaction.created
 | POST | `/auth/verify-email/resend` | Regenerate the verification code (rate-limited per email + IP) |
 | POST | `/auth/login` | Email + password sign-in. 401 on wrong credentials; 403 `EMAIL_NOT_VERIFIED` if mailbox unconfirmed; 403 `ACCOUNT_LOCKED` after 5 failed attempts |
 | POST | `/auth/unlock` | Consume single-use unlock token from the account-locked email; clears the soft-lock |
+| POST | `/auth/password/change` | Authenticated. Rotate password (Argon2id, zxcvbn, HIBP, SAME_PASSWORD guard). Revokes every other session and returns a fresh one for this device (#185). Audit log |
 | POST | `/auth/refresh` | Refresh access token; reads HttpOnly cookie + `X-CSRF-Token` header (double-submit) |
 | POST | `/auth/logout` | Invalidate the current session; clears cookies |
 | POST | `/auth/logout-all` | Invalidate **all** sessions for the user (#66); audit log |
