@@ -226,6 +226,10 @@ Failures are logged, never blocking — the git operation succeeds either way.
 
 **Activation is opt-in** (git hooks are not auto-linked to `.githooks/` on clone): run `pnpm hooks:enable` once per clone. `pnpm hooks:disable` reverts.
 
+## Language policy
+
+**All project artifacts are English-only.** This includes: code, comments, commit messages, PR titles + bodies, GitHub issue titles + bodies, issue comments, documentation (README, PLAN, migration notes), env var names, log messages, error strings, and identifiers. Do NOT use Cyrillic (or any non-Latin script) anywhere in the repo or in GitHub metadata attached to it — even if the request that triggered the change was in another language. If you're translating an existing artifact that has non-English content, rewrite it in English rather than leaving mixed-language text.
+
 ## Documentation policy
 
 **Every PR must leave `README.md` and `docs/PLAN.md` accurate.** Before opening a PR, check whether your change invalidates anything in either file — new/removed service or port, new env var or command, changed architecture, completed/moved phase, new API endpoint category, changed dev workflow. If it does, update the docs in the **same PR**, not a follow-up.

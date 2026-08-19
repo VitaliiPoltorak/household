@@ -1,77 +1,77 @@
-# Household — план разработки
+# Household — Development Plan
 
-> Комплексное приложение для учёта финансов и совместных покупок в семье/домохозяйстве.
-> Цель проекта — углубление в backend, микросервисы, мобильную разработку.
+> A comprehensive app for tracking finances and shared shopping across a family / household.
+> Project goal — deepening backend, microservices, and mobile development skills.
 
 ---
 
-## Содержание
+## Table of contents
 
-1. [Видение и цели](#1-видение-и-цели)
-2. [Стек технологий](#2-стек-технологий)
-3. [Архитектура](#3-архитектура)
-4. [Микросервисы](#4-микросервисы)
-5. [Инфраструктура (Docker Compose)](#5-инфраструктура-docker-compose)
-6. [Модель данных](#6-модель-данных)
-7. [Kafka-события](#7-kafka-события)
-8. [API — все эндпоинты](#8-api--все-эндпоинты)
-9. [Фазы разработки](#9-фазы-разработки)
+1. [Vision and goals](#1-vision-and-goals)
+2. [Tech stack](#2-tech-stack)
+3. [Architecture](#3-architecture)
+4. [Microservices](#4-microservices)
+5. [Infrastructure (Docker Compose)](#5-infrastructure-docker-compose)
+6. [Data model](#6-data-model)
+7. [Kafka events](#7-kafka-events)
+8. [API — all endpoints](#8-api--all-endpoints)
+9. [Development phases](#9-development-phases)
 10. [MVP scope](#10-mvp-scope)
-11. [Деплой и App Store](#11-деплой-и-app-store)
-11a. [Аудиты 2026-08 (завершены)](#11a-аудиты-2026-08-завершены)
-12. [Открытые вопросы](#12-открытые-вопросы)
+11. [Deployment and App Store](#11-deployment-and-app-store)
+11a. [2026-08 audits (completed)](#11a-2026-08-audits-completed)
+12. [Open questions](#12-open-questions)
 13. [Real-time (Socket.IO)](#13-real-time-socketio)
 
 ---
 
-## 1. Видение и цели
+## 1. Vision and goals
 
-### Что делает приложение
+### What the app does
 
-| Модуль | Описание |
-|--------|----------|
-| **Финансы** | Накопления (наличка, банки, крипта), доходы из разных источников, расходы и подписки. В перспективе — автосинк с Monobank. |
-| **Покупки** | Списки по магазинам, «где обычно покупаем» vs «купить сейчас в другом месте», история цен. |
-| **Совместный доступ** | Несколько пользователей в одном пространстве: каждый вносит свои данные, видит общую картину, приглашает других. |
+| Module | Description |
+|--------|-------------|
+| **Finance** | Savings (cash, banks, crypto), income from various sources, expenses and subscriptions. Auto-sync with Monobank later. |
+| **Shopping** | Lists per store, "where we usually buy" vs "buy now somewhere else", price history. |
+| **Shared access** | Multiple users in one space: each contributes their data, sees the combined picture, invites others. |
 
-### Зачем микросервисы
+### Why microservices
 
-Проект — **учебный**: цель — пройти через реальные сложности (межсервисное взаимодействие, Kafka, Redis, отдельные БД, деплой). Архитектура **microservice-ready с первого дня**, но не 10 сервисов в MVP — см. [раздел 4](#4-микросервисы).
+This is a **learning project**: the goal is to go through real complexity (inter-service communication, Kafka, Redis, separate databases, deployment). Architecture is **microservice-ready from day one**, but not 10 services in the MVP — see [section 4](#4-microservices).
 
-### Порядок разработки
+### Development order
 
 ```
-Backend → Web → Mobile → Интеграции → Деплой → App Store
+Backend → Web → Mobile → Integrations → Deployment → App Store
 ```
 
 ---
 
-## 2. Стек технологий
+## 2. Tech stack
 
-| Слой | Технология | Комментарий |
-|------|------------|-------------|
-| Backend | **NestJS + TypeScript** | Monorepo, `@nestjs/microservices` для Kafka |
-| БД | **PostgreSQL** | Отдельная схема/БД на сервис (или schema-per-service) |
-| Кэш / сессии | **Redis** | Refresh tokens, rate limit, invite tokens, Socket.IO adapter |
-| Очереди | **Apache Kafka** | Межсервисные события; bridge → Socket.IO для real-time |
-| Real-time | **Socket.IO** | Совместное редактирование, присутствие, live-обновления |
-| Web | **React + Vite** | SPA за логином — SEO не нужен |
-| Mobile | **React Native** | Общие типы/контракты с web через shared lib; `socket.io-client` |
-| Контейнеризация | **Docker Compose** | Локально и как основа для prod |
-| API docs | **Swagger** | На API Gateway |
+| Layer | Technology | Notes |
+|-------|------------|-------|
+| Backend | **NestJS + TypeScript** | Monorepo, `@nestjs/microservices` for Kafka |
+| DB | **PostgreSQL** | Separate schema/DB per service (or schema-per-service) |
+| Cache / sessions | **Redis** | Refresh tokens, rate limit, invite tokens, Socket.IO adapter |
+| Queues | **Apache Kafka** | Inter-service events; bridge → Socket.IO for real-time |
+| Real-time | **Socket.IO** | Collaborative editing, presence, live updates |
+| Web | **React + Vite** | SPA behind login — SEO not needed |
+| Mobile | **React Native** | Shared types/contracts with web via shared lib; `socket.io-client` |
+| Containerisation | **Docker Compose** | Locally and as the basis for prod |
+| API docs | **Swagger** | On the API Gateway |
 
 ### React vs Next.js
 
-**Рекомендация: React (Vite), не Next.js.**
+**Recommendation: React (Vite), not Next.js.**
 
-- Приложение за авторизацией — SEO не важен.
-- Проще ментальная модель: один SPA ≈ один RN-клиент.
-- Меньше серверной сложности на этапе обучения backend.
-- Next.js имеет смысл позже, если появится публичный лендинг/блог.
+- The app is behind auth — SEO is irrelevant.
+- Simpler mental model: one SPA ≈ one RN client.
+- Less server complexity while learning backend.
+- Next.js makes sense later if a public landing/blog appears.
 
 ---
 
-## 3. Архитектура
+## 3. Architecture
 
 ```
 ┌──────────────────┐          ┌──────────────────┐
@@ -107,40 +107,40 @@ Backend → Web → Mobile → Интеграции → Деплой → App Sto
      PostgreSQL          Redis           Kafka
 ```
 
-**Принципы:**
+**Principles:**
 
-- Клиенты ходят по REST **только** через API Gateway.
-- WebSocket-соединения идут **только** через Realtime Gateway (отдельный сервис).
-- Сервисы общаются через **Kafka** (async) и **HTTP/gRPC** (sync, когда нужен немедленный ответ).
-- Realtime Gateway **слушает Kafka** и транслирует события в Socket.IO комнаты — сервисы не знают о клиентах напрямую.
-- Почти все сущности привязаны к `householdId` — мультитенантность на уровне домохозяйства.
-- JWT access token (короткий) + refresh token (в Redis).
-- Горизонтальное масштабирование Realtime Gateway — через `@socket.io/redis-adapter`.
+- Clients hit REST **only** through the API Gateway.
+- WebSocket connections go **only** through the Realtime Gateway (a separate service).
+- Services communicate via **Kafka** (async) and **HTTP/gRPC** (sync, when an immediate response is required).
+- Realtime Gateway **listens to Kafka** and forwards events to Socket.IO rooms — services never talk to clients directly.
+- Almost every entity is scoped to `householdId` — multi-tenancy at the household level.
+- Short-lived JWT access token + refresh token (in Redis).
+- Horizontal scaling of Realtime Gateway via `@socket.io/redis-adapter`.
 
 ---
 
-## 4. Микросервисы
+## 4. Microservices
 
-### Название «семьи» в продукте
+### Naming the "family" concept in the product
 
-| Вариант (UI) | Техническое имя | Плюсы |
-|--------------|-----------------|-------|
-| **Дом** | `household` | Нейтрально, не только про родственников |
-| Семья | `family` | Понятно, но узковато |
-| Пространство | `space` | Модно, но абстрактно |
+| Option (UI) | Technical name | Pros |
+|-------------|----------------|------|
+| **Home** | `household` | Neutral, not limited to relatives |
+| Family | `family` | Clear, but too narrow |
+| Space | `space` | Trendy, but abstract |
 
-**Рекомендация:** в API и коде — `household`, в UI — **«Дом»** (или «Наш дом»). Поддержка нескольких домохозяйств у одного пользователя (например, своя квартира + дача).
+**Recommendation:** in API and code — `household`; in UI — **"Home"** (or "Our home"). Support multiple households per user (e.g. own apartment + country house).
 
 ---
 
 ### 4.1 API Gateway
 
-| Ответственность |
-|-----------------|
-| Единая точка входа REST API |
-| JWT validation, проброс `userId` / `householdId` в заголовках |
+| Responsibility |
+|----------------|
+| Single REST API entry point |
+| JWT validation, forwarding `userId` / `householdId` in headers |
 | Rate limiting (Redis) |
-| Маршрутизация к внутренним сервисам |
+| Routing to internal services |
 | Swagger / OpenAPI |
 | CORS, request logging |
 
@@ -148,168 +148,168 @@ Backend → Web → Mobile → Интеграции → Деплой → App Sto
 
 ### 4.2 Auth Service
 
-| Ответственность |
-|-----------------|
-| OAuth 2.0: Google, Apple, Facebook (все три стратегии реализованы; регистрация через `OAuthStrategyRegistry` — #85) |
-| JWT access (15 мин) + refresh (30 дней), алгоритм в allowlist (#52) |
-| Refresh token в HttpOnly + Secure + SameSite=None cookie, парная CSRF-cookie double-submit (#60, #61) |
-| Логин из нескольких устройств; `POST /auth/logout-all` инвалидирует все сессии пользователя (#66) |
-| Session single-use с атомарным `GETDEL` в Redis (защита от race-condition при рефреше — #55) |
-| Сессии + rate-limit по эндпоинтам auth (#54) |
-| Профиль пользователя (`displayName`, `avatarUrl` с `@IsUrl({protocols:['http','https']})`, `locale`) |
-| Удаление аккаунта (GDPR-ready) |
-| Аудит-лог для logout-all и удаления аккаунта (`@Audit()` + `libs/audit` — #68.3) |
+| Responsibility |
+|----------------|
+| OAuth 2.0: Google, Apple, Facebook (all three strategies implemented; registration through `OAuthStrategyRegistry` — #85) |
+| JWT access (15 min) + refresh (30 days), algorithm on an allowlist (#52) |
+| Refresh token in HttpOnly + Secure + SameSite=None cookie, paired CSRF double-submit cookie (#60, #61) |
+| Login from multiple devices; `POST /auth/logout-all` invalidates all sessions for the user (#66) |
+| Single-use sessions with atomic `GETDEL` in Redis (protects against race conditions on refresh — #55) |
+| Sessions + rate limiting on auth endpoints (#54) |
+| User profile (`displayName`, `avatarUrl` validated with `@IsUrl({protocols:['http','https']})`, `locale`) |
+| Account deletion (GDPR-ready) |
+| Audit log for logout-all and account deletion (`@Audit()` + `libs/audit` — #68.3) |
 
-> **App Store:** если есть сторонние соцлогины — **Sign in with Apple обязателен** ([Guideline 4.8](https://developer.apple.com/app-store/review/guidelines/)).
+> **App Store:** if third-party social logins exist — **Sign in with Apple is mandatory** ([Guideline 4.8](https://developer.apple.com/app-store/review/guidelines/)).
 
-> **Password login (не реализован):** политика зафиксирована в
+> **Password login (not implemented):** the policy is captured in
 > [`docs/security/password-policy.md`](security/password-policy.md) (Argon2id,
-> zxcvbn ≥ 3, HIBP breach check, rate-limit + account lockout). Любой
-> будущий PR с паролями обязан ссылаться на этот документ и покрывать
-> его чеклист.
+> zxcvbn ≥ 3, HIBP breach check, rate limit + account lockout). Any future
+> PR introducing passwords must reference that document and satisfy its
+> checklist.
 
 ---
 
 ### 4.3 Household Service
 
-| Ответственность |
-|-----------------|
-| CRUD домохозяйств («Дом») |
-| Участники и роли (`MembersService` — выделен из HouseholdsService по SRP, #89) |
-| Приглашения (`InvitesService` — тоже отдельный, #89); email / ссылка / токен в Redis + запись в БД; TTL 7 дней; проверка на дубликат pending-invite (#68.7); email должен совпасть при accept (#76) |
-| Guard `canGrant()` против peer-level elevation (admin не может выдать admin/owner — #65) |
-| Переключение активного домохозяйства |
-| Kafka consumer `auth.user.deleted` → cascade cleanup memberships |
-| Kafka emitter `household.deleted` → finance/shopping consumers очищают свои схемы (#83.4) |
-| Аудит-лог для delete household, member role change, member remove, invite create/revoke/accept (#68.3) |
+| Responsibility |
+|----------------|
+| CRUD for households ("Home") |
+| Members and roles (`MembersService` — extracted from HouseholdsService by SRP, #89) |
+| Invites (`InvitesService` — also separated, #89); email / link / token in Redis + DB row; TTL 7 days; duplicate pending-invite guard (#68.7); email must match at accept time (#76) |
+| `canGrant()` guard against peer-level elevation (admin cannot grant admin/owner — #65) |
+| Switching the active household |
+| Kafka consumer `auth.user.deleted` → cascade cleanup of memberships |
+| Kafka emitter `household.deleted` → finance/shopping consumers clean up their schemas (#83.4) |
+| Audit log for delete household, member role change, member remove, invite create/revoke/accept (#68.3) |
 
-**Роли:**
+**Roles:**
 
-| Роль | Права |
-|------|-------|
-| `owner` | Всё + удаление дома, передача владения |
-| `admin` | Управление участниками, настройки |
-| `member` | CRUD своих и общих данных |
-| `viewer` | Только чтение |
+| Role | Rights |
+|------|--------|
+| `owner` | Everything + delete household, transfer ownership |
+| `admin` | Manage members, settings |
+| `member` | CRUD their own and shared data |
+| `viewer` | Read-only |
 
 ---
 
 ### 4.4 Finance Service
 
-| Ответственность |
-|-----------------|
-| Счета: cash, bank, crypto, investment, deposit; ручная корректировка баланса `POST /accounts/:id/adjust-balance` создаёт ADJUSTMENT-транзакцию для истории |
-| Транзакции: income, expense, transfer, adjustment; баланс аккаунта пересчитывается атомарно через `SELECT ... FOR UPDATE` (#70) и SQL-`SUM` для агрегации (#71); reverse-delta при удалении/апдейте (#69) |
-| Transfer — парные транзакции с явным `transferPairId`, удаление/апдейт как единое целое (#74) |
-| Категории: soft-delete (archive) → `GET /categories/:id/impact` показывает зависимые сущности → hard-delete только через `?permanent=true` когда impact==0 (#110–115) |
-| Источники дохода (зарплата, проект, дивиденды, аренда…) |
-| Регулярные платежи + `@nestjs/schedule` cron (#78); эндпоинт `GET /recurring-payments/upcoming` |
-| Отчёты: monthly / by-category / net-worth (`ReportsService` использует `TransactionQueryRepository` — #87) |
-| Kafka consumer `household.deleted` → полная очистка finance-схемы для этого домохозяйства (#83.4) |
-| Аудит-лог для delete account и delete transaction (#68.3) |
-| Все list-эндпоинты капнуты `LIST_HARD_LIMIT=1000` (#68.2) |
-| Курсы валют: cron 08:00 Kyiv тянет PrivatBank, сохраняет в `exchange_rates`; `GET /rates/latest` для конвертации в web; `GET /rates/history` — задел под графики динамики |
-| Привязка внешних транзакций (из Integration) к ручным |
+| Responsibility |
+|----------------|
+| Accounts: cash, bank, crypto, investment, deposit; manual balance adjustment `POST /accounts/:id/adjust-balance` creates an ADJUSTMENT transaction for history |
+| Transactions: income, expense, transfer, adjustment; account balance is recomputed atomically via `SELECT ... FOR UPDATE` (#70) and SQL `SUM` for aggregation (#71); reverse-delta on delete/update (#69) |
+| Transfer — paired transactions with an explicit `transferPairId`, deleted/updated as one unit (#74) |
+| Categories: soft-delete (archive) → `GET /categories/:id/impact` reveals dependent entities → hard-delete only via `?permanent=true` when impact == 0 (#110–115) |
+| Income sources (salary, project, dividends, rent…) |
+| Recurring payments + `@nestjs/schedule` cron (#78); endpoint `GET /recurring-payments/upcoming` |
+| Reports: monthly / by-category / net-worth (`ReportsService` uses `TransactionQueryRepository` — #87) |
+| Kafka consumer `household.deleted` → full cleanup of the finance schema for that household (#83.4) |
+| Audit log for delete account and delete transaction (#68.3) |
+| All list endpoints are capped by `LIST_HARD_LIMIT=1000` (#68.2) |
+| FX rates: 08:00 Kyiv cron pulls PrivatBank, stores in `exchange_rates`; `GET /rates/latest` for web multi-currency conversion; `GET /rates/history` — reserved for future dynamics charts |
+| Mapping external transactions (from Integration) to manual ones |
 
 ---
 
 ### 4.5 Shopping Service
 
-| Ответственность |
-|-----------------|
-| Магазины (супермаркеты, овощной, аптека…) |
-| Каталог товаров с привязкой к магазинам, все `storeId`-references проверяются на household-scope при create/update (#67) |
-| Списки покупок (активные / завершённые / архивные) |
-| Позиции списка (`ShoppingListItemsService` — выделен из ShoppingListsService по SRP, #91) |
-| «Предпочитаемый магазин» vs «купить сейчас в другом» |
-| Kafka consumer `household.deleted` → каскадная очистка stores/products/lists (items уходят через FK cascade, #83.4) |
-| История цен (опционально в MVP+) |
-| Отметка «куплено» с привязкой к транзакции (позже) |
+| Responsibility |
+|----------------|
+| Stores (supermarkets, greengrocer, pharmacy…) |
+| Product catalog linked to stores; every `storeId` reference is household-scope-checked on create/update (#67) |
+| Shopping lists (active / completed / archived) |
+| List items (`ShoppingListItemsService` — split out of ShoppingListsService by SRP, #91) |
+| "Preferred store" vs "buy now elsewhere" |
+| Kafka consumer `household.deleted` → cascade cleanup of stores/products/lists (items follow via FK cascade, #83.4) |
+| Price history (optional in MVP+) |
+| "Purchased" marker linked to a transaction (later) |
 
 ---
 
 ### 4.6 Integration Service
 
-| Ответственность |
-|-----------------|
-| Monobank: подключение, синк выписки, маппинг на счета |
-| Webhook / polling с учётом лимитов API |
-| Логи синхронизации |
-| *Позже:* курсы крипты, другие банки |
+| Responsibility |
+|----------------|
+| Monobank: connection, statement sync, mapping to accounts |
+| Webhook / polling honouring API limits |
+| Sync logs |
+| *Later:* crypto rates, other banks |
 
-**Monobank ограничения** (заложить в дизайн):
+**Monobank limits** (must be baked into the design):
 
-- Выписка: до **31 дня + 1 час** за запрос
-- Частота: **1 раз в 60 секунд** на токен
-- → Инкрементальный sync + очередь в Kafka
+- Statement: up to **31 days + 1 hour** per request
+- Frequency: **once per 60 seconds** per token
+- → Incremental sync + Kafka queue
 
 ---
 
 ### 4.7 Notification Service
 
-| Ответственность |
-|-----------------|
-| Email: приглашения, сбой синка |
-| Push (FCM / APNs) — после mobile |
-| In-app notifications (через Redis pub/sub или отдельная таблица) |
-| Напоминания о регулярных платежах |
+| Responsibility |
+|----------------|
+| Email: invites, sync failure |
+| Push (FCM / APNs) — after mobile |
+| In-app notifications (via Redis pub/sub or a dedicated table) |
+| Recurring payment reminders |
 
-*Можно отложить до Phase 3 — в MVP достаточно email через Auth/Household.*
+*Can be deferred to Phase 3 — in MVP email through Auth/Household is enough.*
 
 ---
 
 ### 4.8 Realtime Gateway
 
-| Ответственность |
-|-----------------|
-| WebSocket-сервер на базе Socket.IO (порт 3010) |
-| Аутентификация WS-соединения по JWT (handshake `auth.token`) |
-| Управление комнатами: `household:{householdId}` |
-| Присутствие (presence): кто онлайн в домохозяйстве |
-| Индикаторы редактирования: кто сейчас редактирует конкретную сущность |
-| Kafka Consumer → bridge в Socket.IO комнаты |
-| Горизонтальное масштабирование через `@socket.io/redis-adapter` |
+| Responsibility |
+|----------------|
+| WebSocket server on top of Socket.IO (port 3010) |
+| WS-connection auth via JWT (handshake `auth.token`) |
+| Room management: `household:{householdId}` |
+| Presence: who is online in the household |
+| Editing indicators: who is currently editing a specific entity |
+| Kafka Consumer → bridge into Socket.IO rooms |
+| Horizontal scaling via `@socket.io/redis-adapter` |
 
-> Клиенты подключаются **напрямую** к Realtime Gateway — он не проксируется через API Gateway (разные протоколы).
+> Clients connect **directly** to the Realtime Gateway — it is not proxied through the API Gateway (different protocols).
 
 ---
 
-## 5. Инфраструктура (Docker Compose)
+## 5. Infrastructure (Docker Compose)
 
 ```yaml
-# Сервисы приложения (все дockerized — образы household/<service>)
+# Application services (all dockerised — images household/<service>)
 api-gateway           # :3000  — LISTEN_HOST=0.0.0.0 (client edge)
-auth-service          # :3001  — LISTEN_HOST=127.0.0.1 по умолчанию, 0.0.0.0 в контейнерах
+auth-service          # :3001  — LISTEN_HOST=127.0.0.1 by default, 0.0.0.0 in containers
 household-service     # :3002
 finance-service       # :3003
 shopping-service      # :3004
 realtime-gateway      # :3010 (Socket.IO) — LISTEN_HOST=0.0.0.0 (client edge)
-integration-service   # Phase 3+ (не реализован)
-notification-service  # Phase 6 (не реализован)
+integration-service   # Phase 3+ (not implemented)
+notification-service  # Phase 6 (not implemented)
 
-# Инфраструктура (default profile)
-postgres              # 1 инстанс, schemas: auth, household, finance, shopping (+ audit_log в каждой)
+# Infrastructure (default profile)
+postgres              # 1 instance, schemas: auth, household, finance, shopping (+ audit_log in each)
 redis
 kafka (KRaft)
 
-# Dev-tools (profile: tools) — не запускаются в default,
-# чтобы копипаст docker-compose.yml на публичный хост не открыл БД/Kafka
+# Dev tools (profile: tools) — not started by default so that
+# copy-pasting docker-compose.yml onto a public host does not open DB / Kafka
 adminer               # :8080 — docker compose --profile tools up -d
 kafka-ui              # :8081
 ```
 
 ### Redis — use cases
 
-| Ключ / паттерн | Назначение |
-|----------------|------------|
+| Key / pattern | Purpose |
+|---------------|---------|
 | `session:{userId}` | Refresh token metadata |
 | `ratelimit:{ip}` | Rate limiting |
-| `invite:{token}` | Короткоживущие коды приглашений (TTL 7d) |
-| `sync:lock:{connectionId}` | Блокировка повторного sync Monobank |
-| `presence:{householdId}` | Hash: `userId → {name, avatar, editingEntity?, editingId?}` (TTL 90s, обновляется heartbeat) |
-| `socket.io:*` | Внутренние ключи `@socket.io/redis-adapter` для синхронизации комнат между инстансами |
+| `invite:{token}` | Short-lived invite codes (TTL 7d) |
+| `sync:lock:{connectionId}` | Prevent concurrent Monobank syncs |
+| `presence:{householdId}` | Hash: `userId → {name, avatar, editingEntity?, editingId?}` (TTL 90s, refreshed by heartbeat) |
+| `socket.io:*` | Internal keys of `@socket.io/redis-adapter` for cross-instance room sync |
 
-### Структура monorepo
+### Monorepo layout
 
 ```
 apps/
@@ -320,25 +320,25 @@ apps/
   shopping-service/     # :3004 — stores, products, lists + items
   realtime-gateway/     # :3010 — Socket.IO, Kafka bridge, presence
   web/                  # :5173 — React 18 + Vite SPA
-  integration-service/  # Phase 3 — Monobank sync (не реализован)
-  notification-service/ # Phase 6 — email + push (не реализован)
-  mobile/               # Phase 5 — React Native / Expo (не реализован)
+  integration-service/  # Phase 3 — Monobank sync (not implemented)
+  notification-service/ # Phase 6 — email + push (not implemented)
+  mobile/               # Phase 5 — React Native / Expo (not implemented)
 
 libs/
   common/     # config, filters, JWT verify, gateway signature, date helpers
   contracts/  # DTO, Kafka envelope, Socket.IO event types, PaginationDto + LIST_HARD_LIMIT
   database/   # BaseEntity, createDataSourceOptions, ensureSchema
-  kafka/      # KafkaProducer/Consumer с HMAC-подписью, retry + DLQ
-  audit/      # audit_log entity + @Audit() декоратор + interceptor (#68.3)
+  kafka/      # KafkaProducer/Consumer with HMAC signing, retry + DLQ
+  audit/      # audit_log entity + @Audit() decorator + interceptor (#68.3)
   locales/    # i18n JSON (en / uk / de / es) — web + mobile
   testing/    # createTestApp, cleanDatabase, kafka mocks (integration tests)
 ```
 
 ---
 
-## 6. Модель данных
+## 6. Data model
 
-> Все бизнес-таблицы (кроме `users`) содержат `household_id`.
+> All business tables (except `users`) carry `household_id`.
 
 ### Auth
 
@@ -372,7 +372,7 @@ household_invites
 accounts
   id, household_id, name, type, currency, external_id?, is_archived
 
-account_balances          # snapshot или вычисляемое
+account_balances          # snapshot or computed
   account_id, balance, updated_at
 
 transactions
@@ -390,7 +390,7 @@ recurring_payments
   id, household_id, name, amount, currency, category_id,
   frequency (monthly|weekly|yearly), next_due_date, account_id?
 
-exchange_rates                # НЕ привязано к household — общий справочник
+exchange_rates                # NOT scoped to a household — shared reference data
   id, effective_date, source ('privatbank'), ccy, base_ccy, buy, sale, created_at
   UNIQUE (effective_date, source, ccy, base_ccy)
 ```
@@ -430,11 +430,11 @@ external_transactions
 
 ---
 
-## 7. Kafka-события
+## 7. Kafka events
 
 ### Socket.IO bridge
 
-Realtime Gateway подписывается на **все** Kafka-топики и транслирует события в Socket.IO комнату `household:{householdId}`. Сервисам не нужно ничего знать о WebSocket — они публикуют события в Kafka как обычно.
+Realtime Gateway subscribes to **all** Kafka topics and broadcasts events into the Socket.IO room `household:{householdId}`. Services never need to know about WebSockets — they publish to Kafka as usual.
 
 ```
 Finance Service → Kafka: finance.transaction.created
@@ -443,10 +443,10 @@ Finance Service → Kafka: finance.transaction.created
                          ↓
          socket.io room "household:abc123"  →  emit "entity:created" { entity: 'transaction', data }
                          ↓
-              Web Client + Mobile Client (оба получают одновременно)
+              Web Client + Mobile Client (both receive simultaneously)
 ```
 
-### Envelope (единый формат)
+### Envelope (single format)
 
 ```typescript
 {
@@ -459,10 +459,10 @@ Finance Service → Kafka: finance.transaction.created
 }
 ```
 
-### Каталог событий
+### Event catalog
 
-| Событие | Producer | Consumers |
-|---------|----------|-----------|
+| Event | Producer | Consumers |
+|-------|----------|-----------|
 | `auth.user.created` | Auth | Household, Notification |
 | `auth.user.deleted` | Auth | All |
 | `household.created` | Household | — |
@@ -481,228 +481,228 @@ Finance Service → Kafka: finance.transaction.created
 
 ---
 
-## 8. API — все эндпоинты
+## 8. API — all endpoints
 
-> Префикс: `/api/v1`. Все эндпоинты ниже — через **API Gateway**.
-> Заголовок `X-Household-Id` — активное домохозяйство (кроме auth и списка домов).
+> Prefix: `/api/v1`. Every endpoint below goes through the **API Gateway**.
+> Header `X-Household-Id` — active household (except auth and the households list).
 
 ---
 
 ### Auth `/auth`
 
-| Method | Path | Описание |
-|--------|------|----------|
-| POST | `/auth/google` | OAuth callback / token exchange (legacy — оставлено для web/mobile клиентов) |
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/auth/google` | OAuth callback / token exchange (legacy — kept for existing web/mobile clients) |
 | POST | `/auth/apple` | Sign in with Apple (legacy) |
 | POST | `/auth/facebook` | Facebook OAuth (legacy) |
-| POST | `/auth/oauth/:provider` | Провайдер-агностичный OAuth (Strategy Registry — #85). Новые провайдеры добавляются без правок контроллера |
-| POST | `/auth/refresh` | Обновление access token; читает HttpOnly cookie + `X-CSRF-Token` header (double-submit) |
-| POST | `/auth/logout` | Инвалидация текущей сессии; очищает cookies |
-| POST | `/auth/logout-all` | Инвалидация **всех** сессий пользователя (#66); аудит-лог |
-| GET | `/auth/me` | Текущий пользователь + профиль |
-| PATCH | `/auth/me` | Обновление профиля (`avatarUrl` валидируется `@IsUrl` http(s) — #68.1) |
-| DELETE | `/auth/me` | Удаление аккаунта; Kafka `auth.user.deleted` для cascade cleanup; аудит-лог |
+| POST | `/auth/oauth/:provider` | Provider-agnostic OAuth (Strategy Registry — #85). New providers require no controller changes |
+| POST | `/auth/refresh` | Refresh access token; reads HttpOnly cookie + `X-CSRF-Token` header (double-submit) |
+| POST | `/auth/logout` | Invalidate the current session; clears cookies |
+| POST | `/auth/logout-all` | Invalidate **all** sessions for the user (#66); audit log |
+| GET | `/auth/me` | Current user + profile |
+| PATCH | `/auth/me` | Update profile (`avatarUrl` validated by `@IsUrl` http(s) — #68.1) |
+| DELETE | `/auth/me` | Delete account; Kafka `auth.user.deleted` for cascade cleanup; audit log |
 
 ---
 
 ### Households `/households`
 
-| Method | Path | Описание |
-|--------|------|----------|
-| POST | `/households` | Создать дом |
-| GET | `/households` | Список домов пользователя |
-| GET | `/households/:id` | Детали дома |
-| PATCH | `/households/:id` | Переименовать, настройки |
-| DELETE | `/households/:id` | Удалить (только owner) |
-| POST | `/households/:id/invites` | Пригласить по email |
-| GET | `/households/:id/invites` | Активные приглашения |
-| DELETE | `/households/:id/invites/:inviteId` | Отозвать приглашение |
-| GET | `/households/:id/members` | Участники |
-| PATCH | `/households/:id/members/:memberId` | Сменить роль |
-| DELETE | `/households/:id/members/:memberId` | Удалить участника |
-| POST | `/invites/:token/accept` | Принять приглашение |
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/households` | Create a household |
+| GET | `/households` | List the user's households |
+| GET | `/households/:id` | Household details |
+| PATCH | `/households/:id` | Rename, settings |
+| DELETE | `/households/:id` | Delete (owner only) |
+| POST | `/households/:id/invites` | Invite by email |
+| GET | `/households/:id/invites` | Active invites |
+| DELETE | `/households/:id/invites/:inviteId` | Revoke an invite |
+| GET | `/households/:id/members` | Members |
+| PATCH | `/households/:id/members/:memberId` | Change role |
+| DELETE | `/households/:id/members/:memberId` | Remove a member |
+| POST | `/invites/:token/accept` | Accept an invite |
 
 ---
 
 ### Finance — Accounts `/accounts`
 
-| Method | Path | Описание |
-|--------|------|----------|
-| POST | `/accounts` | Создать счёт |
-| GET | `/accounts` | Список счетов дома (капнут `LIST_HARD_LIMIT=1000` — #68.2) |
-| GET | `/accounts/:id` | Детали + баланс |
-| PATCH | `/accounts/:id` | Обновить |
-| DELETE | `/accounts/:id` | Архивировать / удалить (аудит-лог) |
-| POST | `/accounts/:id/adjust-balance` | Ручная корректировка баланса; создаёт ADJUSTMENT-транзакцию для истории |
-| GET | `/accounts/summary` | Сводка по всем счетам с `SUM()` на стороне БД (без float drift — #71) |
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/accounts` | Create an account |
+| GET | `/accounts` | List household accounts (capped by `LIST_HARD_LIMIT=1000` — #68.2) |
+| GET | `/accounts/:id` | Details + balance |
+| PATCH | `/accounts/:id` | Update |
+| DELETE | `/accounts/:id` | Archive / delete (audit log) |
+| POST | `/accounts/:id/adjust-balance` | Manual balance adjustment; creates an ADJUSTMENT transaction for history |
+| GET | `/accounts/summary` | Summary across all accounts with DB-side `SUM()` (no float drift — #71) |
 
 ---
 
 ### Finance — Transactions `/transactions`
 
-| Method | Path | Описание |
-|--------|------|----------|
-| POST | `/transactions` | Создать транзакцию |
-| GET | `/transactions` | Список (фильтры: date, type, account, category) |
-| GET | `/transactions/:id` | Детали |
-| PATCH | `/transactions/:id` | Обновить |
-| DELETE | `/transactions/:id` | Удалить |
-| POST | `/transactions/transfer` | Перевод между счетами |
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/transactions` | Create a transaction |
+| GET | `/transactions` | List (filters: date, type, account, category) |
+| GET | `/transactions/:id` | Details |
+| PATCH | `/transactions/:id` | Update |
+| DELETE | `/transactions/:id` | Delete |
+| POST | `/transactions/transfer` | Transfer between accounts |
 
 ---
 
 ### Finance — Categories `/categories`
 
-| Method | Path | Описание |
-|--------|------|----------|
-| POST | `/categories` | Создать категорию |
-| GET | `/categories` | Список (income / expense), фильтр по `includeArchived` |
-| GET | `/categories/:id/impact` | Счётчик зависимых сущностей (transactions, recurring, subcategories) + `lastUsedAt` — предпросмотр перед hard-delete (#112) |
-| PATCH | `/categories/:id` | Обновить |
-| DELETE | `/categories/:id` | Soft-delete (archive) — не удаляет исторические транзакции (#73, #111) |
-| DELETE | `/categories/:id?permanent=true` | Hard-delete; отклоняется с 409 если `impact != 0` (#113) |
-| POST | `/categories/:id/unarchive` | Восстановить архивную категорию (#114) |
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/categories` | Create a category |
+| GET | `/categories` | List (income / expense), filter by `includeArchived` |
+| GET | `/categories/:id/impact` | Counter of dependent entities (transactions, recurring, subcategories) + `lastUsedAt` — preview before hard-delete (#112) |
+| PATCH | `/categories/:id` | Update |
+| DELETE | `/categories/:id` | Soft-delete (archive) — does not remove historical transactions (#73, #111) |
+| DELETE | `/categories/:id?permanent=true` | Hard-delete; rejected with 409 if `impact != 0` (#113) |
+| POST | `/categories/:id/unarchive` | Restore an archived category (#114) |
 
 ---
 
 ### Finance — Income Sources `/income-sources`
 
-| Method | Path | Описание |
-|--------|------|----------|
-| POST | `/income-sources` | Создать источник |
-| GET | `/income-sources` | Список |
-| PATCH | `/income-sources/:id` | Обновить |
-| DELETE | `/income-sources/:id` | Удалить |
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/income-sources` | Create a source |
+| GET | `/income-sources` | List |
+| PATCH | `/income-sources/:id` | Update |
+| DELETE | `/income-sources/:id` | Delete |
 
 ---
 
 ### Finance — Recurring Payments `/recurring-payments`
 
-| Method | Path | Описание |
-|--------|------|----------|
-| POST | `/recurring-payments` | Создать подписку / аренду |
-| GET | `/recurring-payments` | Список |
-| GET | `/recurring-payments/:id` | Детали |
-| PATCH | `/recurring-payments/:id` | Обновить |
-| DELETE | `/recurring-payments/:id` | Удалить |
-| GET | `/recurring-payments/upcoming?days=30` | Ближайшие платежи (по умолчанию 30 дней) |
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/recurring-payments` | Create a subscription / rent |
+| GET | `/recurring-payments` | List |
+| GET | `/recurring-payments/:id` | Details |
+| PATCH | `/recurring-payments/:id` | Update |
+| DELETE | `/recurring-payments/:id` | Delete |
+| GET | `/recurring-payments/upcoming?days=30` | Upcoming payments (default 30 days) |
 
-> Cron-scheduler (`@nestjs/schedule`) уже гоняет due-check ежедневно (#78); публикация Kafka-события `finance.recurring_payment.due` для Notification Service — Phase 6.
+> The cron scheduler (`@nestjs/schedule`) already runs a daily due-check (#78); publishing the Kafka event `finance.recurring_payment.due` for Notification Service is Phase 6.
 
 ---
 
 ### Finance — Reports `/reports`
 
-| Method | Path | Описание |
-|--------|------|----------|
-| GET | `/reports/monthly?year=&month=` | Доходы / расходы за месяц |
-| GET | `/reports/by-category?from=&to=` | Разбивка по категориям |
-| GET | `/reports/net-worth` | Общий капитал (сумма всех счетов, конвертация опционально) |
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/reports/monthly?year=&month=` | Income / expenses for a month |
+| GET | `/reports/by-category?from=&to=` | Breakdown by category |
+| GET | `/reports/net-worth` | Total net worth (sum across all accounts, optional conversion) |
 
-> Реализовано в Phase 2 через `TransactionQueryRepository` — сервис отчётов не завязан на TypeORM (#87).
+> Implemented in Phase 2 via `TransactionQueryRepository` — the reports service is not coupled to TypeORM (#87).
 
 ---
 
 ### Finance — Rates `/rates`
 
-| Method | Path | Описание |
-|--------|------|----------|
-| GET | `/rates/latest` | Последний снапшот курсов (UAH-base): `[{ ccy, base_ccy, buy, sale }]`. Используется web для конвертации multi-currency totals |
-| GET | `/rates/history?ccy&from&to` | История по валюте — зарезервировано для будущего графика динамики |
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/rates/latest` | Latest FX snapshot (UAH-base): `[{ ccy, base_ccy, buy, sale }]`. Consumed by web for multi-currency totals |
+| GET | `/rates/history?ccy&from&to` | History for a currency — reserved for future dynamics charts |
 
-> finance-service тянет PrivatBank через `RatesScheduler` (@Cron 08:00 Europe/Kyiv + warm-up при пустой таблице), сохраняет в `exchange_rates` (unique по `effective_date+source+ccy+base_ccy`, upsert). Клиент бьёт в наш эндпоинт — CORS не проблема, и БД растит историю для последующих отчётов о динамике.
+> finance-service pulls PrivatBank via `RatesScheduler` (@Cron 08:00 Europe/Kyiv + warm-up if the table is empty) and stores rows in `exchange_rates` (unique on `effective_date+source+ccy+base_ccy`, upsert). The client hits our endpoint — CORS is a non-issue and the DB grows history for future dynamics reports.
 
 ---
 
 ### Shopping — Stores `/stores`
 
-| Method | Path | Описание |
-|--------|------|----------|
-| POST | `/stores` | Добавить магазин |
-| GET | `/stores` | Список магазинов дома |
-| PATCH | `/stores/:id` | Обновить |
-| DELETE | `/stores/:id` | Удалить |
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/stores` | Add a store |
+| GET | `/stores` | List household stores |
+| PATCH | `/stores/:id` | Update |
+| DELETE | `/stores/:id` | Delete |
 
 ---
 
 ### Shopping — Products `/products`
 
-| Method | Path | Описание |
-|--------|------|----------|
-| POST | `/products` | Добавить товар в каталог |
-| GET | `/products` | Каталог (поиск, фильтр по магазину) |
-| GET | `/products/:id` | Детали + история цен |
-| PATCH | `/products/:id` | Обновить |
-| DELETE | `/products/:id` | Удалить |
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/products` | Add a product to the catalog |
+| GET | `/products` | Catalog (search, filter by store) |
+| GET | `/products/:id` | Details + price history |
+| PATCH | `/products/:id` | Update |
+| DELETE | `/products/:id` | Delete |
 
 ---
 
 ### Shopping — Lists `/shopping-lists`
 
-| Method | Path | Описание |
-|--------|------|----------|
-| POST | `/shopping-lists` | Создать список |
-| GET | `/shopping-lists` | Списки (active / archived) |
-| GET | `/shopping-lists/:id` | Детали с items |
-| PATCH | `/shopping-lists/:id` | Обновить (название, магазин, статус) |
-| DELETE | `/shopping-lists/:id` | Удалить |
-| POST | `/shopping-lists/:id/items` | Добавить позицию |
-| PATCH | `/shopping-lists/:id/items/:itemId` | Обновить (qty, store, purchased) |
-| DELETE | `/shopping-lists/:id/items/:itemId` | Удалить позицию |
-| POST | `/shopping-lists/:id/complete` | Завершить список |
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/shopping-lists` | Create a list |
+| GET | `/shopping-lists` | Lists (active / archived) |
+| GET | `/shopping-lists/:id` | Details with items |
+| PATCH | `/shopping-lists/:id` | Update (name, store, status) |
+| DELETE | `/shopping-lists/:id` | Delete |
+| POST | `/shopping-lists/:id/items` | Add an item |
+| PATCH | `/shopping-lists/:id/items/:itemId` | Update (qty, store, purchased) |
+| DELETE | `/shopping-lists/:id/items/:itemId` | Delete an item |
+| POST | `/shopping-lists/:id/complete` | Complete the list |
 
 ---
 
 ### Shopping — Smart suggestions `/shopping-lists/suggest` *(Phase 2)*
 
-| Method | Path | Описание |
-|--------|------|----------|
-| POST | `/shopping-lists/suggest` | Сгенерировать список из каталога по выбранному магазину |
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/shopping-lists/suggest` | Generate a list from the catalog for a chosen store |
 
 ---
 
 ### Integration — Bank `/integrations/bank`
 
-| Method | Path | Описание |
-|--------|------|----------|
-| POST | `/integrations/monobank/connect` | Подключить Monobank (token) |
-| GET | `/integrations/monobank/connections` | Список подключений |
-| DELETE | `/integrations/monobank/connections/:id` | Отключить |
-| POST | `/integrations/monobank/connections/:id/sync` | Запустить синк вручную |
-| GET | `/integrations/monobank/connections/:id/logs` | История синков |
-| GET | `/integrations/monobank/transactions` | Несмэпленные внешние транзакции |
-| POST | `/integrations/monobank/transactions/:id/map` | Привязать к счёту/категории |
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/integrations/monobank/connect` | Connect Monobank (token) |
+| GET | `/integrations/monobank/connections` | List connections |
+| DELETE | `/integrations/monobank/connections/:id` | Disconnect |
+| POST | `/integrations/monobank/connections/:id/sync` | Trigger manual sync |
+| GET | `/integrations/monobank/connections/:id/logs` | Sync history |
+| GET | `/integrations/monobank/transactions` | Unmapped external transactions |
+| POST | `/integrations/monobank/transactions/:id/map` | Link to an account/category |
 
 ---
 
 ### System
 
-| Method | Path | Описание |
-|--------|------|----------|
-| GET | `/health` | Health check всех сервисов |
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/health` | Health check for all services |
 | GET | `/docs` | Swagger UI |
 
 ---
 
-## 9. Фазы разработки
+## 9. Development phases
 
-### Phase 0 — Foundation ✅ (завершено)
+### Phase 0 — Foundation ✅ (completed)
 
 ```
 ✔ Git repo + NestJS monorepo (pnpm workspaces + Turborepo)
-✔ Docker Compose: postgres, redis, kafka; adminer + kafka-ui за profile `tools`
+✔ Docker Compose: postgres, redis, kafka; adminer + kafka-ui behind profile `tools`
 ✔ libs/common: config, filters, JWT verify, gateway signature, date helpers
 ✔ libs/contracts: DTO + Kafka envelope + Socket.IO event types + PaginationDto/LIST_HARD_LIMIT
 ✔ libs/database: base entity, createDataSourceOptions, ensureSchema
-✔ libs/kafka: producer/consumer с HMAC-подписью, retry + DLQ
+✔ libs/kafka: producer/consumer with HMAC signing, retry + DLQ
 ✔ API Gateway skeleton + /health
-✔ Единый формат ошибок { statusCode, message, error, timestamp }
-✔ Swagger setup (гейтится за NODE_ENV в prod)
+✔ Unified error format { statusCode, message, error, timestamp }
+✔ Swagger setup (gated behind NODE_ENV in prod)
 ```
 
 ---
 
-### Phase 1 — Core Backend MVP ✅ (завершено)
+### Phase 1 — Core Backend MVP ✅ (completed)
 
 ```
 ✔ Auth Service
@@ -713,162 +713,162 @@ Finance Service → Kafka: finance.transaction.created
 
 ✔ Household Service
     ✔ CRUD households
-    ✔ Members + roles (owner/admin/member/viewer) с canGrant guard
-    ✔ Invites (Redis + БД, TTL 7 дней, email match, no-duplicate check)
+    ✔ Members + roles (owner/admin/member/viewer) with canGrant guard
+    ✔ Invites (Redis + DB, TTL 7 days, email match, no-duplicate check)
     ✔ Kafka: household.member.invited/joined/removed + household.deleted
 
-✔ Finance Service (без банка)
+✔ Finance Service (without bank)
     ✔ Accounts CRUD + adjust-balance
-    ✔ Transactions CRUD + transfer (парные) + reverse-delta на удалении
+    ✔ Transactions CRUD + transfer (paired) + reverse-delta on delete
     ✔ Categories (archive/impact/permanent-delete flow), income sources
-    ✔ Recurring payments с cron scheduler
+    ✔ Recurring payments with cron scheduler
     ✔ Kafka: finance.transaction.created + household.deleted consumer
 
 ✔ API Gateway
-    ✔ JWT middleware + требование алгоритма из allowlist
-    ✔ Проксирование через настраиваемую таблицу routes.default.json
-    ✔ X-Household-Id middleware + HMAC-подпись trust-headers
+    ✔ JWT middleware + requiring the algorithm from the allowlist
+    ✔ Proxy driven by a configurable routes.default.json table
+    ✔ X-Household-Id middleware + HMAC-signed trust headers
 ```
 
-**Результат Phase 1:** можно тестировать весь finance flow через Swagger.
+**Phase 1 outcome:** the whole finance flow can be tested via Swagger.
 
 ---
 
-### Правило тестирования (Phase 2+)
+### Testing rule (Phase 2+)
 
-Начиная с Phase 2, каждый завершённый feature issue должен иметь:
+Starting with Phase 2, every completed feature issue must ship with:
 
-1. **Интеграционные тесты** — `apps/<service>/test/*.integration.spec.ts` покрывают happy path, граничные случаи и Kafka assertions.
-2. **Issue в milestone Testing** с Postman-чеклистом для ручного E2E.
+1. **Integration tests** — `apps/<service>/test/*.integration.spec.ts` covering the happy path, edge cases, and Kafka assertions.
+2. **An issue in the Testing milestone** with a Postman checklist for manual E2E.
 
-**Технический стек:**
-- Авто-тесты: `jest` + `supertest` + `@household/testing` (фабрика приложения, cleaner БД, mock Kafka)
-- Ручное тестирование: Postman — коллекция в `docs/postman/`
-- Swagger — только справочник эндпоинтов во время разработки
+**Stack:**
+- Auto tests: `jest` + `supertest` + `@household/testing` (app factory, DB cleaner, Kafka mocks)
+- Manual testing: Postman — collection under `docs/postman/`
+- Swagger — endpoint reference during development only
 
-**Запуск:**
+**Run:**
 ```bash
-# Требует: docker compose up -d  (postgres + redis, БД household_test создаётся автоматически)
-pnpm --filter @household/finance-service test:integration   # один сервис
-pnpm test:integration                                       # все сервисы
+# Requires: docker compose up -d  (postgres + redis; the household_test DB is created automatically)
+pnpm --filter @household/finance-service test:integration   # single service
+pnpm test:integration                                       # all services
 ```
 
-**Образец** (паттерн для всех Phase 2+ сервисов): `apps/finance-service/test/`
+**Reference implementation** (pattern for every Phase 2+ service): `apps/finance-service/test/`
 
 ---
 
-### Phase 2 — Shopping + Real-time ✅ (завершено)
+### Phase 2 — Shopping + Real-time ✅ (completed)
 
 ```
 ✔ Shopping Service
-    ✔ Stores, Products, Shopping Lists + Items (ShoppingListItemsService выделен, #91)
-    ✔ preferredStore vs actualStore логика
+    ✔ Stores, Products, Shopping Lists + Items (ShoppingListItemsService extracted, #91)
+    ✔ preferredStore vs actualStore logic
     ✔ Kafka: shopping.list.completed
-    ✔ Kafka consumer: household.deleted → каскадная очистка
+    ✔ Kafka consumer: household.deleted → cascade cleanup
 
-✔ Kafka consumers между сервисами
-✔ Redis rate limiting на Gateway (общий + per-auth-endpoint #54)
+✔ Cross-service Kafka consumers
+✔ Redis rate limiting on the Gateway (global + per-auth-endpoint #54)
 ✔ Finance reports (monthly, by-category, net-worth)
 ✔ Realtime Gateway: Socket.IO + JWT auth + rooms + presence + editing indicators + Kafka bridge
-□ Shopping suggest endpoint (перенесено в Phase 2+ / backlog)
+□ Shopping suggest endpoint (moved to Phase 2+ / backlog)
 ```
 
 ---
 
-### Phase 3 — Integrations + Migrations (в работе)
+### Phase 3 — Integrations + Migrations (in progress)
 
 ```
 ▷ Integration Service (#20, #21)
     □ Monobank connect + sync
-    □ Incremental sync с учётом лимитов
-    □ Маппинг external → internal transactions
+    □ Incremental sync honouring rate limits
+    □ Map external → internal transactions
     □ Kafka: integration.monobank.*
 
 ▷ Apple + Facebook OAuth end-to-end (#22)
-    ✔ Стратегии реализованы (google/apple/facebook.strategy.ts + OAuthStrategyRegistry)
-    □ End-to-end setup + тесты (нужны Apple Developer Account + Facebook App)
+    ✔ Strategies implemented (google/apple/facebook.strategy.ts + OAuthStrategyRegistry)
+    □ End-to-end setup + tests (requires Apple Developer Account + Facebook App)
 
-□ TypeORM migrations (схема стабилизировалась после Phase 2)
-    □ Сгенерировать initial migration для каждого сервиса:
+□ TypeORM migrations (schema stabilised after Phase 2)
+    □ Generate initial migration per service:
         pnpm --filter @household/auth-service migration:generate -- -n InitAuth
         pnpm --filter @household/household-service migration:generate -- -n InitHousehold
         pnpm --filter @household/finance-service migration:generate -- -n InitFinance
         pnpm --filter @household/shopping-service migration:generate -- -n InitShopping
         pnpm --filter @household/integration-service migration:generate -- -n InitIntegration
-    □ Проверить что migrations: run создаёт схему корректно на чистой БД
-    □ Отключить synchronize: true в development (заменить на migrations: run в ensureSchema)
-    □ Добавить migration:run в docker-compose healthcheck или startup script
+    □ Verify migrations: run creates the schema correctly on an empty DB
+    □ Disable synchronize: true in development (swap for migrations: run in ensureSchema)
+    □ Add migration:run to a docker-compose healthcheck or startup script
 ```
 
 ---
 
-### Phase 4 — Web App ✅ (завершено)
+### Phase 4 — Web App ✅ (completed)
 
 ```
 ✔ React 18 + Vite 5 + TypeScript + TanStack Query + Tailwind
 ✔ Auth flow — Google OAuth (@react-oauth/google), HttpOnly cookie refresh, CSRF header
 ✔ Layout: sidebar, household switcher
-✔ Страницы:
-    ✔ Dashboard (балансы, ближайшие платежи)
-    ✔ Accounts & Transactions (inline edit, transfer modal, multi-currency totals с PrivatBank rates)
+✔ Pages:
+    ✔ Dashboard (balances, upcoming payments)
+    ✔ Accounts & Transactions (inline edit, transfer modal, multi-currency totals with PrivatBank rates)
     ✔ Categories (archive / impact preview / permanent delete)
     ✔ Shopping lists
     ✔ Household settings & invites
-    ✔ User settings (профиль, i18n, logout-all)
-    □ Bank connections (Monobank) — ждёт Integration Service
-✔ Dark theme (#42) — light / dark / system, класс на <html>, `useTheme` + `<html>` inline-скрипт против FOUC, toggle в Header и селектор в Settings
-✔ Socket.IO клиент
-    ✔ Подключение при логине, отключение при логауте
-    ✔ Live-обновления списков при изменениях других участников
-    ✔ Индикаторы "кто онлайн" (presence)
-    ✔ Индикатор "редактирует..." на транзакциях и shopping items
-✔ i18n (react-i18next): en / uk / de / es с переключателем в header
-✔ 42 Vitest-теста (integration через MSW)
+    ✔ User settings (profile, i18n, logout-all)
+    □ Bank connections (Monobank) — waits for Integration Service
+✔ Dark theme (#42) — light / dark / system, class on <html>, `useTheme` + `<html>` inline script against FOUC, toggle in Header and selector in Settings
+✔ Socket.IO client
+    ✔ Connect on login, disconnect on logout
+    ✔ Live updates of lists when other members make changes
+    ✔ "Who's online" indicators (presence)
+    ✔ "Editing…" indicator for transactions and shopping items
+✔ i18n (react-i18next): en / uk / de / es with a header language switcher
+✔ 42 Vitest tests (integration via MSW)
 ```
 
 ---
 
-### Phase 5 — Mobile (4–6 недель)
+### Phase 5 — Mobile (4–6 weeks)
 
 ```
-□ React Native (Expo — быстрее старт)
-□ Те же экраны что web (адаптивно)
-□ Secure storage для tokens (expo-secure-store)
+□ React Native (Expo — faster to start)
+□ Same screens as web (adaptive)
+□ Secure storage for tokens (expo-secure-store)
 □ Push notifications setup (FCM + APNs)
-□ Deep links для invite accept
-□ Socket.IO клиент (тот же socket.io-client работает в RN)
-    □ Те же события что и web — единый контракт из libs/contracts
-    □ Reconnect при выходе из фона (AppState listener)
+□ Deep links for invite accept
+□ Socket.IO client (the same socket.io-client works in RN)
+    □ Same events as web — single contract from libs/contracts
+    □ Reconnect on returning from background (AppState listener)
 ```
 
 ---
 
-### Phase 6 — Production (частично)
+### Phase 6 — Production (partial)
 
 ```
 □ Notification Service (email + push) — #30
-□ Recurring payment Kafka reminders (cron уже есть, публикация — #31)
-✔ CI/CD — GitHub Actions (#32): lint + build + unit + integration на каждый PR
-    □ migration:run как часть deploy pipeline
+□ Recurring payment Kafka reminders (cron already exists, publishing — #31)
+✔ CI/CD — GitHub Actions (#32): lint + build + unit + integration on every PR
+    □ migration:run as part of the deploy pipeline
 
-□ Миграции в production
-    □ synchronize: false во всех сервисах (убрать из кода, не только env)
-    □ migration:run запускается до старта каждого сервиса (CMD в Dockerfile)
-    □ Убедиться что rollback-стратегия понятна (down migrations)
+□ Migrations in production
+    □ synchronize: false in every service (removed from code, not only env)
+    □ migration:run executed before each service starts (CMD in Dockerfile)
+    □ Ensure the rollback strategy is understood (down migrations)
 
-□ Деплой backend (Railway / Fly.io / VPS + Docker) — #33
-□ Деплой web (Vercel / Cloudflare Pages — статика) — #33
+□ Backend deployment (Railway / Fly.io / VPS + Docker) — #33
+□ Web deployment (Vercel / Cloudflare Pages — static) — #33
 
-□ Мониторинг — Sentry (#33)
-    □ @sentry/nestjs в каждом NestJS сервисе
+□ Monitoring — Sentry (#33)
+    □ @sentry/nestjs in every NestJS service
         □ SentryModule.forRoot({ dsn, environment, release })
-        □ SentryInterceptor для захвата unhandled exceptions
-        □ Трассировка входящих HTTP запросов (tracesSampleRate)
-    □ @sentry/react в web-приложении
-        □ Sentry.init() в main.tsx
-        □ ErrorBoundary компонент для React-дерева
-    □ @sentry/react-native в mobile
-        □ Sentry.init() в App.tsx
+        □ SentryInterceptor to capture unhandled exceptions
+        □ Tracing of incoming HTTP requests (tracesSampleRate)
+    □ @sentry/react in the web app
+        □ Sentry.init() in main.tsx
+        □ ErrorBoundary component for the React tree
+    □ @sentry/react-native in mobile
+        □ Sentry.init() in App.tsx
         □ Native crash reporting
 
 □ App Store submission — #34
@@ -878,59 +878,59 @@ pnpm test:integration                                       # все серви�
 
 ## 10. MVP scope
 
-**Входит в первый релиз:**
+**In the first release:**
 
-- [x] Auth (Google; Apple + Facebook стратегии реализованы, ждут App-Store setup)
-- [x] Household (создание, приглашения, роли, cascade delete через Kafka)
-- [x] Accounts + ручные транзакции + adjust-balance
-- [x] Категории (archive / impact preview / permanent-delete) и источники дохода
-- [x] Регулярные платежи с cron scheduler (без push-напоминаний)
+- [x] Auth (Google; Apple + Facebook strategies implemented, awaiting App Store setup)
+- [x] Household (creation, invites, roles, cascade delete via Kafka)
+- [x] Accounts + manual transactions + adjust-balance
+- [x] Categories (archive / impact preview / permanent-delete) and income sources
+- [x] Recurring payments with cron scheduler (without push reminders)
 - [x] Shopping lists + stores + products + items (SRP split)
 - [x] Web dashboard
-- [x] Multi-currency totals с PrivatBank rates
-- [x] Docker Compose (dev tools за profile `tools`) + Swagger (в prod скрыт)
-- [x] Real-time: live-обновления данных между участниками домохозяйства
-- [x] Real-time: presence (кто онлайн) + индикаторы редактирования
-- [x] i18n (4 языка)
-- [x] Security baseline после 2026-08 audits: HttpOnly cookies + CSRF, JWT allowlist, gateway-signed trust-headers, HMAC на Kafka, rate limit, session revoke-all, audit_log
+- [x] Multi-currency totals with PrivatBank rates
+- [x] Docker Compose (dev tools behind profile `tools`) + Swagger (hidden in prod)
+- [x] Real-time: live updates between household members
+- [x] Real-time: presence (who's online) + editing indicators
+- [x] i18n (4 languages)
+- [x] Security baseline after the 2026-08 audits: HttpOnly cookies + CSRF, JWT allowlist, gateway-signed trust headers, HMAC on Kafka, rate limit, session revoke-all, audit_log
 - [x] CI/CD (GitHub Actions — lint + build + unit + integration)
 
-**Не входит в MVP (backlog):**
+**Not in MVP (backlog):**
 
 - Monobank auto-sync (Phase 3)
-- Крипто-курсы
-- Отчёты и графики в UI (endpoints уже есть)
+- Crypto rates
+- Reports and charts in the UI (endpoints already exist)
 - Push notifications (Phase 6)
 - Mobile app (Phase 5)
-- Мультивалютность с конвертацией внутри финансов (сейчас — только отображение)
-- Привязка покупки к транзакции
-- Prod-миграции (Phase 6 — сейчас `synchronize: true` в dev)
+- Multi-currency with internal conversion inside finance (currently — display only)
+- Linking a purchase to a transaction
+- Prod migrations (Phase 6 — currently `synchronize: true` in dev)
 - Sentry monitoring (Phase 6)
 
 ---
 
-## 11. Деплой и App Store
+## 11. Deployment and App Store
 
 ### Backend
 
-| Вариант | Плюсы | Минусы |
-|---------|-------|--------|
-| **Railway / Render** | Просто, Docker-native | Дороже при росте |
-| **Fly.io** | Edge, хорош для EU | Чуть сложнее |
-| **VPS (Hetzner)** | Дёшево, полный контроль | Админка на тебе |
+| Option | Pros | Cons |
+|--------|------|------|
+| **Railway / Render** | Simple, Docker-native | More expensive at scale |
+| **Fly.io** | Edge network, good for EU | Slightly more complex |
+| **VPS (Hetzner)** | Cheap, full control | Ops are on you |
 
-Рекомендация для старта: **Railway** или **Fly.io** — меньше DevOps, фокус на коде.
+Recommendation for the start: **Railway** or **Fly.io** — less DevOps, more focus on code.
 
 ### Web
 
-Статический SPA → **Cloudflare Pages** или **Vercel** (бесплатный tier).
+Static SPA → **Cloudflare Pages** or **Vercel** (free tier).
 
 ### Mobile → App Store
 
-1. Apple Developer Account ($99/год)
-2. Sign in with Apple — обязателен
-3. Privacy Policy URL — обязателен
-4. EAS Build (Expo) для сборки
+1. Apple Developer Account ($99/year)
+2. Sign in with Apple — mandatory
+3. Privacy Policy URL — mandatory
+4. EAS Build (Expo) for building
 5. TestFlight → Review
 
 ### Env variables (prod)
@@ -941,130 +941,130 @@ JWT_SECRET, JWT_REFRESH_SECRET
 GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET
 APPLE_CLIENT_ID, APPLE_TEAM_ID, APPLE_KEY_ID
 FACEBOOK_APP_ID, FACEBOOK_APP_SECRET
-MONOBANK_WEBHOOK_SECRET (если будет)
-ENCRYPTION_KEY (для bank tokens)
+MONOBANK_WEBHOOK_SECRET (if applicable)
+ENCRYPTION_KEY (for bank tokens)
 ```
 
 ---
 
-## 11a. Аудиты 2026-08 (завершены)
+## 11a. 2026-08 audits (completed)
 
-После Phase 2 проведены три параллельных аудита кодовой базы. Всего ~63 находки, все закрыты. Milestones:
+After Phase 2 three parallel audits were run against the codebase. About 63 findings total, all closed. Milestones:
 
-| Milestone | Область | Найдено | Закрыто |
+| Milestone | Area | Found | Closed |
 |---|---|---|---|
 | [#9 Security Audit](https://github.com/VitaliiPoltorak/household/milestone/9) | JWT/OAuth, trust boundaries, membership verification, Socket.IO auth, CORS, rate limiting, PII, secrets | 23 | 23 |
 | [#10 Bugs Audit](https://github.com/VitaliiPoltorak/household/milestone/10) | Balance atomicity, transfer pair integrity, float precision, cascade deletes, Redis/Kafka reliability, timezone/locale | 21 | 21 |
-| [#11 Architecture (SOLID + GRASP)](https://github.com/VitaliiPoltorak/household/milestone/11) | SRP splits, OCP for OAuth, DIP for Kafka, Info Expert для domain entities, coupling в gateway/bridge | 12 | 12 |
+| [#11 Architecture (SOLID + GRASP)](https://github.com/VitaliiPoltorak/household/milestone/11) | SRP splits, OCP for OAuth, DIP for Kafka, Info Expert for domain entities, coupling in gateway/bridge | 12 | 12 |
 
-Ключевые системные исправления, изменившие baseline:
+Key systemic fixes that shifted the baseline:
 
-- **IDOR guard**: любой ID из запроса (`accountId`, `categoryId`, `storeId`, Socket.IO room) проверяется на household-scope перед использованием (#46–48, #62, #67).
-- **Финансовая атомарность**: баланс мутируется через `SELECT ... FOR UPDATE`, transfer — парные строки с явным `transferPairId`, агрегаты через SQL `SUM` (#69–71).
-- **Session security**: HttpOnly + Secure + SameSite=None cookie, парная CSRF-cookie double-submit, single-use refresh с атомарным `GETDEL`, JWT algorithm allowlist, strong-secret gate (#52, #53, #55, #58, #60, #61).
-- **Cross-service trust**: HMAC-signed заголовки `X-User-Id/Household-Id/Email` (`GATEWAY_SIGNING_SECRET`), HMAC подпись Kafka-envelope (`KAFKA_SIGNING_KEY`) (#46, #63).
-- **Kafka reliability**: retry + DLQ вместо catch-log-and-advance-offset (#77).
-- **Extensibility**: `OAuthStrategyRegistry` вместо switch (#85), настраиваемая таблица proxy routes (#88), явный event map для Kafka→Socket.IO (#94).
+- **IDOR guard**: any ID coming from the request (`accountId`, `categoryId`, `storeId`, Socket.IO room) is household-scope-checked before use (#46–48, #62, #67).
+- **Financial atomicity**: balance mutations go through `SELECT ... FOR UPDATE`; transfer is paired rows with an explicit `transferPairId`; aggregates use SQL `SUM` (#69–71).
+- **Session security**: HttpOnly + Secure + SameSite=None cookie, paired CSRF double-submit cookie, single-use refresh with atomic `GETDEL`, JWT algorithm allowlist, strong-secret gate (#52, #53, #55, #58, #60, #61).
+- **Cross-service trust**: HMAC-signed headers `X-User-Id/Household-Id/Email` (`GATEWAY_SIGNING_SECRET`), HMAC signing on the Kafka envelope (`KAFKA_SIGNING_KEY`) (#46, #63).
+- **Kafka reliability**: retry + DLQ instead of catch-log-and-advance-offset (#77).
+- **Extensibility**: `OAuthStrategyRegistry` instead of a switch (#85), configurable proxy routes table (#88), explicit event map for Kafka → Socket.IO (#94).
 - **SRP splits**: `TransactionsService` → BalanceAdjustment + TransferDomain (#84); `HouseholdsService` → Members + Invites (#89); `ShoppingListsService` → Items (#91); `ReportsService` → TransactionQueryRepository (#87).
-- **Low-severity batch** (последний PR-набор, PRs #150–155): pagination cap, Swagger production gate, audit_log lib, docker `tools` profile, cascade `household.deleted`, LISTEN_HOST, avatar URL validation, duplicate-invite guard.
+- **Low-severity batch** (last PR set, PRs #150–155): pagination cap, Swagger production gate, audit_log lib, docker `tools` profile, cascade `household.deleted`, LISTEN_HOST, avatar URL validation, duplicate-invite guard.
 
-Правила, вынесенные из этих аудитов, зафиксированы в [`CLAUDE.md`](../CLAUDE.md#rules-from-past-audits-apply-while-writing-code-not-just-in-review) и в skill `backend-hardening-checklist` — применяются proactively при написании нового кода, а не только при ревью.
+Rules distilled from these audits are captured in [`CLAUDE.md`](../CLAUDE.md#rules-from-past-audits-apply-while-writing-code-not-just-in-review) and in the `backend-hardening-checklist` skill — applied proactively while writing new code, not only during review.
 
 ---
 
-## 12. Открытые вопросы
+## 12. Open questions
 
-Ответы на эти вопросы повлияют на детали реализации. Можно решить по ходу, но лучше до Phase 1.
+Answers here affect implementation details. Fine to resolve as we go, but preferably before Phase 1.
 
-### Продукт
+### Product
 
-1. **Один пользователь — несколько домов?** (своя квартира + родители) — рекомендую **да**.
-2. **Мультивалютность?** UAH + USD + EUR + crypto — нужна ли конвертация в базовую валюту дома?
-3. **Крипта:** только ручной ввод баланса или трекинг по адресу кошелька?
-4. **Транзакции:** общие на дом или у каждого участника «личные» + «общие»?
-5. **Shopping:** один активный список или несколько параллельных (по магазинам)?
+1. **One user — multiple households?** (own apartment + parents) — recommended: **yes**.
+2. **Multi-currency?** UAH + USD + EUR + crypto — do we need conversion to a base household currency?
+3. **Crypto:** manual balance entry only, or tracking by wallet address?
+4. **Transactions:** shared for the household, or per-member "personal" + "shared"?
+5. **Shopping:** a single active list or several parallel ones (per store)?
 
-### Технические
+### Technical
 
-6. **ORM:** TypeORM (нативно в Nest) vs Prisma (лучше DX) — что ближе?
+6. **ORM:** TypeORM (native in Nest) vs Prisma (better DX) — which one feels right?
 7. **Monorepo tool:** Nx vs Nest CLI workspaces vs Turborepo?
-8. **Межсервисные sync-вызовы:** HTTP REST vs gRPC?
-9. **Одна БД postgres с schemas** vs отдельные БД на сервис — для обучения рекомендую **schemas** (проще локально).
-10. **Язык UI:** только украинский, русский, английский или i18n с первого дня?
+8. **Inter-service sync calls:** HTTP REST vs gRPC?
+9. **Single postgres with schemas** vs separate DBs per service — for learning I recommend **schemas** (easier locally).
+10. **UI language:** only Ukrainian, Russian, English, or i18n from day one?
 
-### Бизнес / legal
+### Business / legal
 
-11. **Monobank:** личный токен или OAuth flow для пользователей?
-12. **Хранение bank tokens:** encryption at rest — libsodium / AWS KMS?
-13. **GDPR:** пользователь из EU — нужна политика удаления данных (заложено в `DELETE /auth/me`).
+11. **Monobank:** personal token or an OAuth flow for users?
+12. **Storing bank tokens:** encryption at rest — libsodium / AWS KMS?
+13. **GDPR:** EU users — data deletion policy required (already covered by `DELETE /auth/me`).
 
 ---
 
 ## 13. Real-time (Socket.IO)
 
-### Концепция
+### Concept
 
-Один пользователь может одновременно работать с приложением на web и mobile. В рамках одного домохозяйства несколько участников должны видеть изменения друг друга мгновенно — без перезагрузки страницы. Для этого выделен отдельный сервис **Realtime Gateway**.
+A single user can work with the app on web and mobile simultaneously. Within one household several members must see each other's changes instantly — without reloading the page. A dedicated **Realtime Gateway** service is responsible for this.
 
-### Сервис: `realtime-gateway` (порт 3010)
+### Service: `realtime-gateway` (port 3010)
 
-**Стек:** NestJS + `@nestjs/platform-socket.io` + `@socket.io/redis-adapter` + KafkaJS.
+**Stack:** NestJS + `@nestjs/platform-socket.io` + `@socket.io/redis-adapter` + KafkaJS.
 
-**Аутентификация при подключении:**
+**Authentication at connection time:**
 
 ```typescript
-// Клиент передаёт JWT при handshake
+// The client passes JWT at handshake
 const socket = io('wss://api.example.com:3010', {
   auth: { token: '<access_token>' }
 });
 
-// Сервер валидирует в middleware подключения
+// The server validates it in a connection middleware
 io.use((socket, next) => {
   const token = socket.handshake.auth.token;
   // verify JWT → socket.data.userId, socket.data.householdIds
 });
 ```
 
-После аутентификации сервер **автоматически** подписывает клиента на комнаты всех его домохозяйств:
+After authentication the server **automatically** joins the client to rooms for all of their households:
 
 ```
-household:{householdId}   — основная комната для всех событий дома
+household:{householdId}   — the primary room for every household event
 ```
 
-### Комнаты и namespace
+### Rooms and namespaces
 
-| Комната | Когда использовать |
-|---------|-------------------|
-| `household:{id}` | Все события домохозяйства (транзакции, список покупок, участники) |
-| `shopping-list:{id}` | Детальные события конкретного списка (пометка товара куплено) — sub-room |
+| Room | When to use |
+|------|-------------|
+| `household:{id}` | Every household-level event (transactions, shopping list, members) |
+| `shopping-list:{id}` | Detailed events for one specific list (marking an item purchased) — sub-room |
 
-Sub-room присоединяется когда пользователь **открывает** конкретный экран, покидает при уходе.
+Sub-rooms are joined when the user **opens** a specific screen, left when they leave.
 
-### События: клиент → сервер
+### Events: client → server
 
-| Событие | Payload | Описание |
-|---------|---------|----------|
-| `presence:heartbeat` | `{ householdId }` | Каждые 30 с — подтверждение онлайн-статуса |
-| `editing:start` | `{ householdId, entity, entityId }` | Пользователь открыл форму редактирования |
-| `editing:stop` | `{ householdId, entity, entityId }` | Сохранил / закрыл форму |
-| `room:join` | `{ roomName }` | Войти в sub-room (напр. при открытии списка покупок) |
-| `room:leave` | `{ roomName }` | Покинуть sub-room |
+| Event | Payload | Description |
+|-------|---------|-------------|
+| `presence:heartbeat` | `{ householdId }` | Every 30s — online status confirmation |
+| `editing:start` | `{ householdId, entity, entityId }` | User opened an edit form |
+| `editing:stop` | `{ householdId, entity, entityId }` | Saved / closed the form |
+| `room:join` | `{ roomName }` | Join a sub-room (e.g. on opening a shopping list) |
+| `room:leave` | `{ roomName }` | Leave a sub-room |
 
-### События: сервер → клиент
+### Events: server → client
 
-| Событие | Payload | Источник |
-|---------|---------|---------|
-| `presence:snapshot` | `{ users: PresenceUser[] }` | При подключении — текущий список онлайн |
-| `presence:update` | `{ userId, status: 'online'\|'offline', editing? }` | Изменение присутствия |
+| Event | Payload | Source |
+|-------|---------|--------|
+| `presence:snapshot` | `{ users: PresenceUser[] }` | On connect — current online list |
+| `presence:update` | `{ userId, status: 'online'\|'offline', editing? }` | Presence change |
 | `entity:created` | `{ entity, householdId, data }` | Kafka → bridge |
 | `entity:updated` | `{ entity, householdId, entityId, data }` | Kafka → bridge |
 | `entity:deleted` | `{ entity, householdId, entityId }` | Kafka → bridge |
 | `error` | `{ message }` | Auth fail, invalid room |
 
-### Маппинг Kafka-событий → Socket.IO
+### Kafka → Socket.IO event map
 
 ```typescript
-// В realtime-gateway/src/kafka/realtime-bridge.service.ts
+// In realtime-gateway/src/kafka/realtime-bridge.service.ts
 const KAFKA_TO_SOCKET: Record<string, { entity: string; socketEvent: string }> = {
   'finance.transaction.created':  { entity: 'transaction',    socketEvent: 'entity:created' },
   'finance.transaction.updated':  { entity: 'transaction',    socketEvent: 'entity:updated' },
@@ -1075,30 +1075,30 @@ const KAFKA_TO_SOCKET: Record<string, { entity: string; socketEvent: string }> =
   'household.member.removed':     { entity: 'member',         socketEvent: 'entity:deleted' },
 };
 
-// При получении события из Kafka:
+// On a Kafka event:
 // io.to(`household:${event.householdId}`).emit(socketEvent, { entity, data: event.payload })
 ```
 
-### Presence — хранение в Redis
+### Presence — Redis storage
 
 ```
 presence:{householdId}   → Redis Hash
   field: userId
   value: JSON { displayName, avatarUrl, connectedAt, editingEntity?, editingId? }
-  TTL: обновляется каждые 30 с heartbeat-ом, истекает через 90 с
+  TTL: refreshed every 30s by heartbeat, expires after 90s
 ```
 
-При `editing:start` сервер обновляет поле юзера в хэше и бродкастит `presence:update` в комнату.
-При `editing:stop` или disconnect — очищает `editingEntity` / помечает offline.
+On `editing:start` the server updates the user's field in the hash and broadcasts `presence:update` to the room.
+On `editing:stop` or disconnect — clears `editingEntity` / marks offline.
 
-### Поведение при multi-device
+### Multi-device behaviour
 
-Один пользователь открыл web и mobile одновременно:
-- Оба сокета регистрируются с одним `userId`
-- Presence хранится по `userId`, не по `socketId` — в комнате он виден как **один** онлайн-пользователь
-- При disconnect одного девайса — проверяем, есть ли другие активные сокеты этого `userId` (через Redis), и только тогда помечаем offline
+One user has both web and mobile open at the same time:
+- Both sockets register under the same `userId`
+- Presence is keyed by `userId`, not `socketId` — the room shows them as **one** online user
+- On disconnect of one device — check whether any other active sockets exist for this `userId` (via Redis); only then mark offline
 
-### Типы (в `libs/contracts`)
+### Types (in `libs/contracts`)
 
 ```typescript
 // libs/contracts/src/realtime/events.ts
@@ -1118,26 +1118,26 @@ export interface EntityEvent<T = unknown> {
 }
 ```
 
-### Клиентская интеграция
+### Client integration
 
 **Web (React):**
 ```typescript
-// Singleton socket, инициализируется после логина
-// Используется React Context или Zustand store для presence state
-// TanStack Query invalidation при entity:created/updated/deleted
+// Singleton socket, initialised after login
+// React Context or a Zustand store is used for presence state
+// TanStack Query invalidation on entity:created/updated/deleted
 queryClient.invalidateQueries({ queryKey: ['transactions', householdId] });
 ```
 
 **Mobile (React Native):**
 ```typescript
-// Тот же socket.io-client
+// Same socket.io-client
 // AppState.addEventListener('change', state => {
 //   if (state === 'active') socket.connect();
 //   if (state === 'background') socket.disconnect();
 // })
 ```
 
-### Горизонтальное масштабирование
+### Horizontal scaling
 
 ```typescript
 // realtime-gateway/src/main.ts
@@ -1149,11 +1149,11 @@ const subClient = pubClient.duplicate();
 io.adapter(createAdapter(pubClient, subClient));
 ```
 
-Несколько инстансов Realtime Gateway синхронизируют комнаты через Redis — клиент может попасть на любой инстанс.
+Multiple Realtime Gateway instances synchronise rooms via Redis — a client may land on any instance.
 
 ---
 
-## Диаграмма зависимостей фаз
+## Phase dependency diagram
 
 ```mermaid
 graph TD
@@ -1170,4 +1170,4 @@ graph TD
 
 ---
 
-*Последнее обновление: 2026-08-10*
+*Last updated: 2026-08-10*
