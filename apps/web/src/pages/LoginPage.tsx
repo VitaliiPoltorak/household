@@ -1,10 +1,15 @@
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { GoogleLogin } from '@react-oauth/google';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { useAuth } from '../contexts/AuthContext';
-import { authApi } from '../api/auth';
-import { useState } from 'react';
 import { useTheme } from '../contexts/ThemeContext';
+import { authApi } from '../api/auth';
+import { loginSchema, type LoginFormValues } from '../lib/auth-schemas';
+import { mapAuthError } from '../lib/auth-errors';
+import { td } from '../lib/i18n-dynamic';
 
 // Session-storage key the MigrationBanner writes to before redirecting a
 // legacy user through the OAuth flow. Consumed here to send them back to
@@ -16,9 +21,16 @@ export function LoginPage() {
   const { login, user } = useAuth();
   const { resolved } = useTheme();
   const navigate = useNavigate();
-  const [error, setError] = useState('');
+  const [globalError, setGlobalError] = useState('');
 
-  if (user) { navigate('/dashboard', { replace: true }); return null; }
+  const form = useForm<LoginFormValues>({
+    resolver: zodResolver(loginSchema),
+    defaultValues: { email: '', password: '' },
+  });
+
+  useEffect(() => {
+    if (user) navigate('/dashboard', { replace: true });
+  }, [user, navigate]);
 
   const redirectAfterLogin = () => {
     const returnTo = sessionStorage.getItem(RETURN_TO_KEY);
@@ -29,36 +41,117 @@ export function LoginPage() {
     navigate(target, { replace: true });
   };
 
+  const onSubmit = form.handleSubmit(async (values) => {
+    setGlobalError('');
+    try {
+      const tokens = await authApi.loginWithPassword({
+        email: values.email,
+        password: values.password,
+      });
+      await login(tokens);
+      redirectAfterLogin();
+    } catch (err) {
+      const mapped = mapAuthError(err);
+      // EMAIL_NOT_VERIFIED → send the user straight to the verify screen,
+      // carrying the email over so they don't retype it.
+      if (mapped.code === 'EMAIL_NOT_VERIFIED') {
+        navigate('/verify-email', {
+          replace: true,
+          state: { email: mapped.email ?? values.email },
+        });
+        return;
+      }
+      setGlobalError(td(t, mapped.key));
+    }
+  });
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-50 dark:bg-gray-950">
+    <div className="flex min-h-screen items-center justify-center bg-gray-50 p-4 dark:bg-gray-950">
       <div className="w-full max-w-sm rounded-2xl bg-white p-8 shadow-lg dark:bg-gray-900 dark:shadow-black/40">
-        <div className="mb-8 text-center">
+        <div className="mb-6 text-center">
           <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">{t('auth.title')}</h1>
           <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">{t('auth.subtitle')}</p>
         </div>
 
-        {error && (
-          <div className="mb-4 rounded-md bg-red-50 px-4 py-3 text-sm text-red-700 dark:bg-red-900/30 dark:text-red-300">{error}</div>
+        {globalError && (
+          <div
+            role="alert"
+            className="mb-4 rounded-md bg-red-50 px-4 py-3 text-sm text-red-700 dark:bg-red-900/30 dark:text-red-300"
+          >
+            {globalError}
+          </div>
         )}
 
-        <div className="flex justify-center">
+        <div className="mb-6 flex justify-center">
           <GoogleLogin
             onSuccess={async (cred) => {
               if (!cred.credential) return;
               try {
-                setError('');
+                setGlobalError('');
                 const tokens = await authApi.loginWithGoogle(cred.credential);
                 await login(tokens);
                 redirectAfterLogin();
               } catch {
-                setError(t('auth.loginError'));
+                setGlobalError(t('auth.loginError'));
               }
             }}
-            onError={() => setError(t('auth.loginError'))}
+            onError={() => setGlobalError(t('auth.loginError'))}
             width="280"
             theme={resolved === 'dark' ? 'filled_black' : 'outline'}
           />
         </div>
+
+        <div className="mb-6 flex items-center gap-3 text-xs uppercase tracking-wide text-gray-400 dark:text-gray-500">
+          <span className="h-px flex-1 bg-gray-200 dark:bg-gray-700" />
+          <span>{t('auth.orDivider')}</span>
+          <span className="h-px flex-1 bg-gray-200 dark:bg-gray-700" />
+        </div>
+
+        <form onSubmit={onSubmit} className="space-y-3" noValidate>
+          <label className="block text-sm">
+            <span className="mb-1 block font-medium text-gray-700 dark:text-gray-300">
+              {t('auth.email')}
+            </span>
+            <input
+              type="email"
+              autoComplete="email"
+              {...form.register('email')}
+              className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+            />
+            {form.formState.errors.email && (
+              <span className="mt-1 block text-xs text-red-600 dark:text-red-400">
+                {form.formState.errors.email.message}
+              </span>
+            )}
+          </label>
+
+          <label className="block text-sm">
+            <span className="mb-1 block font-medium text-gray-700 dark:text-gray-300">
+              {t('auth.password')}
+            </span>
+            <input
+              type="password"
+              autoComplete="current-password"
+              {...form.register('password')}
+              className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+            />
+          </label>
+
+          <button
+            type="submit"
+            disabled={form.formState.isSubmitting}
+            className="w-full rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700 disabled:opacity-60"
+          >
+            {form.formState.isSubmitting ? t('auth.signingIn') : t('auth.signIn')}
+          </button>
+        </form>
+
+        <p className="mt-6 text-center text-sm text-gray-500 dark:text-gray-400">
+          {t('auth.noAccount')}{' '}
+          <Link to="/register" className="font-medium text-blue-600 hover:underline dark:text-blue-400">
+            {t('auth.signUp')}
+          </Link>
+        </p>
       </div>
     </div>
   );

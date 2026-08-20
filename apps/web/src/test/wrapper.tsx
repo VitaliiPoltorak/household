@@ -2,6 +2,10 @@ import React from 'react';
 import { render, type RenderOptions } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
+// InitialEntry isn't re-exported from react-router-dom (v6); import from the
+// core `history` shape that MemoryRouter accepts. Kept as a local alias so
+// callers pass either a plain path string or a `{ pathname, state }` object.
+type InitialEntry = string | { pathname: string; state?: unknown; search?: string; hash?: string };
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import { AuthProvider } from '../contexts/AuthContext';
 import { HouseholdProvider } from '../contexts/HouseholdContext';
@@ -18,7 +22,11 @@ function makeQueryClient() {
 }
 
 interface WrapperOptions extends Omit<RenderOptions, 'wrapper'> {
-  initialEntries?: string[];
+  // Accept the same shape as MemoryRouter — a string path OR a full
+  // `{ pathname, state }` entry, so tests that need location.state on a
+  // page like VerifyEmailPage can seed it here instead of routing through
+  // a fake redirect chain.
+  initialEntries?: InitialEntry[];
   preloadTokens?: boolean;
 }
 

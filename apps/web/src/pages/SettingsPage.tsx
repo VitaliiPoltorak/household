@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { useAuth } from '../contexts/AuthContext';
 import { authApi } from '../api/auth';
 import { financeApi } from '../api/finance';
@@ -10,6 +12,9 @@ import { Button } from '../components/ui/Button';
 import { Input, Select } from '../components/ui/Input';
 import { supportedLngs, type SupportedLng } from '@household/locales';
 import { useTheme, type ThemePreference } from '../contexts/ThemeContext';
+import { changePasswordSchema, type ChangePasswordFormValues } from '../lib/auth-schemas';
+import { mapAuthError, type MappedAuthError } from '../lib/auth-errors';
+import { td } from '../lib/i18n-dynamic';
 
 const CURRENCIES = ['UAH', 'USD', 'EUR'];
 const DEFAULT_CURRENCY_KEY = 'accounts:baseCurrency';
@@ -30,6 +35,7 @@ export function SettingsPage() {
       <ProfileSection user={user} />
       <PreferencesSection i18n={i18n} />
       <ManageSection />
+      <ChangePasswordSection />
       <SecuritySection logout={logout} navigate={navigate} />
       <DangerSection user={user} logout={logout} navigate={navigate} />
     </div>
@@ -96,6 +102,141 @@ function SecuritySection({
         )}
       </div>
     </Section>
+  );
+}
+
+// ──────────────────────────────────────────────
+// Change password section
+// ──────────────────────────────────────────────
+function ChangePasswordSection() {
+  const { t } = useTranslation();
+  const [globalError, setGlobalError] = useState<MappedAuthError | null>(null);
+  const [success, setSuccess] = useState(false);
+  const form = useForm<ChangePasswordFormValues>({
+    resolver: zodResolver(changePasswordSchema),
+    defaultValues: { currentPassword: '', newPassword: '', confirmPassword: '' },
+  });
+
+  const submit = form.handleSubmit(async (values) => {
+    setGlobalError(null);
+    setSuccess(false);
+    try {
+      // Server returns a fresh LoginResponse; the browser stores the new
+      // cookies automatically via credentials: 'include'. AuthContext's
+      // module-level accessToken is still valid because the current session
+      // was just replaced (not deleted from the caller's perspective).
+      await authApi.changePassword({
+        currentPassword: values.currentPassword,
+        newPassword: values.newPassword,
+      });
+      setSuccess(true);
+      form.reset({ currentPassword: '', newPassword: '', confirmPassword: '' });
+    } catch (err) {
+      setGlobalError(mapAuthError(err));
+    }
+  });
+
+  return (
+    <Section title={t('auth.changePassword.title')}>
+      <form
+        onSubmit={submit}
+        className="space-y-3 rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900"
+        noValidate
+      >
+        <p className="text-sm text-gray-600 dark:text-gray-300">
+          {t('auth.changePassword.description')}
+        </p>
+
+        {globalError && (
+          <div
+            role="alert"
+            className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-900/30 dark:text-red-300"
+          >
+            <p>{td(t, globalError.key)}</p>
+            {globalError.suggestions && globalError.suggestions.length > 0 && (
+              <ul className="mt-2 list-inside list-disc text-xs opacity-90">
+                {globalError.suggestions.map((s, i) => (
+                  <li key={i}>{s}</li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+
+        {success && (
+          <div
+            role="status"
+            className="rounded-md bg-green-50 px-3 py-2 text-sm text-green-700 dark:bg-green-900/30 dark:text-green-300"
+          >
+            {t('auth.changePassword.success')}
+          </div>
+        )}
+
+        <PasswordField
+          id="pw-current"
+          label={t('auth.currentPassword')}
+          autoComplete="current-password"
+          register={form.register('currentPassword')}
+        />
+        <PasswordField
+          id="pw-new"
+          label={t('auth.newPassword')}
+          autoComplete="new-password"
+          register={form.register('newPassword')}
+          error={
+            form.formState.errors.newPassword?.message
+              ? td(t, form.formState.errors.newPassword.message)
+              : undefined
+          }
+        />
+        <PasswordField
+          id="pw-confirm"
+          label={t('auth.confirmPassword')}
+          autoComplete="new-password"
+          register={form.register('confirmPassword')}
+          error={
+            form.formState.errors.confirmPassword?.message
+              ? td(t, form.formState.errors.confirmPassword.message)
+              : undefined
+          }
+        />
+
+        <Button type="submit" size="sm" disabled={form.formState.isSubmitting}>
+          {form.formState.isSubmitting
+            ? t('auth.changePassword.submitting')
+            : t('auth.changePassword.submit')}
+        </Button>
+      </form>
+    </Section>
+  );
+}
+
+// Native-input wrapper used by ChangePasswordSection. The shared <Input/>
+// component is a plain function (not forwardRef), so react-hook-form's
+// register() ref lands on the props object rather than the DOM node — the
+// form appears to render but never captures values. Kept inline because the
+// change-password form is the only caller.
+function PasswordField(props: {
+  id: string;
+  label: string;
+  autoComplete: string;
+  register: ReturnType<ReturnType<typeof useForm<ChangePasswordFormValues>>['register']>;
+  error?: string;
+}) {
+  return (
+    <div className="flex flex-col gap-1">
+      <label htmlFor={props.id} className="text-sm font-medium text-gray-700 dark:text-gray-300">
+        {props.label}
+      </label>
+      <input
+        id={props.id}
+        type="password"
+        autoComplete={props.autoComplete}
+        {...props.register}
+        className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500"
+      />
+      {props.error && <p className="text-xs text-red-600 dark:text-red-400">{props.error}</p>}
+    </div>
   );
 }
 
