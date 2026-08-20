@@ -6,6 +6,7 @@ dist/
 
 .env
 .env.local
+.env.production
 
 coverage/
 
@@ -15,5 +16,7 @@ coverage/
 .idea/
 .vscode/
 
-# Claude Code session artifacts (worktrees, memory, transcripts)
-.claude/
+# Claude Code — commit shared settings/hooks (they're the project harness),
+# ignore only personal overrides
+.claude/settings.local.json
+.claude/worktrees/

@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# Runs unit tests before every commit.
+# Fast (no Docker). Integration tests are NOT run here — they need
+# `docker compose up -d` and are too slow for a pre-commit gate.
+# Skip in an emergency with `git commit --no-verify` (discouraged).
+
+set -euo pipefail
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+cd "$REPO_ROOT"
+
+echo "pre-commit: running pnpm test:unit …"
+pnpm test:unit
