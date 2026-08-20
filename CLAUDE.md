@@ -209,6 +209,15 @@ Socket.IO is mocked globally in `setup.ts` — no WebSocket connections in tests
 
 Swagger at `/docs` per service is for endpoint reference during development only.
 
+### Scenario gate
+
+These two mechanisms together are this project's "scenario gate" — a feature is not shippable until both are green:
+
+1. Automated: `pnpm --filter @household/<service> test:integration` covers the golden path, tenant isolation, Kafka assertions, and headline validation errors. See "Integration tests" above for the pattern.
+2. Manual: the Postman collection (`docs/postman/household.postman_collection.json`) walks the multi-service flow end-to-end. See "Manual testing" above.
+
+Do not add a parallel `scenarios/` directory — extend these instead.
+
 ## Docker auto-rebuild on merge
 
 The compose services are built into `household/<service>` images — a pulled/merged code change is invisible until the image is rebuilt. To avoid the "new endpoint returns 404 because the container is still on the old image" trap, the repo ships two git hooks in `.githooks/`:
