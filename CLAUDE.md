@@ -146,7 +146,7 @@ One PostgreSQL instance with **schema-per-service** (not separate databases). Ea
 
 Every completed feature must have both before the issue is closed:
 1. **Automated integration tests** — `apps/<service>/test/*.integration.spec.ts`
-2. **Manual testing issue** in the GitHub Testing milestone with Postman checklist
+2. **Automated API scenario check** — covered by `docs/postman/household.postman_collection.json` and passing `pnpm test:postman` (see Scenario gate below)
 
 ### Integration tests
 
@@ -203,9 +203,21 @@ server.use(http.get('/api/v1/accounts', () => HttpResponse.json([])));
 
 Socket.IO is mocked globally in `setup.ts` — no WebSocket connections in tests.
 
-### Manual testing
+### API scenario checks (Postman / Newman)
 
-**Tool: Postman** — `docs/postman/household.postman_collection.json` + `household.postman_environment.json`.
+**Tool: Newman**, running `docs/postman/household.postman_collection.json` + `household.postman_environment.json` headlessly against a live stack — not a human walking through Postman by hand.
+
+```bash
+docker compose up -d --wait                                          # full stack; --wait waits for real readiness (#205)
+docker compose exec -T auth-service node scripts/seed-e2e-user.js    # seeds two pre-verified users (#204)
+pnpm test:postman
+```
+
+The collection logs in as the two seeded users (`e2e-owner@household.local` / `e2e-invitee@household.local` by default — override via `E2E_EMAIL`/`E2E_PASSWORD`/`E2E_INVITEE_EMAIL`), exercises the full API surface (auth, households + invites, finance, shopping), and **cleans up after itself**: every created entity's name carries a run-scoped `{{runId}}`, and a final Cleanup folder deletes the household (cascading to finance + shopping via the existing `household.deleted` Kafka consumers) and logs out both sessions. Never run it with `--bail` — that skips the Cleanup folder on the first failed assertion and leaks state.
+
+**Deliberately manual-only, not covered by this collection:**
+- Real Google/Apple/Facebook OAuth consent — Google actively blocks scripted logins; the strategy code itself is covered by unit tests with mocked provider responses.
+- `POST /auth/register` + `POST /auth/verify-email` — the 6-digit verification code only ever exists in Redis (`email_verify:<email>`) and an auth-service log line, not worth a test-only HTTP surface for a flow that rarely changes.
 
 Swagger at `/docs` per service is for endpoint reference during development only.
 
@@ -215,29 +227,35 @@ A feature is not shippable until both are green:
 
 1. **Automated integration tests**: `pnpm --filter @household/<service> test:integration`
    — golden path, tenant isolation, Kafka assertions, validation errors.
-2. **Automated API scenario check (Newman)**: `pnpm test:postman` — full
-   Postman collection headlessly, email/password auth, against a running
-   local stack (`docker compose up -d` + services up).
-
-Real Google/Apple/Facebook OAuth is verified once during initial feature
-development, not as a recurring gate — the strategy code itself is covered
-by unit tests with mocked provider responses. Do not attempt to script the
-actual OAuth consent screen; Google actively blocks automated logins.
+2. **Automated API scenario check (Newman)**: `pnpm test:postman`, via
+   `scripts/api-scenarios.sh` — runs automatically on every commit
+   (`.githooks/pre-commit`, which brings the stack up itself if it isn't
+   already running) and on every PR that touches backend-relevant paths
+   (`.github/workflows/api-scenarios.yml`). Bypass locally in a genuine
+   emergency with `SKIP_API_SCENARIOS=1` — strictly prefer this over
+   `git commit --no-verify`, which also skips the unit tests.
 
 ## Docker auto-rebuild on merge
 
-The compose services are built into `household/<service>` images — a pulled/merged code change is invisible until the image is rebuilt. To avoid the "new endpoint returns 404 because the container is still on the old image" trap, the repo ships two git hooks in `.githooks/`:
+The compose services are built into `household/<service>` images — a pulled/merged code change is invisible until the image is rebuilt. To avoid the "new endpoint returns 404 because the container is still on the old image" trap, the repo ships three git hooks in `.githooks/`:
 
 - `post-merge` — runs after `git pull` / `git merge`.
 - `post-checkout` — runs after `git checkout <branch>` (branch checkouts only, not file checkouts).
+- `pre-commit` — runs `pnpm test:unit` then the API scenario gate (`scripts/api-scenarios.sh`) on every commit; see Scenario gate above.
 
-Both delegate to `scripts/rebuild-touched-services.sh`, which:
+`post-merge`/`post-checkout` delegate to `scripts/rebuild-touched-services.sh`, which:
 1. Diffs the two refs to find changed files.
-2. Maps `apps/<svc>/**` → that service, and `libs/**` / `Dockerfile` / `docker-compose.yml` / root `package.json` / `pnpm-lock.yaml` → all backend services.
+2. Maps `apps/<svc>/**` → that service, and `libs/**` / `Dockerfile` / `docker-compose.yml` / root `package.json` / `pnpm-lock.yaml` → all backend services — via the shared table in `scripts/lib/changed-services.sh` (also used by `scripts/api-scenarios.sh`, so the mapping can't drift between the two callers).
 3. Intersects with `docker compose ps --services --status=running` — never starts a service that wasn't already up.
 4. Runs `docker compose up -d --build <targets>` for the intersection.
 
 Failures are logged, never blocking — the git operation succeeds either way.
+
+### Docker health checks
+
+All 6 app services (plus postgres/redis/kafka) have a `healthcheck` in `docker-compose.yml`, so `docker compose up -d --wait` actually waits for real readiness instead of just "container started". The internal services (auth/household/finance/shopping/realtime-gateway) use a plain TCP-connect probe on their own port rather than a dedicated HTTP health route: in every service's `main.ts`, `await app.listen(...)` is the last bootstrap step, after the TypeORM connection, `ensureSchema()`, `synchronize`, and Kafka `onModuleInit` all complete — so "port accepts a connection" already proves the schema exists and the service is genuinely ready. `api-gateway` uses its real `GET /api/v1/health` route instead (already public, excluded from auth middleware, and exempted from the global rate limiter so a busy-but-healthy gateway can't get marked unhealthy by its own throttler).
+
+If a future refactor moves `app.listen()` earlier (e.g. a lazy DB connection), this "port-bound ⇒ bootstrap complete" assumption breaks silently — revisit the healthchecks in `docker-compose.yml` if that happens.
 
 **Activation is opt-in** (git hooks are not auto-linked to `.githooks/` on clone): run `pnpm hooks:enable` once per clone. `pnpm hooks:disable` reverts.
 
