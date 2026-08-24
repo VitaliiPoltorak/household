@@ -211,12 +211,18 @@ Swagger at `/docs` per service is for endpoint reference during development only
 
 ### Scenario gate
 
-These two mechanisms together are this project's "scenario gate" — a feature is not shippable until both are green:
+A feature is not shippable until both are green:
 
-1. Automated: `pnpm --filter @household/<service> test:integration` covers the golden path, tenant isolation, Kafka assertions, and headline validation errors. See "Integration tests" above for the pattern.
-2. Manual: the Postman collection (`docs/postman/household.postman_collection.json`) walks the multi-service flow end-to-end. See "Manual testing" above.
+1. **Automated integration tests**: `pnpm --filter @household/<service> test:integration`
+   — golden path, tenant isolation, Kafka assertions, validation errors.
+2. **Automated API scenario check (Newman)**: `pnpm test:postman` — full
+   Postman collection headlessly, email/password auth, against a running
+   local stack (`docker compose up -d` + services up).
 
-Do not add a parallel `scenarios/` directory — extend these instead.
+Real Google/Apple/Facebook OAuth is verified once during initial feature
+development, not as a recurring gate — the strategy code itself is covered
+by unit tests with mocked provider responses. Do not attempt to script the
+actual OAuth consent screen; Google actively blocks automated logins.
 
 ## Docker auto-rebuild on merge
 
