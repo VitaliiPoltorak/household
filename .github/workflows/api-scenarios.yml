@@ -1,0 +1,88 @@
+name: API Scenarios
+
+# Separate workflow file rather than a job in ci.yml: `paths:` filtering is
+# per-workflow (not per-job), and this job is far heavier than ci.yml's
+# three — most PRs (web-only, docs-only) should skip it entirely. A
+# separate file also gives it its own `concurrency` group.
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'apps/**'
+      - 'libs/**'
+      - 'Dockerfile'
+      - 'docker-compose.yml'
+      - 'pnpm-lock.yaml'
+      - 'docs/postman/**'
+      - 'scripts/**'
+      - '.env.ci'
+      - '.github/workflows/api-scenarios.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Keep in lockstep with ci.yml and root package.json.
+  NODE_VERSION: '22'
+  PNPM_VERSION: '9.15.9'
+
+jobs:
+  api-scenarios:
+    name: API scenarios (Newman)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      # `.env` is gitignored — every service's env_file: .env would
+      # otherwise fail to resolve on a fresh checkout. .env.ci (#206) is a
+      # committed, self-describing-fake env file for exactly this.
+      - name: Configure environment
+        run: cp .env.ci .env
+
+      # No caching yet (#209 follow-up) — cold build is ~8-12 min. BuildKit
+      # shares the COPY . . + pnpm install layers across all 6 services
+      # (root Dockerfile's ARG SERVICE is only referenced in the final
+      # per-service build/prune steps), so it's effectively one install +
+      # 6 Nest builds, not 6 independent installs.
+      - name: Build and start the stack
+        run: docker compose up -d --build --wait --wait-timeout 240
+
+      # Registration + email verification stay a manual-only flow (#192) —
+      # the 6-digit code only ever exists in Redis and a service log line.
+      # Seeds two pre-verified users instead so the collection can start
+      # straight at POST /auth/login.
+      - name: Seed E2E users
+        run: docker compose exec -T auth-service node scripts/seed-e2e-user.js
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      # Only `newman` (a root devDependency) is actually needed to run the
+      # collection, but a full install is simplest and this workflow
+      # already pays the Docker build cost.
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Never add --bail here: it would skip the collection's Cleanup
+      # folder on the first failed assertion, leaking a household + two
+      # live sessions. Never --export-environment: it would try to rewrite
+      # the checked-in environment file mid-run.
+      - name: Run API scenario collection
+        run: pnpm test:postman
+
+      - name: Dump service logs on failure
+        if: failure()
+        run: docker compose logs --no-color --tail=200
+
+      - name: Tear down
+        if: always()
+        run: docker compose down -v
