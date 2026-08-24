@@ -1,77 +1,151 @@
 {
   "info": {
     "name": "Household API",
-    "description": "Family finance & shopping management.\n\n## Setup\n1. Import this collection and `household.postman_environment.json`\n2. Select the **Household — Local** environment\n3. Start infrastructure: `docker compose up -d`\n4. Start services: `pnpm dev`\n5. Get a Google ID token (see `googleIdToken` env var description) and run **Auth / Login with Google** — all other tokens are set automatically\n\n## Auth flow\nEvery request uses the `{{accessToken}}` Bearer token (set automatically on login). If you get 401, re-run the Login request.",
+    "description": "Family finance & shopping management — automated API scenario collection (#192/#207).\n\n## Setup\n1. `docker compose up -d --wait` (postgres/redis/kafka + all 6 app services)\n2. `docker compose exec -T auth-service node scripts/seed-e2e-user.js` (#204) — seeds the two users this collection logs in as\n3. Import this collection and `household.postman_environment.json`, select the **Household — Local** environment\n4. Run the whole collection: `pnpm test:postman`, or in the Postman app\n\n## Auth flow\nThe **Setup** folder logs in both seeded users (owner + invitee) and captures their tokens/cookies. Every other request uses the `{{accessToken}}` (owner) bearer token by default; the invite-accept request overrides it per-request with `{{accessTokenInvitee}}`.\n\n## Self-cleanup\nEvery entity name includes `{{runId}}` (set once per run) so repeated runs never collide, and the **Cleanup** folder deletes the household (cascading to finance + shopping) and logs out both sessions at the end. **Never run with `--bail`** — it would skip Cleanup on the first failed assertion.\n\n## Deliberately out of scope\nRegistration + email verification and real OAuth consent stay a manual-only flow (#192) — the 6-digit verification code only ever exists in Redis and a service log line, and Google actively blocks scripted OAuth consent.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "auth": {
     "type": "bearer",
-    "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }]
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{accessToken}}",
+        "type": "string"
+      }
+    ]
   },
   "item": [
     {
-      "name": "Auth",
+      "name": "Setup",
+      "description": "Bootstraps the run: logs in the two seeded E2E users (scripts/seed-e2e-user.js, #204), derives run-scoped values so every created entity gets a unique name (the collection cleans up after itself, but pre-commit runs it on every commit against the local dev DB).",
       "item": [
         {
-          "name": "Login with Google",
+          "name": "Login (owner)",
           "event": [
             {
               "listen": "test",
               "script": {
+                "type": "text/javascript",
                 "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
                   "const r = pm.response.json();",
                   "pm.environment.set('accessToken', r.accessToken);",
-                  "pm.environment.set('refreshToken', r.refreshToken);",
-                  "pm.environment.set('sessionId', r.sessionId);",
-                  "pm.test('Login successful', () => pm.response.to.have.status(201));",
-                  "pm.test('Has accessToken', () => pm.expect(r.accessToken).to.be.a('string'));"
+                  "pm.test('Has accessToken', () => pm.expect(r.accessToken).to.be.a('string'));",
+                  "",
+                  "function extractCookie(name) {",
+                  "  const setCookies = pm.response.headers.all().filter(h => h.key.toLowerCase() === 'set-cookie');",
+                  "  for (const h of setCookies) {",
+                  "    const m = new RegExp(`^${name}=([^;]*)`).exec(h.value);",
+                  "    if (m) return m[1];",
+                  "  }",
+                  "  return null;",
+                  "}",
+                  "pm.environment.set('csrfToken', extractCookie('household_csrf'));",
+                  "pm.environment.set('refreshCookie', extractCookie('household_refresh'));",
+                  "pm.test('Captured CSRF + refresh cookies', () => {",
+                  "  pm.expect(pm.environment.get('csrfToken')).to.be.a('string');",
+                  "  pm.expect(pm.environment.get('refreshCookie')).to.be.a('string');",
+                  "});",
+                  "",
+                  "// Run-scoped values so repeated runs (pre-commit fires on every commit)",
+                  "// never collide with leftover data from a prior run.",
+                  "if (!pm.environment.get('runId')) {",
+                  "  pm.environment.set('runId', Date.now().toString(36));",
+                  "  const now = new Date();",
+                  "  pm.environment.set('todayDate', now.toISOString().slice(0, 10));",
+                  "  const next7 = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);",
+                  "  pm.environment.set('recurringDueDate', next7.toISOString().slice(0, 10));",
+                  "}"
                 ]
               }
             }
           ],
           "request": {
-            "auth": { "type": "noauth" },
             "method": "POST",
-            "url": "{{baseUrl}}/auth/google",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/auth/login",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"idToken\": \"{{googleIdToken}}\",\n  \"deviceInfo\": \"Postman\"\n}"
-            },
-            "description": "Exchange a Google ID token for Household JWT tokens.\n\nHow to get a Google ID token:\n1. Go to https://developers.google.com/oauthplayground\n2. Select scope: openid email profile\n3. Authorize, exchange code → copy `id_token`\n4. Set `googleIdToken` env var and run this request"
-          }
+              "raw": "{\n  \"email\": \"{{userEmail}}\",\n  \"password\": \"{{userPassword}}\",\n  \"deviceInfo\": \"Newman\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "description": "Seeded via scripts/seed-e2e-user.js. Captures the CSRF + refresh cookie values explicitly from Set-Cookie (rather than relying on Newman's cookie jar) so behavior is deterministic across the two separate user sessions in this run."
         },
         {
-          "name": "Refresh token",
+          "name": "Login (invitee)",
           "event": [
             {
               "listen": "test",
               "script": {
+                "type": "text/javascript",
                 "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
                   "const r = pm.response.json();",
-                  "pm.environment.set('accessToken', r.accessToken);",
-                  "pm.test('Refresh successful', () => pm.response.to.have.status(201));"
+                  "pm.environment.set('accessTokenInvitee', r.accessToken);",
+                  "pm.test('Has accessToken', () => pm.expect(r.accessToken).to.be.a('string'));",
+                  "",
+                  "function extractCookie(name) {",
+                  "  const setCookies = pm.response.headers.all().filter(h => h.key.toLowerCase() === 'set-cookie');",
+                  "  for (const h of setCookies) {",
+                  "    const m = new RegExp(`^${name}=([^;]*)`).exec(h.value);",
+                  "    if (m) return m[1];",
+                  "  }",
+                  "  return null;",
+                  "}",
+                  "pm.environment.set('inviteeRefreshCookie', extractCookie('household_refresh'));"
                 ]
               }
             }
           ],
           "request": {
-            "auth": { "type": "noauth" },
             "method": "POST",
-            "url": "{{baseUrl}}/auth/refresh",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/auth/login",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"sessionId\": \"{{sessionId}}\",\n  \"refreshToken\": \"{{refreshToken}}\"\n}"
+              "raw": "{\n  \"email\": \"{{inviteeEmail}}\",\n  \"password\": \"{{userPassword}}\",\n  \"deviceInfo\": \"Newman\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             }
-          }
-        },
+          },
+          "description": "Second seeded user — needed because household invite-accept requires the invite's email to match the caller and rejects existing members, so the owner can never self-accept its own invite."
+        }
+      ]
+    },
+    {
+      "name": "Auth",
+      "item": [
         {
           "name": "Get my profile",
           "event": [
             {
               "listen": "test",
               "script": {
+                "type": "text/javascript",
                 "exec": [
                   "pm.test('Status 200', () => pm.response.to.have.status(200));",
                   "const r = pm.response.json();",
@@ -87,27 +161,85 @@
         },
         {
           "name": "Update profile",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "url": "{{baseUrl}}/auth/me",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"displayName\": \"Test User\",\n  \"locale\": \"uk\"\n}"
+              "raw": "{\n  \"displayName\": \"Newman E2E {{runId}}\",\n  \"locale\": \"en\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             }
           }
         },
         {
-          "name": "Logout",
+          "name": "Refresh token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// No @HttpCode override on this route → Nest's POST default (201).",
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "const r = pm.response.json();",
+                  "if (r.accessToken) { pm.environment.set('accessToken', r.accessToken); }",
+                  "pm.test('Has fresh accessToken', () => pm.expect(r.accessToken).to.be.a('string'));",
+                  "",
+                  "function extractCookie(name) {",
+                  "  const setCookies = pm.response.headers.all().filter(h => h.key.toLowerCase() === 'set-cookie');",
+                  "  for (const h of setCookies) {",
+                  "    const m = new RegExp(`^${name}=([^;]*)`).exec(h.value);",
+                  "    if (m) return m[1];",
+                  "  }",
+                  "  return null;",
+                  "}",
+                  "const rotated = extractCookie('household_refresh');",
+                  "if (rotated) pm.environment.set('refreshCookie', rotated);",
+                  "const rotatedCsrf = extractCookie('household_csrf');",
+                  "if (rotatedCsrf) pm.environment.set('csrfToken', rotatedCsrf);"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "POST",
-            "url": "{{baseUrl}}/auth/logout",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"sessionId\": \"{{sessionId}}\"\n}"
-            }
-          }
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{csrfToken}}"
+              },
+              {
+                "key": "Cookie",
+                "value": "household_refresh={{refreshCookie}}; household_csrf={{csrfToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/auth/refresh"
+          },
+          "description": "Double-submit CSRF: cookie value must match X-CSRF-Token header (apps/auth-service/src/auth/cookies.ts verifyCsrf). Explicit Cookie header used instead of relying on Newman's jar, since the jar can only hold one household_refresh value at a time and this run juggles two separate user sessions."
         }
       ]
     },
@@ -120,6 +252,7 @@
             {
               "listen": "test",
               "script": {
+                "type": "text/javascript",
                 "exec": [
                   "pm.test('Status 201', () => pm.response.to.have.status(201));",
                   "const r = pm.response.json();",
@@ -132,14 +265,24 @@
           ],
           "request": {
             "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "url": "{{baseUrl}}/households",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"My Family\"\n}"
-            },
-            "description": "Creates a household. The creator automatically becomes the OWNER. Sets {{householdId}} for subsequent requests."
-          }
+              "raw": "{\n  \"name\": \"E2E Household {{runId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "description": "Creator becomes OWNER automatically."
         },
         {
           "name": "List my households",
@@ -147,9 +290,14 @@
             {
               "listen": "test",
               "script": {
+                "type": "text/javascript",
                 "exec": [
                   "pm.test('Status 200', () => pm.response.to.have.status(200));",
-                  "pm.test('Is array', () => pm.expect(pm.response.json()).to.be.an('array'));"
+                  "const r = pm.response.json();",
+                  "pm.test('Is array', () => pm.expect(r).to.be.an('array'));",
+                  "pm.test('Contains the created household', () => {",
+                  "  pm.expect(r.some(h => h.id === pm.environment.get('householdId'))).to.be.true;",
+                  "});"
                 ]
               }
             }
@@ -161,46 +309,91 @@
         },
         {
           "name": "Get household",
-          "request": {
-            "method": "GET",
-            "url": "{{baseUrl}}/households/{{householdId}}",
-            "header": [{ "key": "X-Household-Id", "value": "{{householdId}}" }]
-          }
-        },
-        {
-          "name": "Update household name",
-          "request": {
-            "method": "PATCH",
-            "url": "{{baseUrl}}/households/{{householdId}}",
-            "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "X-Household-Id", "value": "{{householdId}}" }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"name\": \"Our Home\"\n}"
-            }
-          }
-        },
-        {
-          "name": "List members",
           "event": [
             {
               "listen": "test",
               "script": {
+                "type": "text/javascript",
                 "exec": [
-                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
-                  "const members = pm.response.json();",
-                  "pm.test('Has at least 1 member (owner)', () => pm.expect(members.length).to.be.gte(1));",
-                  "pm.test('First member is owner', () => pm.expect(members[0].role).to.equal('owner'));"
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));"
                 ]
               }
             }
           ],
           "request": {
             "method": "GET",
-            "url": "{{baseUrl}}/households/{{householdId}}/members",
-            "header": [{ "key": "X-Household-Id", "value": "{{householdId}}" }]
+            "header": [
+              {
+                "key": "X-Household-Id",
+                "value": "{{householdId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/households/{{householdId}}"
+          }
+        },
+        {
+          "name": "Update household name",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Name updated', () => pm.expect(pm.response.json().name).to.include(pm.environment.get('runId')));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Household-Id",
+                "value": "{{householdId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/households/{{householdId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"E2E Household {{runId}} (renamed)\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "List members (owner only)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const members = pm.response.json();",
+                  "pm.test('Exactly 1 member (owner)', () => pm.expect(members.length).to.equal(1));",
+                  "pm.test('That member is owner', () => pm.expect(members[0].role).to.equal('owner'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Household-Id",
+                "value": "{{householdId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/households/{{householdId}}/members"
           }
         },
         {
@@ -209,6 +402,7 @@
             {
               "listen": "test",
               "script": {
+                "type": "text/javascript",
                 "exec": [
                   "pm.test('Status 201', () => pm.response.to.have.status(201));",
                   "const r = pm.response.json();",
@@ -220,32 +414,111 @@
           ],
           "request": {
             "method": "POST",
-            "url": "{{baseUrl}}/households/{{householdId}}/invites",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "X-Household-Id", "value": "{{householdId}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Household-Id",
+                "value": "{{householdId}}"
+              }
             ],
+            "url": "{{baseUrl}}/households/{{householdId}}/invites",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"partner@example.com\",\n  \"role\": \"member\"\n}"
-            },
-            "description": "Creates an invite. Sets {{inviteToken}} for the accept request."
+              "raw": "{\n  \"email\": \"{{inviteeEmail}}\",\n  \"role\": \"member\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
           }
         },
         {
           "name": "List active invites",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Has our invite', () => {",
+                  "  const invites = pm.response.json();",
+                  "  pm.expect(invites.some(i => i.token === pm.environment.get('inviteToken'))).to.be.true;",
+                  "});"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "GET",
-            "url": "{{baseUrl}}/households/{{householdId}}/invites",
-            "header": [{ "key": "X-Household-Id", "value": "{{householdId}}" }]
+            "header": [
+              {
+                "key": "X-Household-Id",
+                "value": "{{householdId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/households/{{householdId}}/invites"
           }
         },
         {
-          "name": "Accept invite (as another user)",
+          "name": "Accept invite (as invitee)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "const r = pm.response.json();",
+                  "pm.test('Invitee is now a member', () => pm.expect(r.userId).to.be.a('string'));"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "POST",
-            "url": "{{baseUrl}}/invites/{{inviteToken}}/accept",
-            "description": "Call this with a different user's accessToken to accept the invite. Login as a second user first and update {{accessToken}}, then run this."
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessTokenInvitee}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": "{{baseUrl}}/invites/{{inviteToken}}/accept"
+          },
+          "description": "Per-request bearer override: uses {{accessTokenInvitee}}, not the collection default. Invite-accept requires invite.email === caller's own email and rejects existing members, which is exactly why this collection seeds two distinct users (#204)."
+        },
+        {
+          "name": "List members (after invite)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const members = pm.response.json();",
+                  "pm.test('Now 2 members', () => pm.expect(members.length).to.equal(2));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Household-Id",
+                "value": "{{householdId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/households/{{householdId}}/members"
           }
         }
       ]
@@ -259,6 +532,7 @@
             {
               "listen": "test",
               "script": {
+                "type": "text/javascript",
                 "exec": [
                   "pm.test('Status 201', () => pm.response.to.have.status(201));",
                   "const r = pm.response.json();",
@@ -270,31 +544,66 @@
           ],
           "request": {
             "method": "POST",
-            "url": "{{baseUrl}}/accounts",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "X-Household-Id", "value": "{{householdId}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Household-Id",
+                "value": "{{householdId}}"
+              }
             ],
+            "url": "{{baseUrl}}/accounts",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Mono Card\",\n  \"type\": \"bank\",\n  \"currency\": \"UAH\"\n}"
+              "raw": "{\n  \"name\": \"Mono Card {{runId}}\",\n  \"type\": \"bank\",\n  \"currency\": \"UAH\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             }
           }
         },
         {
           "name": "Create account (cash)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "pm.environment.set('accountId2', pm.response.json().id);"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "POST",
-            "url": "{{baseUrl}}/accounts",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "X-Household-Id", "value": "{{householdId}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Household-Id",
+                "value": "{{householdId}}"
+              }
             ],
+            "url": "{{baseUrl}}/accounts",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Cash Wallet\",\n  \"type\": \"cash\",\n  \"currency\": \"UAH\"\n}"
+              "raw": "{\n  \"name\": \"Cash Wallet {{runId}}\",\n  \"type\": \"cash\",\n  \"currency\": \"UAH\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             }
-          }
+          },
+          "description": "Second account — needed as the transfer destination below (the previous version of this collection left this dangling as a REPLACE_ME placeholder)."
         },
         {
           "name": "List accounts",
@@ -302,17 +611,25 @@
             {
               "listen": "test",
               "script": {
+                "type": "text/javascript",
                 "exec": [
                   "pm.test('Status 200', () => pm.response.to.have.status(200));",
-                  "pm.test('Is array', () => pm.expect(pm.response.json()).to.be.an('array'));"
+                  "const r = pm.response.json();",
+                  "pm.test('Is array', () => pm.expect(r).to.be.an('array'));",
+                  "pm.test('Has both accounts', () => pm.expect(r.length).to.be.gte(2));"
                 ]
               }
             }
           ],
           "request": {
             "method": "GET",
-            "url": "{{baseUrl}}/accounts",
-            "header": [{ "key": "X-Household-Id", "value": "{{householdId}}" }]
+            "header": [
+              {
+                "key": "X-Household-Id",
+                "value": "{{householdId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/accounts"
           }
         },
         {
@@ -321,133 +638,23 @@
             {
               "listen": "test",
               "script": {
+                "type": "text/javascript",
                 "exec": [
                   "pm.test('Status 200', () => pm.response.to.have.status(200));",
-                  "const r = pm.response.json();",
-                  "pm.test('Has totalBalance', () => pm.expect(r.totalBalance).to.be.a('number'));"
+                  "pm.test('Has totalBalance', () => pm.expect(pm.response.json().totalBalance).to.be.a('number'));"
                 ]
               }
             }
           ],
           "request": {
             "method": "GET",
-            "url": "{{baseUrl}}/accounts/summary",
-            "header": [{ "key": "X-Household-Id", "value": "{{householdId}}" }]
-          }
-        }
-      ]
-    },
-    {
-      "name": "Finance — Transactions",
-      "item": [
-        {
-          "name": "Add income (+5000)",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
-                  "const r = pm.response.json();",
-                  "pm.environment.set('transactionId', r.id);",
-                  "pm.test('Type is income', () => pm.expect(r.type).to.equal('income'));"
-                ]
+            "header": [
+              {
+                "key": "X-Household-Id",
+                "value": "{{householdId}}"
               }
-            }
-          ],
-          "request": {
-            "method": "POST",
-            "url": "{{baseUrl}}/transactions",
-            "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "X-Household-Id", "value": "{{householdId}}" }
             ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"accountId\": \"{{accountId}}\",\n  \"type\": \"income\",\n  \"amount\": 5000,\n  \"currency\": \"UAH\",\n  \"description\": \"Salary\",\n  \"date\": \"2026-07-30\"\n}"
-            },
-            "description": "After this request, check GET /accounts/summary — totalBalance should increase by 5000."
-          }
-        },
-        {
-          "name": "Add expense (-150)",
-          "request": {
-            "method": "POST",
-            "url": "{{baseUrl}}/transactions",
-            "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "X-Household-Id", "value": "{{householdId}}" }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"accountId\": \"{{accountId}}\",\n  \"type\": \"expense\",\n  \"amount\": 150,\n  \"currency\": \"UAH\",\n  \"description\": \"Groceries\",\n  \"date\": \"2026-07-30\"\n}"
-            }
-          }
-        },
-        {
-          "name": "Transfer between accounts",
-          "request": {
-            "method": "POST",
-            "url": "{{baseUrl}}/transactions/transfer",
-            "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "X-Household-Id", "value": "{{householdId}}" }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"fromAccountId\": \"{{accountId}}\",\n  \"toAccountId\": \"REPLACE_WITH_SECOND_ACCOUNT_ID\",\n  \"amount\": 500,\n  \"currency\": \"UAH\",\n  \"description\": \"Transfer to cash\",\n  \"date\": \"2026-07-30\"\n}"
-            },
-            "description": "Creates two linked transactions. fromAccount balance decreases, toAccount balance increases. Both have the same transferPairId."
-          }
-        },
-        {
-          "name": "List transactions",
-          "request": {
-            "method": "GET",
-            "url": {
-              "raw": "{{baseUrl}}/transactions?from=2026-07-01&to=2026-07-31",
-              "query": [
-                { "key": "from", "value": "2026-07-01" },
-                { "key": "to", "value": "2026-07-31" },
-                { "key": "type", "value": "income", "disabled": true },
-                { "key": "accountId", "value": "{{accountId}}", "disabled": true }
-              ]
-            },
-            "header": [{ "key": "X-Household-Id", "value": "{{householdId}}" }]
-          }
-        },
-        {
-          "name": "Update transaction",
-          "request": {
-            "method": "PATCH",
-            "url": "{{baseUrl}}/transactions/{{transactionId}}",
-            "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "X-Household-Id", "value": "{{householdId}}" }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"description\": \"July salary\"\n}"
-            }
-          }
-        },
-        {
-          "name": "Delete transaction (reverses balance)",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('Status 204', () => pm.response.to.have.status(204));",
-                  "// After this, check GET /accounts/summary — balance should revert"
-                ]
-              }
-            }
-          ],
-          "request": {
-            "method": "DELETE",
-            "url": "{{baseUrl}}/transactions/{{transactionId}}",
-            "header": [{ "key": "X-Household-Id", "value": "{{householdId}}" }]
+            "url": "{{baseUrl}}/accounts/summary"
           }
         }
       ]
@@ -461,6 +668,7 @@
             {
               "listen": "test",
               "script": {
+                "type": "text/javascript",
                 "exec": [
                   "pm.test('Status 201', () => pm.response.to.have.status(201));",
                   "pm.environment.set('categoryId', pm.response.json().id);"
@@ -470,41 +678,354 @@
           ],
           "request": {
             "method": "POST",
-            "url": "{{baseUrl}}/categories",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "X-Household-Id", "value": "{{householdId}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Household-Id",
+                "value": "{{householdId}}"
+              }
             ],
+            "url": "{{baseUrl}}/categories",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Food\",\n  \"type\": \"expense\",\n  \"icon\": \"🛒\"\n}"
+              "raw": "{\n  \"name\": \"Food {{runId}}\",\n  \"type\": \"expense\",\n  \"icon\": \"\\ud83c\\udf54\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             }
           }
         },
         {
           "name": "Create sub-category",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "POST",
-            "url": "{{baseUrl}}/categories",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "X-Household-Id", "value": "{{householdId}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Household-Id",
+                "value": "{{householdId}}"
+              }
             ],
+            "url": "{{baseUrl}}/categories",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Restaurants\",\n  \"type\": \"expense\",\n  \"parentId\": \"{{categoryId}}\"\n}"
+              "raw": "{\n  \"name\": \"Restaurants {{runId}}\",\n  \"type\": \"expense\",\n  \"parentId\": \"{{categoryId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             }
           }
         },
         {
           "name": "List categories (expense)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Has our category', () => {",
+                  "  const cats = pm.response.json();",
+                  "  pm.expect(cats.some(c => c.id === pm.environment.get('categoryId'))).to.be.true;",
+                  "});"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "GET",
+            "header": [
+              {
+                "key": "X-Household-Id",
+                "value": "{{householdId}}"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/categories?type=expense",
-              "query": [{ "key": "type", "value": "expense" }]
-            },
-            "header": [{ "key": "X-Household-Id", "value": "{{householdId}}" }]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "categories"
+              ],
+              "query": [
+                {
+                  "key": "type",
+                  "value": "expense"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Finance — Transactions",
+      "item": [
+        {
+          "name": "Add income (+5000)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "const r = pm.response.json();",
+                  "pm.environment.set('transactionId', r.id);",
+                  "pm.test('Type is income', () => pm.expect(r.type).to.equal('income'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Household-Id",
+                "value": "{{householdId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/transactions",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"accountId\": \"{{accountId}}\",\n  \"type\": \"income\",\n  \"amount\": 5000,\n  \"currency\": \"UAH\",\n  \"categoryId\": \"{{categoryId}}\",\n  \"description\": \"Salary {{runId}}\",\n  \"date\": \"{{todayDate}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "description": "After this, GET /accounts/summary totalBalance should increase by 5000."
+        },
+        {
+          "name": "Add expense (-150)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Household-Id",
+                "value": "{{householdId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/transactions",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"accountId\": \"{{accountId}}\",\n  \"type\": \"expense\",\n  \"amount\": 150,\n  \"currency\": \"UAH\",\n  \"categoryId\": \"{{categoryId}}\",\n  \"description\": \"Groceries {{runId}}\",\n  \"date\": \"{{todayDate}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Transfer between accounts",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "// createTransfer() returns Promise<[Transaction, Transaction]> — a",
+                  "// 2-element tuple, not a single object (apps/finance-service/src/",
+                  "// transactions/transactions.service.ts).",
+                  "const r = pm.response.json();",
+                  "pm.test('Response is a pair of transactions', () => pm.expect(r).to.be.an('array').with.lengthOf(2));",
+                  "pm.test('Both legs share a transferPairId', () => {",
+                  "  pm.expect(r[0].transferPairId).to.be.a('string');",
+                  "  pm.expect(r[1].transferPairId).to.equal(r[0].transferPairId);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Household-Id",
+                "value": "{{householdId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/transactions/transfer",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fromAccountId\": \"{{accountId}}\",\n  \"toAccountId\": \"{{accountId2}}\",\n  \"amount\": 500,\n  \"currency\": \"UAH\",\n  \"description\": \"Transfer to cash {{runId}}\",\n  \"date\": \"{{todayDate}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "description": "Creates two linked transactions sharing one transferPairId (#167) — fromAccount balance decreases, toAccount balance increases."
+        },
+        {
+          "name": "List transactions",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const r = pm.response.json();",
+                  "pm.test('Is array', () => pm.expect(r).to.be.an('array'));",
+                  "pm.test('Has the income transaction', () => {",
+                  "  pm.expect(r.some(t => t.id === pm.environment.get('transactionId'))).to.be.true;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Household-Id",
+                "value": "{{householdId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/transactions"
+          }
+        },
+        {
+          "name": "Update transaction",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Household-Id",
+                "value": "{{householdId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/transactions/{{transactionId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"July salary {{runId}} (edited)\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Delete transaction (reverses balance)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 204', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "X-Household-Id",
+                "value": "{{householdId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/transactions/{{transactionId}}"
+          }
+        },
+        {
+          "name": "Get summary after delete (balance reverted)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "// Income (+5000) was deleted; expense (-150) and transfer (net 0",
+                  "// across both accounts) remain → total should be -150 vs. after-income peak.",
+                  "pm.test('totalBalance no longer reflects the deleted income', () => {",
+                  "  pm.expect(pm.response.json().totalBalance).to.be.below(5000);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Household-Id",
+                "value": "{{householdId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/accounts/summary"
           }
         }
       ]
@@ -518,6 +1039,7 @@
             {
               "listen": "test",
               "script": {
+                "type": "text/javascript",
                 "exec": [
                   "pm.test('Status 201', () => pm.response.to.have.status(201));",
                   "pm.environment.set('recurringId', pm.response.json().id);"
@@ -527,14 +1049,25 @@
           ],
           "request": {
             "method": "POST",
-            "url": "{{baseUrl}}/recurring-payments",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "X-Household-Id", "value": "{{householdId}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Household-Id",
+                "value": "{{householdId}}"
+              }
             ],
+            "url": "{{baseUrl}}/recurring-payments",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Netflix\",\n  \"amount\": 189,\n  \"currency\": \"UAH\",\n  \"frequency\": \"monthly\",\n  \"nextDueDate\": \"2026-08-01\"\n}"
+              "raw": "{\n  \"name\": \"Netflix {{runId}}\",\n  \"amount\": 189,\n  \"currency\": \"UAH\",\n  \"categoryId\": \"{{categoryId}}\",\n  \"frequency\": \"monthly\",\n  \"nextDueDate\": \"{{recurringDueDate}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             }
           }
         },
@@ -544,11 +1077,13 @@
             {
               "listen": "test",
               "script": {
+                "type": "text/javascript",
                 "exec": [
                   "pm.test('Status 200', () => pm.response.to.have.status(200));",
-                  "pm.test('Netflix appears in upcoming', () => {",
+                  "pm.test('Our recurring payment appears in upcoming', () => {",
                   "  const items = pm.response.json();",
-                  "  pm.expect(items.some(i => i.name === 'Netflix')).to.be.true;",
+                  "  const name = `Netflix ${pm.environment.get('runId')}`;",
+                  "  pm.expect(items.some(i => i.name === name)).to.be.true;",
                   "});"
                 ]
               }
@@ -556,11 +1091,440 @@
           ],
           "request": {
             "method": "GET",
+            "header": [
+              {
+                "key": "X-Household-Id",
+                "value": "{{householdId}}"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/recurring-payments/upcoming?days=30",
-              "query": [{ "key": "days", "value": "30" }]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "recurring-payments",
+                "upcoming"
+              ],
+              "query": [
+                {
+                  "key": "days",
+                  "value": "30"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Shopping",
+      "item": [
+        {
+          "name": "Create store",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "pm.environment.set('storeId', pm.response.json().id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Household-Id",
+                "value": "{{householdId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/stores",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"E2E Store {{runId}}\",\n  \"type\": \"supermarket\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "List stores",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Has our store', () => {",
+                  "  pm.expect(pm.response.json().some(s => s.id === pm.environment.get('storeId'))).to.be.true;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Household-Id",
+                "value": "{{householdId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/stores"
+          }
+        },
+        {
+          "name": "Create product",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "pm.environment.set('productId', pm.response.json().id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Household-Id",
+                "value": "{{householdId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/products",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Milk {{runId}}\",\n  \"unit\": \"l\",\n  \"preferredStoreId\": \"{{storeId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "List products",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Has our product', () => {",
+                  "  pm.expect(pm.response.json().some(p => p.id === pm.environment.get('productId'))).to.be.true;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Household-Id",
+                "value": "{{householdId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/products"
+          }
+        },
+        {
+          "name": "Create shopping list",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "pm.environment.set('listId', pm.response.json().id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Household-Id",
+                "value": "{{householdId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/shopping-lists",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Weekly {{runId}}\",\n  \"storeId\": \"{{storeId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Add item to list",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "pm.environment.set('itemId', pm.response.json().id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Household-Id",
+                "value": "{{householdId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/shopping-lists/{{listId}}/items",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Milk {{runId}}\",\n  \"productId\": \"{{productId}}\",\n  \"quantity\": 2,\n  \"unit\": \"l\",\n  \"preferredStoreId\": \"{{storeId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Mark item purchased",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('isPurchased true', () => pm.expect(pm.response.json().isPurchased).to.be.true);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Household-Id",
+                "value": "{{householdId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/shopping-lists/{{listId}}/items/{{itemId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"isPurchased\": true,\n  \"price\": 42.5,\n  \"actualStoreId\": \"{{storeId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Complete list",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "pm.test('Status is completed', () => pm.expect(pm.response.json().status).to.equal('completed'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Household-Id",
+                "value": "{{householdId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/shopping-lists/{{listId}}/complete"
+          }
+        },
+        {
+          "name": "Get list",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const r = pm.response.json();",
+                  "pm.test('Has our item', () => pm.expect(r.items.some(i => i.id === pm.environment.get('itemId'))).to.be.true);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Household-Id",
+                "value": "{{householdId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/shopping-lists/{{listId}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Cleanup",
+      "description": "Runs even after upstream failures where practical (guarded on householdId) — never run this collection with --bail, which would skip this folder and leak a household + two live sessions per failed run.",
+      "item": [
+        {
+          "name": "Delete household (cascades finance + shopping)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('householdId')) { pm.execution.skipRequest(); }"
+                ]
+              }
             },
-            "header": [{ "key": "X-Household-Id", "value": "{{householdId}}" }]
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 204', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "X-Household-Id",
+                "value": "{{householdId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/households/{{householdId}}"
+          },
+          "description": "Owner-only. household-service publishes household.deleted; finance-service and shopping-service consumers cascade-delete their own rows."
+        },
+        {
+          "name": "Logout (owner)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('refreshCookie')) { pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 204', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [
+              {
+                "key": "Cookie",
+                "value": "household_refresh={{refreshCookie}}"
+              }
+            ],
+            "url": "{{baseUrl}}/auth/logout"
+          }
+        },
+        {
+          "name": "Logout (invitee)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('inviteeRefreshCookie')) { pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 204', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [
+              {
+                "key": "Cookie",
+                "value": "household_refresh={{inviteeRefreshCookie}}"
+              }
+            ],
+            "url": "{{baseUrl}}/auth/logout"
           }
         }
       ]
