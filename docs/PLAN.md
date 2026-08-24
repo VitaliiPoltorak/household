@@ -836,6 +836,7 @@ pnpm test:postman                                            # API scenario coll
     ✔ "Editing…" indicator for transactions and shopping items
 ✔ i18n (react-i18next): en / uk / de / es with a header language switcher
 ✔ 42 Vitest tests (integration via MSW)
+✔ Brand kit (#232) — logo mark + product icon set (`src/components/brand/`), indigo/sand Tailwind palette (also closed #203's missing-shade gap), Manrope + IBM Plex Mono self-hosted via `@fontsource`, full favicon/app-icon set + web manifest
 ```
 
 ---

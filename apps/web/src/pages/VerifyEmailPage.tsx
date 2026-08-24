@@ -152,7 +152,7 @@ export function VerifyEmailPage() {
               autoComplete="one-time-code"
               autoFocus
               {...form.register('code')}
-              className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-center text-lg tracking-widest text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+              className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-center text-lg tracking-widest text-gray-900 shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
             />
             {form.formState.errors.code?.message && (
               <span className="mt-1 block text-xs text-red-600 dark:text-red-400">
@@ -164,7 +164,7 @@ export function VerifyEmailPage() {
           <button
             type="submit"
             disabled={form.formState.isSubmitting}
-            className="w-full rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700 disabled:opacity-60"
+            className="w-full rounded-md bg-primary-600 px-3 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-primary-700 disabled:opacity-60"
           >
             {form.formState.isSubmitting ? t('auth.verifying') : t('auth.verify')}
           </button>
@@ -174,7 +174,7 @@ export function VerifyEmailPage() {
           type="button"
           onClick={onResend}
           disabled={resendCooldown > 0}
-          className="mt-4 w-full text-center text-sm text-blue-600 hover:underline disabled:cursor-not-allowed disabled:no-underline disabled:opacity-60 dark:text-blue-400"
+          className="mt-4 w-full text-center text-sm text-primary-600 hover:underline disabled:cursor-not-allowed disabled:no-underline disabled:opacity-60 dark:text-primary-400"
         >
           {resendCooldown > 0
             ? t('auth.verifyEmail.resendCooldown', { seconds: resendCooldown })
