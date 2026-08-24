@@ -11,7 +11,7 @@ Family finance & shopping management — NestJS microservices monorepo.
 | Cache / Sessions | Redis 7 |
 | Message bus | Apache Kafka (KRaft) — HMAC-signed envelopes, retry + DLQ |
 | Real-time | Socket.IO + `@socket.io/redis-adapter` |
-| Web | React 18 + Vite 5 + TanStack Query + Tailwind CSS (class-based dark mode with light / dark / system toggle) · react-hook-form + zod for typed auth forms |
+| Web | React 18 + Vite 5 + TanStack Query + Tailwind CSS (class-based dark mode with light / dark / system toggle) · react-hook-form + zod for typed auth forms · brand kit (indigo/sand palette, Manrope + IBM Plex Mono via self-hosted `@fontsource`) |
 | i18n | react-i18next, shared `libs/locales` (en / uk / de / es) |
 | Auth | Google / Apple / Facebook OAuth · Email + password with 6-digit mailbox verification · HttpOnly refresh cookie + CSRF (double-submit) · logout-all · Redis sessions |
 | Security | Helmet · gateway-signed trust headers · JWT algorithm allowlist · per-endpoint rate limiting · audit_log · Swagger gated behind `NODE_ENV !== 'production'` |

@@ -25,7 +25,13 @@ interface Props {
  * shown together, and clicking delete cascades to both legs on the backend.
  */
 export function TxRow({
-  tx, accountName, counterAccountName, categoryName, onDelete, onEdit, onDescriptionSave,
+  tx,
+  accountName,
+  counterAccountName,
+  categoryName,
+  onDelete,
+  onEdit,
+  onDescriptionSave,
 }: Props) {
   const { t } = useTranslation();
   const isIncome = tx.type === 'income';
@@ -51,9 +57,13 @@ export function TxRow({
 
   // For transfers, the "primary account label" is a From→To pair.
   // Fallback for legacy / half-paired transfers: show just the primary account.
-  const transferPairLabel = isTransfer && counterAccountName
-    ? t('transactions.transferPair', { from: accountName, to: counterAccountName })
-    : accountName;
+  const transferPairLabel =
+    isTransfer && counterAccountName
+      ? t('transactions.transferPair', {
+          from: accountName,
+          to: counterAccountName,
+        })
+      : accountName;
 
   return (
     <div className="group flex items-center gap-4 px-5 py-3">
@@ -81,14 +91,20 @@ export function TxRow({
               {tx.description ?? transferPairLabel}
             </span>
           )}
-          {categoryName && <span className="text-xs text-gray-400 dark:text-gray-500">· {categoryName}</span>}
+          {categoryName && (
+            <span className="text-xs text-gray-400 dark:text-gray-500">
+              · {categoryName}
+            </span>
+          )}
         </div>
-        <p className="mt-0.5 text-xs text-gray-400 dark:text-gray-500">{tx.date} · {transferPairLabel}</p>
+        <p className="mt-0.5 text-xs text-gray-400 dark:text-gray-500">
+          <span className="font-mono">{tx.date}</span> · {transferPairLabel}
+        </p>
         <EditingBadge entity="transaction" entityId={tx.id} />
       </div>
 
       <span
-        className={`whitespace-nowrap font-semibold ${
+        className={`whitespace-nowrap font-mono font-semibold ${
           isIncome
             ? 'text-green-600 dark:text-green-400'
             : isExpense
@@ -96,7 +112,8 @@ export function TxRow({
               : 'text-gray-700 dark:text-gray-300'
         }`}
       >
-        {isExpense ? '−' : isIncome ? '+' : ''}{fmt(Number(tx.amount), tx.currency)}
+        {isExpense ? '−' : isIncome ? '+' : ''}
+        {fmt(Number(tx.amount), tx.currency)}
       </span>
 
       <div className="flex shrink-0 gap-1 opacity-0 transition-opacity group-hover:opacity-100">

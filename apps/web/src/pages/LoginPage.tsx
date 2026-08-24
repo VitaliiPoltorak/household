@@ -10,6 +10,7 @@ import { authApi } from '../api/auth';
 import { loginSchema, type LoginFormValues } from '../lib/auth-schemas';
 import { mapAuthError } from '../lib/auth-errors';
 import { td } from '../lib/i18n-dynamic';
+import { Logo } from '../components/brand/Logo';
 
 // Session-storage key the MigrationBanner writes to before redirecting a
 // legacy user through the OAuth flow. Consumed here to send them back to
@@ -37,7 +38,8 @@ export function LoginPage() {
     sessionStorage.removeItem(RETURN_TO_KEY);
     // Only accept in-app paths (starting with '/') — prevents open-redirect
     // if the value is somehow tampered.
-    const target = returnTo && returnTo.startsWith('/') ? returnTo : '/dashboard';
+    const target =
+      returnTo && returnTo.startsWith('/') ? returnTo : '/dashboard';
     navigate(target, { replace: true });
   };
 
@@ -69,8 +71,13 @@ export function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-gray-50 p-4 dark:bg-gray-950">
       <div className="w-full max-w-sm rounded-2xl bg-white p-8 shadow-lg dark:bg-gray-900 dark:shadow-black/40">
         <div className="mb-6 text-center">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">{t('auth.title')}</h1>
-          <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">{t('auth.subtitle')}</p>
+          <Logo className="mx-auto mb-3 h-9 w-9 text-primary-600 dark:text-primary-300" />
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">
+            {t('auth.title')}
+          </h1>
+          <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+            {t('auth.subtitle')}
+          </p>
         </div>
 
         {globalError && (
@@ -116,7 +123,7 @@ export function LoginPage() {
               type="email"
               autoComplete="email"
               {...form.register('email')}
-              className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+              className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
             />
             {form.formState.errors.email && (
               <span className="mt-1 block text-xs text-red-600 dark:text-red-400">
@@ -133,22 +140,27 @@ export function LoginPage() {
               type="password"
               autoComplete="current-password"
               {...form.register('password')}
-              className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+              className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
             />
           </label>
 
           <button
             type="submit"
             disabled={form.formState.isSubmitting}
-            className="w-full rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700 disabled:opacity-60"
+            className="w-full rounded-md bg-primary-600 px-3 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-primary-700 disabled:opacity-60"
           >
-            {form.formState.isSubmitting ? t('auth.signingIn') : t('auth.signIn')}
+            {form.formState.isSubmitting
+              ? t('auth.signingIn')
+              : t('auth.signIn')}
           </button>
         </form>
 
         <p className="mt-6 text-center text-sm text-gray-500 dark:text-gray-400">
           {t('auth.noAccount')}{' '}
-          <Link to="/register" className="font-medium text-blue-600 hover:underline dark:text-blue-400">
+          <Link
+            to="/register"
+            className="font-medium text-primary-600 hover:underline dark:text-primary-400"
+          >
             {t('auth.signUp')}
           </Link>
         </p>

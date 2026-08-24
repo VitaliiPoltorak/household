@@ -6,7 +6,10 @@ import { financeApi } from '../api/finance';
 import { CreateHouseholdModal } from '../components/households/CreateHouseholdModal';
 import { StatCard } from '../components/dashboard/StatCard';
 import { Section } from '../components/dashboard/Section';
-import { DonutChart, type DonutSlice } from '../components/dashboard/DonutChart';
+import {
+  DonutChart,
+  type DonutSlice,
+} from '../components/dashboard/DonutChart';
 import { formatMoney } from '../lib/money';
 import { useRatesState, convert, BASE_CURRENCY_KEY } from '../hooks/useRates';
 import type { AccountSummary } from '../types/api';
@@ -33,7 +36,8 @@ export function DashboardPage() {
 
   useEffect(() => {
     const onStorage = (e: StorageEvent) => {
-      if (e.key === BASE_CURRENCY_KEY && e.newValue) setBaseCurrency(e.newValue);
+      if (e.key === BASE_CURRENCY_KEY && e.newValue)
+        setBaseCurrency(e.newValue);
     };
     window.addEventListener('storage', onStorage);
     return () => window.removeEventListener('storage', onStorage);
@@ -53,8 +57,15 @@ export function DashboardPage() {
 
   const now = new Date();
   const { data: monthly } = useQuery({
-    queryKey: ['reports', 'monthly', hid, now.getFullYear(), now.getMonth() + 1],
-    queryFn: () => financeApi.getMonthlyReport(hid!, now.getFullYear(), now.getMonth() + 1),
+    queryKey: [
+      'reports',
+      'monthly',
+      hid,
+      now.getFullYear(),
+      now.getMonth() + 1,
+    ],
+    queryFn: () =>
+      financeApi.getMonthlyReport(hid!, now.getFullYear(), now.getMonth() + 1),
     enabled: !!hid,
   });
 
@@ -90,8 +101,16 @@ export function DashboardPage() {
     grandTotal = 0;
   } else if (ratesState.status === 'ready') {
     for (const a of accounts) {
-      const c = convert(Number(a.balance), a.currency, baseCurrency, ratesState.rates);
-      if (c === null) { grandTotal = null; break; }
+      const c = convert(
+        Number(a.balance),
+        a.currency,
+        baseCurrency,
+        ratesState.rates,
+      );
+      if (c === null) {
+        grandTotal = null;
+        break;
+      }
       grandTotal += c;
     }
   } else if (ratesState.status !== 'not-needed') {
@@ -131,17 +150,25 @@ export function DashboardPage() {
   // its native currency, no conversion. Multi-currency + rates ready →
   // converted to baseCurrency. Otherwise → "unavailable" rather than
   // leaking a partially-converted or arithmetically mixed number.
-  const renderMonthlyBucket = (pick: (b: { income: number; expense: number; net: number }) => number): string => {
+  const renderMonthlyBucket = (
+    pick: (b: { income: number; expense: number; net: number }) => number,
+  ): string => {
     if (!monthly) return '—';
     if (monthlyCurrencies.length === 0) return fmt(0, baseCurrency);
     if (monthlyCurrencies.length === 1) {
       const c = monthlyCurrencies[0];
       return fmt(pick(monthlyByCurrency[c]), c);
     }
-    if (ratesState.status !== 'ready') return t('dashboard.rates.unavailableShort');
+    if (ratesState.status !== 'ready')
+      return t('dashboard.rates.unavailableShort');
     let total = 0;
     for (const c of monthlyCurrencies) {
-      const converted = convert(pick(monthlyByCurrency[c]), c, baseCurrency, ratesState.rates);
+      const converted = convert(
+        pick(monthlyByCurrency[c]),
+        c,
+        baseCurrency,
+        ratesState.rates,
+      );
       if (converted === null) return t('dashboard.rates.unavailableShort');
       total += converted;
     }
@@ -158,7 +185,9 @@ export function DashboardPage() {
     if (!isMonthMulti) return null;
     if (ratesState.status === 'ready') {
       return ratesState.source === 'cache'
-        ? t('dashboard.convertedFromCached', { count: monthlyCurrencies.length })
+        ? t('dashboard.convertedFromCached', {
+            count: monthlyCurrencies.length,
+          })
         : t('dashboard.convertedFrom', { count: monthlyCurrencies.length });
     }
     if (ratesState.status === 'loading') return t('dashboard.rates.loading');
@@ -169,12 +198,19 @@ export function DashboardPage() {
   // comparable. `null` when we can't produce honest numbers: multi-currency
   // household without ready rates. Single-currency households (or the
   // trivial all-in-base case) don't need rates and get charts immediately.
-  const chartData = buildChartData(accounts, baseCurrency, ratesState, t('dashboard.charts.other'));
+  const chartData = buildChartData(
+    accounts,
+    baseCurrency,
+    ratesState,
+    t('dashboard.charts.other'),
+  );
 
   if (!activeHousehold) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-4">
-        <p className="text-gray-500 dark:text-gray-400">You don't have any household yet.</p>
+        <p className="text-gray-500 dark:text-gray-400">
+          You don't have any household yet.
+        </p>
         <button
           onClick={() => setShowCreate(true)}
           className="rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700 dark:bg-primary-600 dark:hover:bg-primary-500"
@@ -184,7 +220,11 @@ export function DashboardPage() {
         {showCreate && (
           <CreateHouseholdModal
             onClose={() => setShowCreate(false)}
-            onCreate={(h) => { setActiveHousehold(h); refetch(); setShowCreate(false); }}
+            onCreate={(h) => {
+              setActiveHousehold(h);
+              refetch();
+              setShowCreate(false);
+            }}
           />
         )}
       </div>
@@ -194,7 +234,9 @@ export function DashboardPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{activeHousehold.name}</h1>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+          {activeHousehold.name}
+        </h1>
         <button
           onClick={() => setShowCreate(true)}
           className="text-sm text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"
@@ -204,7 +246,11 @@ export function DashboardPage() {
         {showCreate && (
           <CreateHouseholdModal
             onClose={() => setShowCreate(false)}
-            onCreate={(h) => { setActiveHousehold(h); refetch(); setShowCreate(false); }}
+            onCreate={(h) => {
+              setActiveHousehold(h);
+              refetch();
+              setShowCreate(false);
+            }}
           />
         )}
       </div>
@@ -213,7 +259,7 @@ export function DashboardPage() {
         <StatCard
           label={t('dashboard.totalBalance')}
           value={totalBalanceValue}
-          color="blue"
+          color="primary"
           subtitle={totalBalanceSubtitle}
         />
         <StatCard
@@ -238,7 +284,10 @@ export function DashboardPage() {
             {t('dashboard.byCurrency')}:
           </span>
           {currencies.map((ccy) => (
-            <span key={ccy} className="text-sm text-gray-500 dark:text-gray-400">
+            <span
+              key={ccy}
+              className="text-sm text-gray-500 dark:text-gray-400"
+            >
               {ccy}:{' '}
               <span className="font-semibold text-gray-800 dark:text-gray-200">
                 {fmt(byCurrency[ccy], ccy)}
@@ -252,9 +301,21 @@ export function DashboardPage() {
         <Section title={t('dashboard.charts.title')}>
           {chartData ? (
             <div className="grid grid-cols-1 gap-6 rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900 sm:grid-cols-3">
-              <ChartPanel title={t('dashboard.charts.byType')} data={chartData.byType} baseCurrency={baseCurrency} />
-              <ChartPanel title={t('dashboard.charts.byAccount')} data={chartData.byAccount} baseCurrency={baseCurrency} />
-              <ChartPanel title={t('dashboard.charts.byCurrency')} data={chartData.byCurrency} baseCurrency={baseCurrency} />
+              <ChartPanel
+                title={t('dashboard.charts.byType')}
+                data={chartData.byType}
+                baseCurrency={baseCurrency}
+              />
+              <ChartPanel
+                title={t('dashboard.charts.byAccount')}
+                data={chartData.byAccount}
+                baseCurrency={baseCurrency}
+              />
+              <ChartPanel
+                title={t('dashboard.charts.byCurrency')}
+                data={chartData.byCurrency}
+                baseCurrency={baseCurrency}
+              />
             </div>
           ) : (
             <div className="rounded-xl border border-gray-200 bg-white p-4 text-sm text-gray-500 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-400">
@@ -268,10 +329,19 @@ export function DashboardPage() {
         <Section title={t('dashboard.accounts')}>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {summary.accounts.map((a) => (
-              <div key={a.id} className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
-                <p className="text-xs uppercase tracking-wide text-gray-400 dark:text-gray-500">{a.type}</p>
-                <p className="mt-0.5 font-medium text-gray-900 dark:text-gray-100">{a.name}</p>
-                <p className="mt-1 text-lg font-bold text-gray-800 dark:text-gray-200">{fmt(Number(a.balance), a.currency)}</p>
+              <div
+                key={a.id}
+                className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900"
+              >
+                <p className="text-xs uppercase tracking-wide text-gray-400 dark:text-gray-500">
+                  {a.type}
+                </p>
+                <p className="mt-0.5 font-medium text-gray-900 dark:text-gray-100">
+                  {a.name}
+                </p>
+                <p className="mt-1 text-lg font-bold text-gray-800 dark:text-gray-200">
+                  {fmt(Number(a.balance), a.currency)}
+                </p>
               </div>
             ))}
           </div>
@@ -282,12 +352,21 @@ export function DashboardPage() {
         <Section title={t('dashboard.upcomingPayments')}>
           <div className="divide-y divide-gray-100 rounded-lg border border-gray-200 bg-white dark:divide-gray-800 dark:border-gray-800 dark:bg-gray-900">
             {upcoming.slice(0, 5).map((p) => (
-              <div key={p.id} className="flex items-center justify-between px-4 py-3">
+              <div
+                key={p.id}
+                className="flex items-center justify-between px-4 py-3"
+              >
                 <div>
-                  <p className="font-medium text-gray-900 dark:text-gray-100">{p.name}</p>
-                  <p className="text-xs text-gray-400 dark:text-gray-500">{p.nextDueDate} · {p.frequency}</p>
+                  <p className="font-medium text-gray-900 dark:text-gray-100">
+                    {p.name}
+                  </p>
+                  <p className="text-xs text-gray-400 dark:text-gray-500">
+                    {p.nextDueDate} · {p.frequency}
+                  </p>
                 </div>
-                <span className="font-semibold text-gray-800 dark:text-gray-200">{fmt(Number(p.amount), p.currency)}</span>
+                <span className="font-semibold text-gray-800 dark:text-gray-200">
+                  {fmt(Number(p.amount), p.currency)}
+                </span>
               </div>
             ))}
           </div>
@@ -301,7 +380,11 @@ export function DashboardPage() {
 // Chart section — small wrapper so each donut carries its own title
 // while sharing formatting with siblings.
 // ──────────────────────────────────────────────
-function ChartPanel({ title, data, baseCurrency }: {
+function ChartPanel({
+  title,
+  data,
+  baseCurrency,
+}: {
   title: string;
   data: DonutSlice[];
   baseCurrency: string;
@@ -309,7 +392,9 @@ function ChartPanel({ title, data, baseCurrency }: {
   const format = (n: number) => formatMoney(n, baseCurrency, 'uk-UA');
   return (
     <div className="flex flex-col items-center gap-3">
-      <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">{title}</h3>
+      <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">
+        {title}
+      </h3>
       <DonutChart data={data} formatValue={format} formatTotal={format} />
     </div>
   );
@@ -326,7 +411,11 @@ function buildChartData(
   baseCurrency: string,
   ratesState: ReturnType<typeof useRatesState>,
   otherLabel: string,
-): { byType: DonutSlice[]; byAccount: DonutSlice[]; byCurrency: DonutSlice[] } | null {
+): {
+  byType: DonutSlice[];
+  byAccount: DonutSlice[];
+  byCurrency: DonutSlice[];
+} | null {
   if (accounts.length === 0) return null;
 
   const needsRates = accounts.some((a) => a.currency !== baseCurrency);
@@ -335,18 +424,36 @@ function buildChartData(
   // Convert every account balance to baseCurrency up-front. If any leg
   // fails to convert (rate map is missing that currency), we refuse the
   // whole section — same discipline as the Total balance card.
-  const inBase: Array<{ id: string; name: string; type: string; currency: string; base: number }> = [];
+  const inBase: Array<{
+    id: string;
+    name: string;
+    type: string;
+    currency: string;
+    base: number;
+  }> = [];
   for (const a of accounts) {
     const raw = Number(a.balance);
     if (!Number.isFinite(raw)) continue;
     if (!needsRates) {
-      inBase.push({ id: a.id, name: a.name, type: a.type, currency: a.currency, base: raw });
+      inBase.push({
+        id: a.id,
+        name: a.name,
+        type: a.type,
+        currency: a.currency,
+        base: raw,
+      });
       continue;
     }
     if (ratesState.status !== 'ready') return null;
     const c = convert(raw, a.currency, baseCurrency, ratesState.rates);
     if (c === null) return null;
-    inBase.push({ id: a.id, name: a.name, type: a.type, currency: a.currency, base: c });
+    inBase.push({
+      id: a.id,
+      name: a.name,
+      type: a.type,
+      currency: a.currency,
+      base: c,
+    });
   }
 
   // Positive balances only — donuts of "how wealth is distributed" don't
@@ -354,7 +461,12 @@ function buildChartData(
   // the ring). Users still see per-account raw numbers below.
   const positive = inBase.filter((a) => a.base > 0);
 
-  const groupBy = <T,>(items: T[], keyOf: (t: T) => string, valueOf: (t: T) => number, labelOf: (t: T) => string): DonutSlice[] => {
+  const groupBy = <T,>(
+    items: T[],
+    keyOf: (t: T) => string,
+    valueOf: (t: T) => number,
+    labelOf: (t: T) => string,
+  ): DonutSlice[] => {
     const map = new Map<string, { label: string; value: number }>();
     for (const it of items) {
       const key = keyOf(it);
@@ -362,28 +474,44 @@ function buildChartData(
       if (cur) cur.value += valueOf(it);
       else map.set(key, { label: labelOf(it), value: valueOf(it) });
     }
-    return Array.from(map, ([key, { label, value }]) => ({ key, label, value }))
-      .sort((a, b) => b.value - a.value);
+    return Array.from(map, ([key, { label, value }]) => ({
+      key,
+      label,
+      value,
+    })).sort((a, b) => b.value - a.value);
   };
 
-  const byType = groupBy(positive, (a) => a.type, (a) => a.base, (a) => a.type);
-  const byCurrency = groupBy(positive, (a) => a.currency, (a) => a.base, (a) => a.currency);
+  const byType = groupBy(
+    positive,
+    (a) => a.type,
+    (a) => a.base,
+    (a) => a.type,
+  );
+  const byCurrency = groupBy(
+    positive,
+    (a) => a.currency,
+    (a) => a.base,
+    (a) => a.currency,
+  );
 
   // By-account: top N + "Other" bucket so the ring stays readable for
   // large households.
   const perAccount: DonutSlice[] = positive
     .map((a) => ({ key: a.id, label: a.name, value: a.base }))
     .sort((a, b) => b.value - a.value);
-  const byAccount = perAccount.length <= MAX_ACCOUNT_SLICES
-    ? perAccount
-    : [
-        ...perAccount.slice(0, MAX_ACCOUNT_SLICES),
-        {
-          key: '__other__',
-          label: otherLabel,
-          value: perAccount.slice(MAX_ACCOUNT_SLICES).reduce((s, x) => s + x.value, 0),
-        },
-      ];
+  const byAccount =
+    perAccount.length <= MAX_ACCOUNT_SLICES
+      ? perAccount
+      : [
+          ...perAccount.slice(0, MAX_ACCOUNT_SLICES),
+          {
+            key: '__other__',
+            label: otherLabel,
+            value: perAccount
+              .slice(MAX_ACCOUNT_SLICES)
+              .reduce((s, x) => s + x.value, 0),
+          },
+        ];
 
   return { byType, byAccount, byCurrency };
 }

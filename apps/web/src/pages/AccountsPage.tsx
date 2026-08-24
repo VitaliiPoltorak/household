@@ -10,16 +10,26 @@ import { Input, Select } from '../components/ui/Input';
 import { Badge } from '../components/ui/Badge';
 import { formatMoney } from '../lib/money';
 import { useRatesState, convert, BASE_CURRENCY_KEY } from '../hooks/useRates';
-import { useAccountActions, type QuickTxType } from '../hooks/useAccountActions';
+import {
+  useAccountActions,
+  type QuickTxType,
+} from '../hooks/useAccountActions';
 import { useInlineNameEdit } from '../hooks/useInlineNameEdit';
 
 // Persisted view preference (#164). Global across households by design —
 // user picks a density once and every household inherits it.
 export const ACCOUNTS_VIEW_KEY = 'accounts:view';
 type ViewMode = 'grid' | 'list';
-const isViewMode = (v: string | null): v is ViewMode => v === 'grid' || v === 'list';
+const isViewMode = (v: string | null): v is ViewMode =>
+  v === 'grid' || v === 'list';
 
-const ACCOUNT_TYPES: readonly AccountType[] = ['cash', 'bank', 'crypto', 'investment', 'deposit'];
+const ACCOUNT_TYPES: readonly AccountType[] = [
+  'cash',
+  'bank',
+  'crypto',
+  'investment',
+  'deposit',
+];
 const CURRENCIES = ['UAH', 'USD', 'EUR'];
 
 // ──────────────────────────────────────────────
@@ -49,7 +59,8 @@ export function AccountsPage() {
   // a hard reload (same pattern as baseCurrency).
   useEffect(() => {
     const onStorage = (e: StorageEvent) => {
-      if (e.key === ACCOUNTS_VIEW_KEY && isViewMode(e.newValue)) setViewMode(e.newValue);
+      if (e.key === ACCOUNTS_VIEW_KEY && isViewMode(e.newValue))
+        setViewMode(e.newValue);
     };
     window.addEventListener('storage', onStorage);
     return () => window.removeEventListener('storage', onStorage);
@@ -77,7 +88,7 @@ export function AccountsPage() {
   // (#79) — same list looked different across browsers. Rely on server order.
   const sortedAccounts = accounts;
 
-  const ratesNeeded = sortedAccounts.some(a => a.currency !== baseCurrency);
+  const ratesNeeded = sortedAccounts.some((a) => a.currency !== baseCurrency);
   const ratesState = useRatesState(ratesNeeded);
 
   const actions = useAccountActions(hid);
@@ -95,8 +106,16 @@ export function AccountsPage() {
   let grandTotal: number | null = 0;
   if (ratesState.status === 'ready') {
     for (const a of sortedAccounts) {
-      const converted = convert(Number(a.balance), a.currency, baseCurrency, ratesState.rates);
-      if (converted === null) { grandTotal = null; break; }
+      const converted = convert(
+        Number(a.balance),
+        a.currency,
+        baseCurrency,
+        ratesState.rates,
+      );
+      if (converted === null) {
+        grandTotal = null;
+        break;
+      }
       grandTotal += converted;
     }
   } else if (ratesState.status !== 'not-needed') {
@@ -108,24 +127,41 @@ export function AccountsPage() {
     localStorage.setItem(BASE_CURRENCY_KEY, c);
   };
 
-  const ratesTime = ratesState.status === 'ready'
-    ? ratesState.at.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    : null;
+  const ratesTime =
+    ratesState.status === 'ready'
+      ? ratesState.at.toLocaleTimeString([], {
+          hour: '2-digit',
+          minute: '2-digit',
+        })
+      : null;
 
-  if (!activeHousehold) return <p className="text-gray-500 dark:text-gray-400">{t('common.selectHousehold')}</p>;
+  if (!activeHousehold)
+    return (
+      <p className="text-gray-500 dark:text-gray-400">
+        {t('common.selectHousehold')}
+      </p>
+    );
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{t('accounts.title')}</h1>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+            {t('accounts.title')}
+          </h1>
 
           {/* Per-currency breakdown */}
           <div className="mt-1 flex flex-wrap gap-3">
             {Object.entries(byCurrency).map(([ccy, total]) => (
-              <span key={ccy} className="text-sm text-gray-500 dark:text-gray-400">
-                {ccy}: <span className="font-semibold text-gray-800 dark:text-gray-200">{fmt(total, ccy)}</span>
+              <span
+                key={ccy}
+                className="text-sm text-gray-500 dark:text-gray-400"
+              >
+                {ccy}:{' '}
+                <span className="font-mono font-semibold text-gray-800 dark:text-gray-200">
+                  {fmt(total, ccy)}
+                </span>
               </span>
             ))}
           </div>
@@ -133,29 +169,41 @@ export function AccountsPage() {
           {/* Grand total in base currency */}
           {accounts.length > 0 && Object.keys(byCurrency).length > 1 && (
             <div className="mt-1 flex flex-wrap items-center gap-2">
-              <span className="text-sm text-gray-400 dark:text-gray-500">{t('accounts.estimatedTotal')}:</span>
+              <span className="text-sm text-gray-400 dark:text-gray-500">
+                {t('accounts.estimatedTotal')}:
+              </span>
               {ratesState.status === 'ready' && grandTotal !== null ? (
                 <>
-                  <span className="font-bold text-gray-900 dark:text-gray-100">{fmt(grandTotal, baseCurrency)}</span>
+                  <span className="font-mono font-bold text-gray-900 dark:text-gray-100">
+                    {fmt(grandTotal, baseCurrency)}
+                  </span>
                   <select
                     value={baseCurrency}
                     onChange={(e) => handleBaseCurrencyChange(e.target.value)}
                     className="rounded border border-gray-200 bg-white px-1.5 py-0.5 text-xs text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
                     title={t('accounts.displayIn')}
                   >
-                    {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                    {CURRENCIES.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
                   </select>
                   {ratesTime && (
                     <span className="text-xs text-gray-300 dark:text-gray-600">
                       {t('accounts.ratesBy')} {ratesTime}
                       {ratesState.source === 'cache' && (
-                        <span className="ml-1 text-amber-500 dark:text-amber-400">({t('accounts.rates.cached')})</span>
+                        <span className="ml-1 text-amber-500 dark:text-amber-400">
+                          ({t('accounts.rates.cached')})
+                        </span>
                       )}
                     </span>
                   )}
                 </>
               ) : ratesState.status === 'loading' ? (
-                <span className="text-xs text-gray-400 dark:text-gray-500">{t('accounts.loading')}</span>
+                <span className="text-xs text-gray-400 dark:text-gray-500">
+                  {t('accounts.loading')}
+                </span>
               ) : (
                 <span
                   className="rounded bg-amber-50 px-2 py-0.5 text-xs text-amber-600 dark:bg-amber-900/30 dark:text-amber-300"
@@ -171,15 +219,20 @@ export function AccountsPage() {
           {Object.keys(byCurrency).length <= 1 && (
             <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
               {t('accounts.total')}:{' '}
-              <span className="font-semibold text-gray-800 dark:text-gray-200">
-                {fmt(Object.values(byCurrency)[0] ?? 0, Object.keys(byCurrency)[0] ?? 'UAH')}
+              <span className="font-mono font-semibold text-gray-800 dark:text-gray-200">
+                {fmt(
+                  Object.values(byCurrency)[0] ?? 0,
+                  Object.keys(byCurrency)[0] ?? 'UAH',
+                )}
               </span>
             </p>
           )}
         </div>
         <div className="flex items-center gap-2">
           <ViewToggle value={viewMode} onChange={handleViewModeChange} />
-          <Button onClick={() => setShowCreate(true)}>{t('accounts.new')}</Button>
+          <Button onClick={() => setShowCreate(true)}>
+            {t('accounts.new')}
+          </Button>
         </div>
       </div>
 
@@ -284,7 +337,13 @@ export function AccountsPage() {
 // ──────────────────────────────────────────────
 // Grid / list view toggle
 // ──────────────────────────────────────────────
-function ViewToggle({ value, onChange }: { value: ViewMode; onChange: (v: ViewMode) => void }) {
+function ViewToggle({
+  value,
+  onChange,
+}: {
+  value: ViewMode;
+  onChange: (v: ViewMode) => void;
+}) {
   const { t } = useTranslation();
   const btn = (mode: ViewMode, glyph: string, label: string) => {
     const active = value === mode;
@@ -326,7 +385,15 @@ interface AccountViewProps {
 // ──────────────────────────────────────────────
 // Account card with inline name edit
 // ──────────────────────────────────────────────
-function AccountCard({ account, archiveLabel, onArchive, onEdit, onNameSave, onQuickTx, onAdjust }: AccountViewProps) {
+function AccountCard({
+  account,
+  archiveLabel,
+  onArchive,
+  onEdit,
+  onNameSave,
+  onQuickTx,
+  onAdjust,
+}: AccountViewProps) {
   const { t } = useTranslation();
   const name = useInlineNameEdit(account.name, onNameSave);
 
@@ -368,14 +435,16 @@ function AccountCard({ account, archiveLabel, onArchive, onEdit, onNameSave, onQ
         </div>
       </div>
       <p
-        className="mt-3 cursor-pointer text-2xl font-bold text-gray-800 transition-colors hover:text-primary-600 dark:text-gray-200 dark:hover:text-primary-400"
+        className="mt-3 cursor-pointer font-mono text-2xl font-bold text-gray-800 transition-colors hover:text-primary-600 dark:text-gray-200 dark:hover:text-primary-400"
         onClick={onAdjust}
         title={t('accounts.adjustBalance')}
       >
         {fmt(Number(account.balance), account.currency)}
       </p>
       <div className="mt-0.5 flex items-center justify-between">
-        <p className="text-xs text-gray-400 dark:text-gray-500">{account.currency}</p>
+        <p className="text-xs text-gray-400 dark:text-gray-500">
+          {account.currency}
+        </p>
         <QuickTxDropdown onSelect={onQuickTx} />
       </div>
     </div>
@@ -386,7 +455,15 @@ function AccountCard({ account, archiveLabel, onArchive, onEdit, onNameSave, onQ
 // Account row (list view) — compact horizontal layout with the same
 // interactions as AccountCard (#164).
 // ──────────────────────────────────────────────
-function AccountRow({ account, archiveLabel, onArchive, onEdit, onNameSave, onQuickTx, onAdjust }: AccountViewProps) {
+function AccountRow({
+  account,
+  archiveLabel,
+  onArchive,
+  onEdit,
+  onNameSave,
+  onQuickTx,
+  onAdjust,
+}: AccountViewProps) {
   const { t } = useTranslation();
   const name = useInlineNameEdit(account.name, onNameSave);
 
@@ -412,11 +489,13 @@ function AccountRow({ account, archiveLabel, onArchive, onEdit, onNameSave, onQu
       <button
         onClick={onAdjust}
         title={t('accounts.adjustBalance')}
-        className="cursor-pointer whitespace-nowrap text-right text-sm font-semibold text-gray-800 transition-colors hover:text-primary-600 dark:text-gray-200 dark:hover:text-primary-400"
+        className="cursor-pointer whitespace-nowrap text-right font-mono text-sm font-semibold text-gray-800 transition-colors hover:text-primary-600 dark:text-gray-200 dark:hover:text-primary-400"
       >
         {fmt(Number(account.balance), account.currency)}
       </button>
-      <span className="w-10 text-right text-xs text-gray-400 dark:text-gray-500">{account.currency}</span>
+      <span className="w-10 text-right text-xs text-gray-400 dark:text-gray-500">
+        {account.currency}
+      </span>
       <QuickTxDropdown onSelect={onQuickTx} />
       <div className="flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
         <button
@@ -441,23 +520,43 @@ function AccountRow({ account, archiveLabel, onArchive, onEdit, onNameSave, onQu
 // ──────────────────────────────────────────────
 // Quick transaction dropdown button
 // ──────────────────────────────────────────────
-function QuickTxDropdown({ onSelect }: { onSelect: (type: QuickTxType) => void }) {
+function QuickTxDropdown({
+  onSelect,
+}: {
+  onSelect: (type: QuickTxType) => void;
+}) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      if (ref.current && !ref.current.contains(e.target as Node))
+        setOpen(false);
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
   const options: { type: QuickTxType; label: string; color: string }[] = [
-    { type: 'income',   label: `+ ${t('transactions.types.income')}`,   color: 'text-green-600 hover:bg-green-50 dark:text-green-400 dark:hover:bg-green-900/30' },
-    { type: 'expense',  label: `− ${t('transactions.types.expense')}`,  color: 'text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/30' },
-    { type: 'transfer', label: `⇄ ${t('transactions.types.transfer')}`, color: 'text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/30' },
+    {
+      type: 'income',
+      label: `+ ${t('transactions.types.income')}`,
+      color:
+        'text-green-600 hover:bg-green-50 dark:text-green-400 dark:hover:bg-green-900/30',
+    },
+    {
+      type: 'expense',
+      label: `− ${t('transactions.types.expense')}`,
+      color:
+        'text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/30',
+    },
+    {
+      type: 'transfer',
+      label: `⇄ ${t('transactions.types.transfer')}`,
+      color:
+        'text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/30',
+    },
   ];
 
   return (
@@ -475,7 +574,10 @@ function QuickTxDropdown({ onSelect }: { onSelect: (type: QuickTxType) => void }
           {options.map(({ type, label, color }) => (
             <button
               key={type}
-              onClick={() => { onSelect(type); setOpen(false); }}
+              onClick={() => {
+                onSelect(type);
+                setOpen(false);
+              }}
               className={`w-full px-4 py-2.5 text-left text-sm font-medium transition-colors ${color}`}
             >
               {label}
@@ -490,7 +592,11 @@ function QuickTxDropdown({ onSelect }: { onSelect: (type: QuickTxType) => void }
 // ──────────────────────────────────────────────
 // Create modal
 // ──────────────────────────────────────────────
-function CreateAccountModal({ hid, onClose, onCreated }: {
+function CreateAccountModal({
+  hid,
+  onClose,
+  onCreated,
+}: {
   hid: string;
   onClose: () => void;
   onCreated: () => void;
@@ -506,24 +612,59 @@ function CreateAccountModal({ hid, onClose, onCreated }: {
     if (!name.trim()) return;
     setSaving(true);
     try {
-      await financeApi.createAccount(hid, { name: name.trim(), type, currency });
+      await financeApi.createAccount(hid, {
+        name: name.trim(),
+        type,
+        currency,
+      });
       onCreated();
-    } finally { setSaving(false); }
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
     <Modal title={t('accounts.newTitle')} onClose={onClose}>
       <form onSubmit={submit} className="space-y-4">
-        <Input label={t('accounts.name')} value={name} onChange={(e) => setName(e.target.value)}
-          placeholder={t('accounts.namePlaceholder')} required autoFocus />
-        <Select label={t('accounts.type')} value={type} onChange={(e) => setType(e.target.value as AccountType)}>
-          {ACCOUNT_TYPES.map((tp) => <option key={tp} value={tp}>{t(`accounts.types.${tp}` as never)}</option>)}
+        <Input
+          label={t('accounts.name')}
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder={t('accounts.namePlaceholder')}
+          required
+          autoFocus
+        />
+        <Select
+          label={t('accounts.type')}
+          value={type}
+          onChange={(e) => setType(e.target.value as AccountType)}
+        >
+          {ACCOUNT_TYPES.map((tp) => (
+            <option key={tp} value={tp}>
+              {t(`accounts.types.${tp}` as never)}
+            </option>
+          ))}
         </Select>
-        <Select label={t('accounts.currency')} value={currency} onChange={(e) => setCurrency(e.target.value)}>
-          {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
+        <Select
+          label={t('accounts.currency')}
+          value={currency}
+          onChange={(e) => setCurrency(e.target.value)}
+        >
+          {CURRENCIES.map((c) => (
+            <option key={c} value={c}>
+              {c}
+            </option>
+          ))}
         </Select>
         <div className="flex gap-2 pt-2">
-          <Button type="button" variant="secondary" className="flex-1" onClick={onClose}>{t('common.cancel')}</Button>
+          <Button
+            type="button"
+            variant="secondary"
+            className="flex-1"
+            onClick={onClose}
+          >
+            {t('common.cancel')}
+          </Button>
           <Button type="submit" className="flex-1" disabled={saving}>
             {saving ? t('common.saving') : t('common.create')}
           </Button>
@@ -536,7 +677,12 @@ function CreateAccountModal({ hid, onClose, onCreated }: {
 // ──────────────────────────────────────────────
 // Edit modal
 // ──────────────────────────────────────────────
-function EditAccountModal({ account, hid, onClose, onSaved }: {
+function EditAccountModal({
+  account,
+  hid,
+  onClose,
+  onSaved,
+}: {
   account: Account;
   hid: string;
   onClose: () => void;
@@ -552,25 +698,63 @@ function EditAccountModal({ account, hid, onClose, onSaved }: {
     e.preventDefault();
     setSaving(true);
     try {
-      await financeApi.updateAccount(account.id, hid, { name: name.trim(), type, currency });
+      await financeApi.updateAccount(account.id, hid, {
+        name: name.trim(),
+        type,
+        currency,
+      });
       onSaved();
-    } finally { setSaving(false); }
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
     <Modal title={t('accounts.editTitle')} onClose={onClose}>
       <form onSubmit={submit} className="space-y-4">
-        <Input label={t('accounts.name')} value={name} onChange={(e) => setName(e.target.value)}
-          required autoFocus />
-        <Select label={t('accounts.type')} value={type} onChange={(e) => setType(e.target.value as AccountType)}>
-          {ACCOUNT_TYPES.map((tp) => <option key={tp} value={tp}>{t(`accounts.types.${tp}` as never)}</option>)}
+        <Input
+          label={t('accounts.name')}
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          required
+          autoFocus
+        />
+        <Select
+          label={t('accounts.type')}
+          value={type}
+          onChange={(e) => setType(e.target.value as AccountType)}
+        >
+          {ACCOUNT_TYPES.map((tp) => (
+            <option key={tp} value={tp}>
+              {t(`accounts.types.${tp}` as never)}
+            </option>
+          ))}
         </Select>
-        <Select label={t('accounts.currency')} value={currency} onChange={(e) => setCurrency(e.target.value)}>
-          {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
+        <Select
+          label={t('accounts.currency')}
+          value={currency}
+          onChange={(e) => setCurrency(e.target.value)}
+        >
+          {CURRENCIES.map((c) => (
+            <option key={c} value={c}>
+              {c}
+            </option>
+          ))}
         </Select>
         <div className="flex gap-2 pt-2">
-          <Button type="button" variant="secondary" className="flex-1" onClick={onClose}>{t('common.cancel')}</Button>
-          <Button type="submit" className="flex-1" disabled={saving || !name.trim()}>
+          <Button
+            type="button"
+            variant="secondary"
+            className="flex-1"
+            onClick={onClose}
+          >
+            {t('common.cancel')}
+          </Button>
+          <Button
+            type="submit"
+            className="flex-1"
+            disabled={saving || !name.trim()}
+          >
             {saving ? t('common.saving') : t('common.save')}
           </Button>
         </div>
@@ -582,7 +766,15 @@ function EditAccountModal({ account, hid, onClose, onSaved }: {
 // ──────────────────────────────────────────────
 // Quick transaction modal (pre-filled with account)
 // ──────────────────────────────────────────────
-function QuickTxModal({ account, txType, hid, accounts, categories, onClose, onCreated }: {
+function QuickTxModal({
+  account,
+  txType,
+  hid,
+  accounts,
+  categories,
+  onClose,
+  onCreated,
+}: {
   account: Account;
   txType: QuickTxType;
   hid: string;
@@ -607,7 +799,9 @@ function QuickTxModal({ account, txType, hid, accounts, categories, onClose, onC
   const isTransfer = txType === 'transfer';
   // Only income/expense have categories; transfers don't. Ternary lets TS
   // narrow txType so the equality check compiles.
-  const filteredCategories = isTransfer ? [] : categories.filter((c) => c.type === txType);
+  const filteredCategories = isTransfer
+    ? []
+    : categories.filter((c) => c.type === txType);
   const otherAccounts = accounts.filter((a) => a.id !== account.id);
 
   const toAccount = accounts.find((a) => a.id === toAccountId) ?? null;
@@ -617,9 +811,10 @@ function QuickTxModal({ account, txType, hid, accounts, categories, onClose, onC
 
   // Only fetch rates when we need to convert a live amount.
   const ratesState = useRatesState(isCrossCurrency);
-  const marketRate = isCrossCurrency && ratesState.status === 'ready'
-    ? convert(1, fromCcy, toCcy, ratesState.rates)
-    : null;
+  const marketRate =
+    isCrossCurrency && ratesState.status === 'ready'
+      ? convert(1, fromCcy, toCcy, ratesState.rates)
+      : null;
 
   // Auto-fill toAmount = amount * marketRate while the user hasn't typed.
   useEffect(() => {
@@ -645,9 +840,13 @@ function QuickTxModal({ account, txType, hid, accounts, categories, onClose, onC
 
   const fromNum = parseFloat(amount);
   const toNum = parseFloat(toAmount);
-  const effectiveRate = isCrossCurrency && Number.isFinite(fromNum) && Number.isFinite(toNum) && fromNum > 0
-    ? toNum / fromNum
-    : null;
+  const effectiveRate =
+    isCrossCurrency &&
+    Number.isFinite(fromNum) &&
+    Number.isFinite(toNum) &&
+    fromNum > 0
+      ? toNum / fromNum
+      : null;
 
   const titleKey = `transactions.types.${txType}` as const;
 
@@ -657,26 +856,29 @@ function QuickTxModal({ account, txType, hid, accounts, categories, onClose, onC
     setSaving(true);
     try {
       if (isTransfer) {
-        await financeApi.createTransfer(hid, isCrossCurrency
-          ? {
-              fromAccountId: account.id,
-              toAccountId,
-              fromAmount: fromNum,
-              toAmount: toNum,
-              currency: fromCcy,
-              toCurrency: toCcy,
-              description: description || undefined,
-              date,
-            }
-          : {
-              fromAccountId: account.id,
-              toAccountId,
-              fromAmount: fromNum,
-              toAmount: fromNum,
-              currency: fromCcy,
-              description: description || undefined,
-              date,
-            });
+        await financeApi.createTransfer(
+          hid,
+          isCrossCurrency
+            ? {
+                fromAccountId: account.id,
+                toAccountId,
+                fromAmount: fromNum,
+                toAmount: toNum,
+                currency: fromCcy,
+                toCurrency: toCcy,
+                description: description || undefined,
+                date,
+              }
+            : {
+                fromAccountId: account.id,
+                toAccountId,
+                fromAmount: fromNum,
+                toAmount: fromNum,
+                currency: fromCcy,
+                description: description || undefined,
+                date,
+              },
+        );
       } else {
         await financeApi.createTransaction(hid, {
           accountId: account.id,
@@ -689,22 +891,29 @@ function QuickTxModal({ account, txType, hid, accounts, categories, onClose, onC
         });
       }
       onCreated();
-    } finally { setSaving(false); }
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
-    <Modal title={`${t(titleKey as never)} — ${account.name}`} onClose={onClose}>
+    <Modal
+      title={`${t(titleKey as never)} — ${account.name}`}
+      onClose={onClose}
+    >
       <form onSubmit={submit} className="space-y-3">
         {/* From account — read-only info */}
         <div className="rounded-lg bg-gray-50 px-3 py-2 text-sm text-gray-500 dark:bg-gray-800 dark:text-gray-400">
           <span className="font-medium">{t('transactions.account')}:</span>{' '}
           {account.name}{' '}
-          <span className="text-gray-400 dark:text-gray-500">({fmt(Number(account.balance), account.currency)})</span>
+          <span className="font-mono text-gray-400 dark:text-gray-500">
+            ({fmt(Number(account.balance), account.currency)})
+          </span>
         </div>
 
         {/* Transfer: target account */}
-        {isTransfer && (
-          otherAccounts.length === 0 ? (
+        {isTransfer &&
+          (otherAccounts.length === 0 ? (
             <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-600 dark:bg-amber-900/30 dark:text-amber-300">
               You need at least 2 accounts to make a transfer.
             </p>
@@ -715,15 +924,22 @@ function QuickTxModal({ account, txType, hid, accounts, categories, onClose, onC
               onChange={(e) => setToAccountId(e.target.value)}
             >
               {otherAccounts.map((a) => (
-                <option key={a.id} value={a.id}>{a.name} ({a.currency})</option>
+                <option key={a.id} value={a.id}>
+                  {a.name} ({a.currency})
+                </option>
               ))}
             </Select>
-          )
-        )}
+          ))}
 
         <Input
-          label={isTransfer ? `${t('transactions.transferSent')} (${fromCcy})` : t('transactions.amount')}
-          type="number" step="0.01" min="0.01"
+          label={
+            isTransfer
+              ? `${t('transactions.transferSent')} (${fromCcy})`
+              : t('transactions.amount')
+          }
+          type="number"
+          step="0.01"
+          min="0.01"
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
           placeholder="0.00"
@@ -737,7 +953,9 @@ function QuickTxModal({ account, txType, hid, accounts, categories, onClose, onC
               <div className="flex-1">
                 <Input
                   label={`${t('transactions.transferReceived')} (${toCcy})`}
-                  type="number" step="0.01" min="0.01"
+                  type="number"
+                  step="0.01"
+                  min="0.01"
                   value={toAmount}
                   onChange={(e) => {
                     setToAmount(e.target.value);
@@ -767,12 +985,16 @@ function QuickTxModal({ account, txType, hid, accounts, categories, onClose, onC
                 {effectiveRate !== null && (
                   <>
                     {' · '}
-                    {t('transactions.transferYourRate', { rate: effectiveRate.toFixed(4) })}
+                    {t('transactions.transferYourRate', {
+                      rate: effectiveRate.toFixed(4),
+                    })}
                   </>
                 )}
               </p>
             ) : ratesState.status === 'loading' ? (
-              <p className="pl-1 text-xs text-gray-400 dark:text-gray-500">{t('accounts.loading')}</p>
+              <p className="pl-1 text-xs text-gray-400 dark:text-gray-500">
+                {t('accounts.loading')}
+              </p>
             ) : (
               <p className="pl-1 text-xs text-amber-600 dark:text-amber-400">
                 {t('transactions.transferRateUnavailable')}
@@ -802,22 +1024,32 @@ function QuickTxModal({ account, txType, hid, accounts, categories, onClose, onC
             onChange={(e) => setCategoryId(e.target.value)}
           >
             <option value="">{t('transactions.noCategory')}</option>
-            {filteredCategories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            {filteredCategories.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
           </Select>
         )}
 
         <div className="flex gap-2 pt-2">
-          <Button type="button" variant="secondary" className="flex-1" onClick={onClose}>
+          <Button
+            type="button"
+            variant="secondary"
+            className="flex-1"
+            onClick={onClose}
+          >
             {t('common.cancel')}
           </Button>
           <Button
             type="submit"
             className="flex-1"
             disabled={
-              saving
-              || !amount
-              || (isTransfer && !toAccountId)
-              || (isCrossCurrency && (!toAmount || !Number.isFinite(toNum) || toNum <= 0))
+              saving ||
+              !amount ||
+              (isTransfer && !toAccountId) ||
+              (isCrossCurrency &&
+                (!toAmount || !Number.isFinite(toNum) || toNum <= 0))
             }
           >
             {saving ? t('common.saving') : t('common.add')}
@@ -831,7 +1063,12 @@ function QuickTxModal({ account, txType, hid, accounts, categories, onClose, onC
 // ──────────────────────────────────────────────
 // Manual balance adjustment modal
 // ──────────────────────────────────────────────
-function AdjustBalanceModal({ account, hid, onClose, onAdjusted }: {
+function AdjustBalanceModal({
+  account,
+  hid,
+  onClose,
+  onAdjusted,
+}: {
   account: Account;
   hid: string;
   onClose: () => void;
@@ -880,11 +1117,16 @@ function AdjustBalanceModal({ account, hid, onClose, onAdjusted }: {
   };
 
   return (
-    <Modal title={`${t('accounts.adjustBalance')} — ${account.name}`} onClose={onClose}>
+    <Modal
+      title={`${t('accounts.adjustBalance')} — ${account.name}`}
+      onClose={onClose}
+    >
       <form onSubmit={submit} className="space-y-3">
         <div className="rounded-lg bg-gray-50 px-3 py-2 text-sm text-gray-500 dark:bg-gray-800 dark:text-gray-400">
           <span className="font-medium">{t('accounts.adjust.current')}:</span>{' '}
-          <span className="text-gray-800 dark:text-gray-200">{fmt(currentBalance, account.currency)}</span>
+          <span className="font-mono text-gray-800 dark:text-gray-200">
+            {fmt(currentBalance, account.currency)}
+          </span>
         </div>
 
         <Input
@@ -898,9 +1140,12 @@ function AdjustBalanceModal({ account, hid, onClose, onAdjusted }: {
         />
 
         <div className="text-sm">
-          <span className="text-gray-500 dark:text-gray-400">{t('accounts.adjust.delta')}:</span>{' '}
-          <span className={`font-semibold ${deltaClass}`}>
-            {deltaSign}{fmt(delta, account.currency)}
+          <span className="text-gray-500 dark:text-gray-400">
+            {t('accounts.adjust.delta')}:
+          </span>{' '}
+          <span className={`font-mono font-semibold ${deltaClass}`}>
+            {deltaSign}
+            {fmt(delta, account.currency)}
           </span>
         </div>
 
@@ -912,7 +1157,9 @@ function AdjustBalanceModal({ account, hid, onClose, onAdjusted }: {
         />
 
         {error && (
-          <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600 dark:bg-red-900/30 dark:text-red-300">{error}</p>
+          <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600 dark:bg-red-900/30 dark:text-red-300">
+            {error}
+          </p>
         )}
 
         <p className="text-xs text-gray-400 dark:text-gray-500">
@@ -920,10 +1167,19 @@ function AdjustBalanceModal({ account, hid, onClose, onAdjusted }: {
         </p>
 
         <div className="flex gap-2 pt-2">
-          <Button type="button" variant="secondary" className="flex-1" onClick={onClose}>
+          <Button
+            type="button"
+            variant="secondary"
+            className="flex-1"
+            onClick={onClose}
+          >
             {t('common.cancel')}
           </Button>
-          <Button type="submit" className="flex-1" disabled={saving || delta === 0}>
+          <Button
+            type="submit"
+            className="flex-1"
+            disabled={saving || delta === 0}
+          >
             {saving ? t('common.saving') : t('common.save')}
           </Button>
         </div>
@@ -933,15 +1189,27 @@ function AdjustBalanceModal({ account, hid, onClose, onAdjusted }: {
 }
 
 function Spinner() {
-  return <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary-500 border-t-transparent" />;
+  return (
+    <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary-500 border-t-transparent" />
+  );
 }
 
-function Empty({ text, action, actionLabel }: { text: string; action?: () => void; actionLabel?: string }) {
+function Empty({
+  text,
+  action,
+  actionLabel,
+}: {
+  text: string;
+  action?: () => void;
+  actionLabel?: string;
+}) {
   return (
     <div className="flex flex-col items-center justify-center py-16 text-gray-400 dark:text-gray-500">
       <p className="mb-3">{text}</p>
       {action && actionLabel && (
-        <Button variant="secondary" size="sm" onClick={action}>{actionLabel}</Button>
+        <Button variant="secondary" size="sm" onClick={action}>
+          {actionLabel}
+        </Button>
       )}
     </div>
   );

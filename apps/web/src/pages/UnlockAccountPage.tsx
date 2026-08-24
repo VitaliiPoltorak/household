@@ -77,7 +77,7 @@ export function UnlockAccountPage() {
         )}
 
         <div className="mt-6 text-center text-sm">
-          <Link to="/login" className="font-medium text-blue-600 hover:underline dark:text-blue-400">
+          <Link to="/login" className="font-medium text-primary-600 hover:underline dark:text-primary-400">
             {t('auth.backToLogin')}
           </Link>
         </div>
