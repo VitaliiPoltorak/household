@@ -45,7 +45,7 @@ Shared libraries in `libs/`: `common` (config, filters, JWT verify, gateway sign
 git clone git@github.com:VitaliiPoltorak/household.git
 cd household
 pnpm install
-pnpm hooks:enable    # optional but recommended — auto-rebuild running Docker services on git pull / branch checkout
+pnpm hooks:enable    # optional but recommended — auto-rebuild Docker services on git pull / branch checkout, and run the API scenario gate on every commit
 ```
 
 **2. Configure environment**
@@ -190,21 +190,24 @@ pnpm --filter @household/auth-service migration:run
 
 ## Testing
 
-### Backend — Postman + integration tests
+### Backend — automated API scenario collection
 
-Integration tests use **Postman**. The collection covers full request flows with automatic token extraction and environment variable chaining (login → set `accessToken` → use in all subsequent requests).
+The API scenario gate (`docs/postman/`) runs headlessly via **Newman** — not a human clicking through Postman. It logs in as two pre-verified users seeded by `scripts/seed-e2e-user.js`, exercises the full API surface (auth, households + invites, finance, shopping), and cleans up after itself (deletes the household it created, logs out both sessions) so repeated runs never collide.
 
 **Files:**
 - `docs/postman/household.postman_collection.json` — request collection
 - `docs/postman/household.postman_environment.json` — local environment
 
-**Import into Postman:**
-1. File → Import → select both JSON files
-2. Select **Household — Local** environment (top-right dropdown)
-3. Start infrastructure and services (steps above)
-4. Set up Google OAuth and get an ID token (see section below)
-5. Paste the token into `googleIdToken` env var → run **Auth / Login with Google**
-6. Run the collection — all env vars (`accessToken`, `householdId`, `accountId`, etc.) populate automatically
+**Run:**
+```bash
+docker compose up -d --wait                                          # full stack; --wait waits for real readiness
+docker compose exec -T auth-service node scripts/seed-e2e-user.js    # seeds the two users the collection logs in as
+pnpm test:postman
+```
+
+This also runs automatically on every commit (once `pnpm hooks:enable` is active, see above) and on every PR that touches backend-relevant paths — see "Scenario gate" in `CLAUDE.md`.
+
+You can still import both JSON files into the Postman GUI for exploratory testing — select the **Household — Local** environment, run **Setup → Login (owner)** first, then anything else.
 
 ## Google OAuth setup
 
@@ -222,7 +225,9 @@ Required once to get a `GOOGLE_CLIENT_ID` and test tokens locally.
   ```
 - Copy the **Client ID** → paste into `.env` as `GOOGLE_CLIENT_ID`
 
-**2. Get an ID token for Postman testing**
+**2. Get an ID token for a manual OAuth check**
+
+Real OAuth consent is verified manually, not by the automated collection above — Google actively blocks scripted logins. Do this once when touching the OAuth strategy code.
 
 - Open [developers.google.com/oauthplayground](https://developers.google.com/oauthplayground)
 - Click ⚙️ → check **"Use your own OAuth credentials"** → enter your Client ID + Client Secret
@@ -230,11 +235,11 @@ Required once to get a `GOOGLE_CLIENT_ID` and test tokens locally.
 - Click **Authorize APIs** → sign in with your Google account
 - Click **Exchange authorization code for tokens**
 - Copy the `id_token` value from the response
-- Paste into Postman environment variable `googleIdToken`
+- `POST /api/v1/auth/google` with `{"idToken": "<the token>"}` (curl, Swagger's "Try it out", or a scratch Postman request) — expect `200` with an `accessToken`
 
-> The `id_token` expires in ~1 hour. Repeat step 2 when it expires.
+> The `id_token` expires in ~1 hour. Repeat this when it expires.
 
-Each completed feature has a manual testing checklist in the [Testing milestone](https://github.com/VitaliiPoltorak/household/milestone/8) on GitHub. Swagger (`/docs` on each service) is available for quick endpoint reference during development.
+Every completed feature is covered by the automated API scenario collection above (`pnpm test:postman`) and/or the integration test suite — not a manual checklist. The only things that stay deliberately manual are real OAuth consent (above) and the register/verify-email flow (the 6-digit code only exists in Redis and a service log line — see `CLAUDE.md`). Swagger (`/docs` on each service) is available for quick endpoint reference during development.
 
 ### Web — Vitest
 

@@ -748,18 +748,21 @@ Finance Service → Kafka: finance.transaction.created
 Starting with Phase 2, every completed feature issue must ship with:
 
 1. **Integration tests** — `apps/<service>/test/*.integration.spec.ts` covering the happy path, edge cases, and Kafka assertions.
-2. **An issue in the Testing milestone** with a Postman checklist for manual E2E.
+2. **Coverage in the automated API scenario collection** (`docs/postman/`, run via `pnpm test:postman`) — not a manual checklist.
 
 **Stack:**
 - Auto tests: `jest` + `supertest` + `@household/testing` (app factory, DB cleaner, Kafka mocks)
-- Manual testing: Postman — collection under `docs/postman/`
+- API scenario gate: Newman over `docs/postman/` (`pnpm test:postman`) — automated, runs in pre-commit and CI, not a human walking through Postman
 - Swagger — endpoint reference during development only
 
 **Run:**
 ```bash
-# Requires: docker compose up -d  (postgres + redis; the household_test DB is created automatically)
+# Requires: docker compose up -d  (postgres + redis; the household_test database
+# is created automatically by ensureSchema() on first connect, same as the dev
+# database — no manual `createdb` step needed for either)
 pnpm --filter @household/finance-service test:integration   # single service
 pnpm test:integration                                       # all services
+pnpm test:postman                                            # API scenario collection (needs the full stack up + seeded users, see CLAUDE.md)
 ```
 
 **Reference implementation** (pattern for every Phase 2+ service): `apps/finance-service/test/`
