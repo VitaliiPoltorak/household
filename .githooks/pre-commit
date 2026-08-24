@@ -1,8 +1,13 @@
 #!/usr/bin/env bash
-# Runs unit tests before every commit.
-# Fast (no Docker). Integration tests are NOT run here — they need
-# `docker compose up -d` and are too slow for a pre-commit gate.
-# Skip in an emergency with `git commit --no-verify` (discouraged).
+# Runs unit tests, then the automated API scenario gate (#192/#208), before
+# every commit.
+#
+# Unit tests are fast (no Docker). The API scenario gate needs Docker and
+# always runs — the maintainer decision is that this gate is not gated on
+# "stack already running"; scripts/api-scenarios.sh brings the stack up
+# itself if needed, rebuilding only what changed. Set SKIP_API_SCENARIOS=1
+# to bypass just that step, or use `git commit --no-verify` to skip
+# everything (both discouraged).
 
 set -euo pipefail
 
@@ -11,3 +16,6 @@ cd "$REPO_ROOT"
 
 echo "pre-commit: running pnpm test:unit …"
 pnpm test:unit
+
+echo "pre-commit: running API scenario gate …"
+"$REPO_ROOT/scripts/api-scenarios.sh"
