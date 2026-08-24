@@ -40,3 +40,8 @@ Dockerfile
 docker-compose.yml
 infra
 docs
+
+# NOTE: root scripts/ is intentionally NOT ignored — scripts/seed-e2e-user.js
+# (#204) runs *inside* the built service images via `docker compose exec`,
+# so it must ship with them. Don't add scripts/ here without checking that
+# doesn't break the API scenario seeding flow.

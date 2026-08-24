@@ -81,16 +81,41 @@ module.exports = [
       '@typescript-eslint/no-explicit-any': 'off',
       // `_prefix` = intentionally unused (Nest guards with fixed signatures,
       // destructured-but-ignored props, etc.).
-      '@typescript-eslint/no-unused-vars': ['warn', {
-        argsIgnorePattern: '^_',
-        varsIgnorePattern: '^_',
-        caughtErrorsIgnorePattern: '^_',
-      }],
+      '@typescript-eslint/no-unused-vars': [
+        'warn',
+        {
+          argsIgnorePattern: '^_',
+          varsIgnorePattern: '^_',
+          caughtErrorsIgnorePattern: '^_',
+        },
+      ],
       // Nest DI + TypeORM decorators produce empty interfaces/functions.
       '@typescript-eslint/no-empty-function': 'off',
       '@typescript-eslint/no-empty-interface': 'off',
       // `no-undef` on TS files is redundant with tsc and misfires on globals.
       'no-undef': 'off',
+    },
+  },
+
+  // Root-level operational scripts (scripts/*.js) — plain CommonJS, run
+  // directly with `node`, not part of any package's own lint scope
+  // (turbo run lint only covers apps/*/{src,test}). Needs the same Node
+  // globals as the TS block above; kept separate since these files aren't
+  // TypeScript and don't want the @typescript-eslint parser/rules.
+  {
+    files: ['scripts/**/*.js'],
+    languageOptions: {
+      ecmaVersion: 2022,
+      sourceType: 'commonjs',
+      globals: {
+        process: 'readonly',
+        Buffer: 'readonly',
+        console: 'readonly',
+        module: 'readonly',
+        require: 'readonly',
+        __dirname: 'readonly',
+        __filename: 'readonly',
+      },
     },
   },
 
@@ -130,7 +155,10 @@ module.exports = [
     rules: {
       'react-hooks/rules-of-hooks': 'error',
       'react-hooks/exhaustive-deps': 'warn',
-      'react-refresh/only-export-components': ['warn', { allowConstantExport: true }],
+      'react-refresh/only-export-components': [
+        'warn',
+        { allowConstantExport: true },
+      ],
     },
   },
 ];
