@@ -104,6 +104,18 @@ services:
   # host names so they resolve inside the compose network. Ports are exposed
   # for dev convenience (Swagger, direct debugging) — production would only
   # publish api-gateway :3000 and realtime-gateway :3010.
+  #
+  # Healthchecks (#205): every service below binds its port as the LAST step
+  # of bootstrap (`await app.listen(...)` in main.ts, after the TypeORM
+  # connection, ensureSchema(), synchronize, and Kafka onModuleInit all
+  # complete) — so "port accepts a TCP connection" already proves the schema
+  # exists and the service is actually ready, not just that the container
+  # started. That's the guarantee `docker compose up -d --wait` and the
+  # seed script (scripts/seed-e2e-user.js, #204) depend on. If a future
+  # refactor moves app.listen() earlier (e.g. a lazy DB connection), this
+  # assumption breaks silently — revisit these healthchecks if that happens.
+  # `node:22-alpine` has no curl/wget, so probes shell out to `node -e`
+  # instead of a shell script.
   # ─────────────────────────────────────────────────────────────
 
   api-gateway:
@@ -130,11 +142,23 @@ services:
       SHOPPING_SERVICE_URL: http://shopping-service:3004
       # Web still runs on host; the browser talks to the gateway from there.
       CORS_ORIGIN: http://localhost:5173
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 20s
     depends_on:
       redis:
         condition: service_healthy
       auth-service:
-        condition: service_started
+        condition: service_healthy
+      household-service:
+        condition: service_healthy
+      finance-service:
+        condition: service_healthy
+      shopping-service:
+        condition: service_healthy
 
   auth-service:
     build:
@@ -156,6 +180,12 @@ services:
       # HttpOnly cookie requires HTTPS in secure mode — dev uses http://
       # localhost so keep secure=false when talking through the host browser.
       AUTH_COOKIE_SECURE: 'false'
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('net').connect(3001,'127.0.0.1').on('connect',()=>process.exit(0)).on('error',()=>process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 20s
     depends_on:
       postgres:
         condition: service_healthy
@@ -181,6 +211,12 @@ services:
       POSTGRES_HOST: postgres
       REDIS_HOST: redis
       KAFKA_BROKERS: kafka:29092
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('net').connect(3002,'127.0.0.1').on('connect',()=>process.exit(0)).on('error',()=>process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 20s
     depends_on:
       postgres:
         condition: service_healthy
@@ -206,6 +242,12 @@ services:
       POSTGRES_HOST: postgres
       REDIS_HOST: redis
       KAFKA_BROKERS: kafka:29092
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('net').connect(3003,'127.0.0.1').on('connect',()=>process.exit(0)).on('error',()=>process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 20s
     depends_on:
       postgres:
         condition: service_healthy
@@ -231,6 +273,12 @@ services:
       POSTGRES_HOST: postgres
       REDIS_HOST: redis
       KAFKA_BROKERS: kafka:29092
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('net').connect(3004,'127.0.0.1').on('connect',()=>process.exit(0)).on('error',()=>process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 20s
     depends_on:
       postgres:
         condition: service_healthy
@@ -256,6 +304,12 @@ services:
       REDIS_HOST: redis
       KAFKA_BROKERS: kafka:29092
       WS_CORS_ORIGINS: http://localhost:5173
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('net').connect(3010,'127.0.0.1').on('connect',()=>process.exit(0)).on('error',()=>process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 20s
     depends_on:
       redis:
         condition: service_healthy
