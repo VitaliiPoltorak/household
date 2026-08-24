@@ -7,12 +7,12 @@ import type { Request, Response } from 'express';
  * Two cookies are stamped together on every login/refresh, with **different
  * Path scopes on purpose**:
  *
- * - `household_refresh` (HttpOnly, Secure, SameSite=None, Path=/api/v1/auth)
+ * - `household_refresh` (HttpOnly, Secure*, SameSite=None*, Path=/api/v1/auth)
  *     Base64 of `${sessionId}.${refreshToken}` — HttpOnly means no JS can read
  *     it, closing the XSS-exfiltration path localStorage had. Path scopes it
  *     to auth endpoints only so regular API calls don't carry it around.
  *
- * - `household_csrf` (Secure, SameSite=None, Path=/) — NOT HttpOnly
+ * - `household_csrf` (Secure*, SameSite=None*, Path=/) — NOT HttpOnly
  *     A random opaque value the SPA reads via document.cookie and echoes back
  *     in the `X-CSRF-Token` header on /auth/refresh. Cross-origin attackers
  *     can't read the cookie (Same-Origin Policy), so can't forge the header.
@@ -24,8 +24,20 @@ import type { Request, Response } from 'express';
  *     symptom users hit as "F5 logs me out even though the refresh cookie
  *     is still valid".
  *
- * SameSite=None is a deliberate choice for the cross-domain deployment
- * (`app.foo.com` + `api.bar.com`). It requires CSRF as above.
+ * * `Secure`/`SameSite` are not hardcoded — they follow `opts.secure`
+ *   (`AUTH_COOKIE_SECURE`). `Secure: true` pairs with `SameSite=None`, for
+ *   the real cross-domain deployment (`app.foo.com` + `api.bar.com`), which
+ *   requires CSRF as above. `Secure: false` (local/dev-over-http) pairs with
+ *   `SameSite=Lax` instead of `None` — browsers silently DROP any Set-Cookie
+ *   header that pairs `SameSite=None` with `Secure` unset, rather than
+ *   erroring. Hardcoding `SameSite=None` regardless of `Secure` (the bug
+ *   this comment used to describe as fixed) meant neither cookie was ever
+ *   actually stored in dev: the refresh cookie was silently missing on every
+ *   reload, `AuthContext`'s refresh-on-load fell straight through to
+ *   logged-out, and it looked exactly like "F5 logs me out" even after the
+ *   Path fix below. `Lax` is valid without `Secure` and is sufficient in dev
+ *   because the Vite dev server proxies `/api` same-origin
+ *   (`apps/web/vite.config.ts`).
  */
 
 export const REFRESH_COOKIE = 'household_refresh';
@@ -51,12 +63,17 @@ interface SetCookieOpts {
 }
 
 export function encodeRefreshCookie(payload: CookiePayload): string {
-  return Buffer.from(`${payload.sessionId}.${payload.refreshToken}`, 'utf8').toString('base64url');
+  return Buffer.from(
+    `${payload.sessionId}.${payload.refreshToken}`,
+    'utf8',
+  ).toString('base64url');
 }
 
 // Returns null on any parse failure. Callers should treat null as "no valid
 // cookie" and respond 401 without leaking the reason.
-export function decodeRefreshCookie(raw: string | undefined): CookiePayload | null {
+export function decodeRefreshCookie(
+  raw: string | undefined,
+): CookiePayload | null {
   if (!raw) return null;
   let decoded: string;
   try {
@@ -82,9 +99,12 @@ export function setAuthCookies(
   csrfToken: string,
   opts: SetCookieOpts,
 ): void {
+  const secure = opts.secure ?? true;
   const common = {
-    secure: opts.secure ?? true,
-    sameSite: 'none' as const,
+    secure,
+    // See the module doc comment: SameSite=None without Secure is an
+    // invalid combination browsers silently drop the cookie for.
+    sameSite: secure ? ('none' as const) : ('lax' as const),
     maxAge: opts.maxAgeSec * 1000,
   };
   res.cookie(REFRESH_COOKIE, encodeRefreshCookie(payload), {
@@ -99,16 +119,27 @@ export function setAuthCookies(
   });
 }
 
-export function clearAuthCookies(res: Response, opts: { secure?: boolean } = {}): void {
+export function clearAuthCookies(
+  res: Response,
+  opts: { secure?: boolean } = {},
+): void {
+  const secure = opts.secure ?? true;
   const common = {
-    secure: opts.secure ?? true,
-    sameSite: 'none' as const,
+    secure,
+    // Must match the SameSite value used when the cookie was set, or the
+    // browser treats the clear as setting a different cookie and leaves the
+    // original one behind. See the module doc comment.
+    sameSite: secure ? ('none' as const) : ('lax' as const),
     maxAge: 0,
   };
   // Each cookie must be cleared with the *same* Path it was set on — the
   // browser keys on (name, domain, path) so a mismatched path leaves the
   // real cookie in place.
-  res.cookie(REFRESH_COOKIE, '', { ...common, path: REFRESH_PATH, httpOnly: true });
+  res.cookie(REFRESH_COOKIE, '', {
+    ...common,
+    path: REFRESH_PATH,
+    httpOnly: true,
+  });
   res.cookie(CSRF_COOKIE, '', { ...common, path: CSRF_PATH, httpOnly: false });
 }
 
