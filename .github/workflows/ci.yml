@@ -47,6 +47,7 @@ jobs:
               - 'apps/shopping-service/**'
               - 'apps/realtime-gateway/**'
               - 'libs/**'
+              - 'scripts/**'
               - 'Dockerfile'
               - 'docker-compose.yml'
               - 'package.json'
