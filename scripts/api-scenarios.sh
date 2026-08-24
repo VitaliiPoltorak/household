@@ -2,9 +2,14 @@
 # Runs the automated API scenario check (Newman over docs/postman/, #207)
 # against a live docker-compose stack, bringing the stack up — and
 # rebuilding only what actually changed — if it isn't already. Called from
-# .githooks/pre-commit on every commit (#192/#208): the maintainer decision
-# is that this gate always runs, not gated on "stack already running", so
-# a documented escape hatch exists for genuine emergencies.
+# .githooks/pre-commit on every commit (#192/#208).
+#
+# #223: skipped entirely (stack left untouched, Docker not even required to
+# be installed) when nothing staged could possibly affect API behavior —
+# see the "API-relevant" check below. The maintainer decision is that when
+# something IS relevant, this gate always runs — not gated on "stack
+# already running" — so a documented escape hatch exists for genuine
+# emergencies.
 #
 # Escape hatch: SKIP_API_SCENARIOS=1 git commit ...
 # (strictly better than --no-verify, which also skips the unit tests)
@@ -32,14 +37,43 @@ fi
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 
+# shellcheck source=./lib/changed-services.sh
+source "$REPO_ROOT/scripts/lib/changed-services.sh"
+
+# #223: skip the whole gate — not just the Docker rebuild — when nothing
+# staged can possibly affect API behavior. A docs/README/comment-only commit
+# cannot break a Newman assertion; running the full suite for it (and, worse,
+# requiring Docker to even be running) is pure waste. "API-relevant" means:
+# a mapped app/lib service (changed_services, same table #205's rebuild hook
+# uses), OR the collection/environment itself, OR the scripts that drive this
+# gate — a change to any of those genuinely needs re-verification.
+STAGED_FILES="$(git diff --cached --name-only --diff-filter=ACMR || true)"
+
+# Declared unconditionally (even if left empty) — bash 3.2's `set -u`
+# treats a never-assigned array as an unbound variable, even inside
+# `${#arr[@]}`.
+changed_targets=()
+api_relevant=true
+if [[ -n "$STAGED_FILES" ]]; then
+  # shellcheck disable=SC2207
+  changed_targets=($(printf '%s' "$STAGED_FILES" | changed_services))
+  if [[ ${#changed_targets[@]} -eq 0 ]] && ! grep -qE '^(docs/postman/|scripts/)' <<<"$STAGED_FILES"; then
+    api_relevant=false
+  fi
+fi
+# No staged files at all (e.g. an unusual invocation outside a normal
+# `git commit`) — stay on the safe default of running the gate.
+
+if ! $api_relevant; then
+  echo "api-scenarios: no API-relevant changes staged — skipping (stack left as-is)."
+  exit 0
+fi
+
 if ! command -v docker >/dev/null 2>&1; then
   echo "api-scenarios: docker is not available — cannot run the API scenario gate." >&2
   echo "  Set SKIP_API_SCENARIOS=1 to bypass (not recommended — you'll skip this in CI too if you get used to it)." >&2
   exit 1
 fi
-
-# shellcheck source=./lib/changed-services.sh
-source "$REPO_ROOT/scripts/lib/changed-services.sh"
 
 RUNNING="$(docker compose ps --services --status=running 2>/dev/null || true)"
 
@@ -59,18 +93,11 @@ if $stack_incomplete; then
   # still builds here (compose auto-builds a service with no image even
   # without --build), hence the generous timeout.
   docker compose up -d --wait --wait-timeout 600
-else
+elif [[ ${#changed_targets[@]} -gt 0 ]]; then
   # Stack is already up — rebuild only services whose staged sources
-  # changed, so a docs-only or web-only commit pays zero Docker cost.
-  STAGED_FILES="$(git diff --cached --name-only --diff-filter=ACMR || true)"
-  if [[ -n "$STAGED_FILES" ]]; then
-    # shellcheck disable=SC2207
-    targets=($(printf '%s' "$STAGED_FILES" | changed_services))
-    if [[ ${#targets[@]} -gt 0 ]]; then
-      echo "api-scenarios: rebuilding ${targets[*]} (staged changes)…"
-      docker compose up -d --build --wait --wait-timeout 240 "${targets[@]}"
-    fi
-  fi
+  # changed, so a same-service-only commit doesn't rebuild the other five.
+  echo "api-scenarios: rebuilding ${changed_targets[*]} (staged changes)…"
+  docker compose up -d --build --wait --wait-timeout 240 "${changed_targets[@]}"
 fi
 
 # .env is guaranteed to exist by this point (either just copied from

@@ -20,8 +20,51 @@ env:
   PNPM_VERSION: '9.15.9'
 
 jobs:
+  # #223: a docs-only or single-area change shouldn't pay for every test
+  # layer. This job classifies the diff; the three real jobs below stay
+  # gated with `if:` (not filtered out at the workflow `on:` level) so they
+  # still show up as a "skipped" (not missing) check — a workflow-level
+  # `paths:` filter that never runs the workflow at all leaves any branch
+  # protection rule requiring these checks stuck pending forever.
+  changes:
+    name: Detect changed areas
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      any: ${{ steps.filter.outputs.any }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            backend: &backend
+              - 'apps/api-gateway/**'
+              - 'apps/auth-service/**'
+              - 'apps/household-service/**'
+              - 'apps/finance-service/**'
+              - 'apps/shopping-service/**'
+              - 'apps/realtime-gateway/**'
+              - 'libs/**'
+              - 'scripts/**'
+              - 'Dockerfile'
+              - 'docker-compose.yml'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'tsconfig*.json'
+              - 'turbo.json'
+            any:
+              - *backend
+              - 'apps/web/**'
+              - 'eslint.config.js'
+              - '.prettierrc.json'
+              - '.github/workflows/ci.yml'
+
   lint-and-build:
     name: Lint + Build
+    needs: changes
+    if: needs.changes.outputs.any == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -46,6 +89,8 @@ jobs:
 
   unit-tests:
     name: Unit tests
+    needs: changes
+    if: needs.changes.outputs.any == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -70,6 +115,8 @@ jobs:
 
   integration-tests:
     name: Integration tests
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
 
     services:
