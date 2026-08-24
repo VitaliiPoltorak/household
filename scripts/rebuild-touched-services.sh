@@ -10,6 +10,10 @@
 
 set -u
 
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=./lib/changed-services.sh
+source "$REPO_ROOT/scripts/lib/changed-services.sh"
+
 OLD="${1:-}"
 NEW="${2:-HEAD}"
 
@@ -29,18 +33,6 @@ if ! command -v docker >/dev/null 2>&1; then
   exit 0
 fi
 
-# All backend services declared in docker-compose.yml. The web app runs
-# via `pnpm --filter @household/web dev` on the host (not dockerized),
-# so it is intentionally excluded.
-ALL_SERVICES=(
-  api-gateway
-  auth-service
-  household-service
-  finance-service
-  shopping-service
-  realtime-gateway
-)
-
 # Find the compose project's currently running services. If none of ours
 # are up, there is nothing to do.
 RUNNING=$(docker compose ps --services --status=running 2>/dev/null || true)
@@ -53,57 +45,20 @@ if [[ -z "$CHANGED_FILES" ]]; then
   exit 0
 fi
 
-# Decide the target set:
-# - Any change under libs/, docker-compose.yml, Dockerfile, root
-#   package.json, or pnpm-lock.yaml → rebuild every running backend
-#   service (they all depend on the shared libs / base image).
-# - Change under apps/<name>/ where <name> is in ALL_SERVICES → add
-#   that service to the target set.
-targets=()
-rebuild_all=false
-
-while IFS= read -r file; do
-  case "$file" in
-    libs/*|Dockerfile|docker-compose.yml|package.json|pnpm-lock.yaml)
-      rebuild_all=true
-      ;;
-    apps/*)
-      # apps/<name>/...
-      svc="${file#apps/}"
-      svc="${svc%%/*}"
-      for known in "${ALL_SERVICES[@]}"; do
-        if [[ "$svc" == "$known" ]]; then
-          targets+=("$svc")
-          break
-        fi
-      done
-      ;;
-  esac
-done <<<"$CHANGED_FILES"
-
-if $rebuild_all; then
-  # Intersect ALL_SERVICES with what's actually running.
-  targets=()
-  for svc in "${ALL_SERVICES[@]}"; do
-    if grep -qx "$svc" <<<"$RUNNING"; then
-      targets+=("$svc")
-    fi
-  done
-else
-  # Dedupe + keep only running ones.
-  if [[ ${#targets[@]} -eq 0 ]]; then
-    exit 0
-  fi
-  # shellcheck disable=SC2207
-  targets=($(printf '%s\n' "${targets[@]}" | sort -u))
-  filtered=()
-  for svc in "${targets[@]}"; do
-    if grep -qx "$svc" <<<"$RUNNING"; then
-      filtered+=("$svc")
-    fi
-  done
-  targets=("${filtered[@]}")
+# shellcheck disable=SC2207
+affected=($(printf '%s' "$CHANGED_FILES" | changed_services))
+if [[ ${#affected[@]} -eq 0 ]]; then
+  exit 0
 fi
+
+# Intersect the affected set with what's actually running — this script
+# never starts a service that wasn't already up.
+targets=()
+for svc in "${affected[@]}"; do
+  if grep -qx "$svc" <<<"$RUNNING"; then
+    targets+=("$svc")
+  fi
+done
 
 if [[ ${#targets[@]} -eq 0 ]]; then
   exit 0
