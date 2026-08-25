@@ -72,4 +72,25 @@ describe('AuthContext — refresh rate-limit handling (#247)', () => {
       { timeout: 3000 },
     );
   });
+
+  it('clears the household_csrf cookie on a genuine 401, so a dead session cannot keep re-triggering refresh attempts on every future page load (#258)', async () => {
+    document.cookie = 'household_csrf=stale-token; path=/';
+
+    server.use(
+      http.post('/api/v1/auth/refresh', () =>
+        HttpResponse.json(
+          { statusCode: 401, message: 'Unauthorized', error: 'Unauthorized' },
+          { status: 401 },
+        ),
+      ),
+    );
+
+    renderWithProviders(<AuthProbe />);
+
+    await waitFor(() =>
+      expect(screen.getByText('logged out')).toBeInTheDocument(),
+    );
+
+    expect(document.cookie).not.toMatch(/household_csrf=stale-token/);
+  });
 });
