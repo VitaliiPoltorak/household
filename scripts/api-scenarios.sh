@@ -34,6 +34,18 @@ if [[ "${SKIP_API_SCENARIOS:-}" == "1" ]]; then
   exit 0
 fi
 
+# Compose v2 defaults to `buildx bake` for the build step, which resolves
+# and can build the ENTIRE compose build-target graph in one invocation —
+# even when a single service is passed to `up --build` — because every
+# backend service shares the same build context (root Dockerfile + SERVICE
+# arg) and bake groups them for cache efficiency. Verified: with bake on,
+# `docker compose up --build api-gateway` alone still produced real,
+# timed build steps for every other service. That completely defeats the
+# one-service-at-a-time loop below (#244/#246), which exists specifically
+# to avoid overwhelming a resource-constrained Docker Desktop VM (#251).
+# Legacy per-target builds via COMPOSE_BAKE=false build only what's asked.
+export COMPOSE_BAKE=false
+
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 

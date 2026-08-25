@@ -10,6 +10,11 @@
 
 set -u
 
+# See scripts/api-scenarios.sh for the full explanation: Compose v2's default
+# `buildx bake` build step builds the entire shared-Dockerfile graph even for
+# a single-service request, defeating the one-at-a-time loop below (#251).
+export COMPOSE_BAKE=false
+
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck source=./lib/changed-services.sh
 source "$REPO_ROOT/scripts/lib/changed-services.sh"
