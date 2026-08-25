@@ -46,6 +46,21 @@ fi
 # Legacy per-target builds via COMPOSE_BAKE=false build only what's asked.
 export COMPOSE_BAKE=false
 
+# #251 turned out to only be half the fix: `docker compose up -d --build
+# <svc>` (build folded into `up`) STILL rebuilds every OTHER service whose
+# build context also happens to be stale at that moment, even with bake
+# off — confirmed by `docker compose build <svc>` (the plain `build`
+# subcommand, no `up`) staying correctly scoped to just that one service
+# when tested against the exact same stale tree. Root cause: `up --build`
+# resolves the full dependency graph and rebuilds anything stale in it,
+# not just the named target; only `compose build` genuinely scopes to the
+# services you name. This single-service test alone can look fine (nothing
+# else to rebuild = no visible difference) and only fails visibly once
+# MULTIPLE services are simultaneously stale (e.g. any libs/* change) —
+# which is exactly what caused a full Docker Desktop VM crash (not just a
+# full disk) partway through concurrent builds during this fix's own
+# commit. See the two-step build-then-up below.
+
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 
@@ -127,9 +142,15 @@ elif [[ ${#changed_targets[@]} -gt 0 ]]; then
   # running in parallel, and pin the host CPU without proportionate gain
   # (#244). Sequential trades a longer per-commit wall clock for not
   # thrashing the whole machine.
+  #
+  # `docker compose build "$svc"` (separate from `up`) is what actually
+  # keeps each iteration scoped to one service — `up --build "$svc"` does
+  # NOT, see the comment above (#251 follow-up). `up` afterward just starts
+  # the already-built image; no `--build` flag needed there anymore.
   for svc in "${changed_targets[@]}"; do
     echo "api-scenarios: rebuilding ${svc} (staged changes)…"
-    docker compose up -d --build --wait --wait-timeout 240 "$svc"
+    docker compose build "$svc"
+    docker compose up -d --wait --wait-timeout 240 "$svc"
   done
 fi
 

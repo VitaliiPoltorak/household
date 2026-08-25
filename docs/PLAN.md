@@ -222,6 +222,7 @@ Backend → Web → Mobile → Integrations → Deployment → App Store
 |----------------|
 | Stores (supermarkets, greengrocer, pharmacy…) |
 | Product catalog linked to stores; every `storeId` reference is household-scope-checked on create/update (#67) |
+| Optional product `url` with server-side Open Graph/Twitter Card preview (`imageUrl`/`previewTitle`, cached — not re-fetched on read); SSRF-guarded via `assertPublicUrl` (`libs/common`, #197) |
 | Shopping lists (active / completed / archived) |
 | List items (`ShoppingListItemsService` — split out of ShoppingListsService by SRP, #91) |
 | "Preferred store" vs "buy now elsewhere" |
