@@ -18,11 +18,11 @@ RUN corepack enable && corepack prepare pnpm@9.15.9 --activate
 WORKDIR /app
 
 # ─────────────────────────────────────────────────────────────
-# build — install ALL deps + compile ONE service to dist
-# ─────────────────────────────────────────────────────────────
-FROM base AS build
-ARG SERVICE
-# Copy ONLY the manifests pnpm's workspace resolver needs first — every
+# manifests — the package.json list both `build` (needs devDeps to compile)
+# and `runtime` (needs only prod deps) install from. Factored into its own
+# stage so that list exists exactly once instead of duplicated per stage.
+#
+# Copy ONLY the manifests pnpm's workspace resolver needs — every
 # package.json referenced by the lockfile, plus the lockfile itself. This is
 # the whole fix: install then only invalidates when a dependency actually
 # changes, not on every source edit anywhere in the monorepo. Before this
@@ -37,6 +37,8 @@ ARG SERVICE
 # Vite, never in these images). A new app/lib needs a line added here —
 # `pnpm install` fails loudly (missing package.json) if one is forgotten, so
 # this can't silently drift out of sync with pnpm-workspace.yaml.
+# ─────────────────────────────────────────────────────────────
+FROM base AS manifests
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
 COPY apps/api-gateway/package.json apps/api-gateway/package.json
 COPY apps/auth-service/package.json apps/auth-service/package.json
@@ -57,6 +59,13 @@ COPY libs/testing/package.json libs/testing/package.json
 # lib fails at runtime even though the dep is declared in libs/common.
 # Scoped to the container; host dev keeps pnpm's default isolated layout.
 RUN echo "node-linker=hoisted" > .npmrc
+
+# ─────────────────────────────────────────────────────────────
+# build — install ALL deps (incl. dev — needed to compile) + compile ONE
+# service to dist
+# ─────────────────────────────────────────────────────────────
+FROM manifests AS build
+ARG SERVICE
 # The cache mount persists pnpm's content-addressable package store across
 # ALL builds AND all 6 services (shared `id`) — a lockfile change only
 # downloads what's new instead of every package, and node_modules content
@@ -72,18 +81,42 @@ COPY . .
 RUN pnpm --filter @household/${SERVICE} build
 
 # ─────────────────────────────────────────────────────────────
-# runtime — copy built workspace, drop dev deps
+# runtime — a genuine prod-only install, plus just this one service's
+# compiled output.
 # ─────────────────────────────────────────────────────────────
-FROM base AS runtime
+FROM manifests AS runtime
 ARG SERVICE
 ENV NODE_ENV=production \
     SERVICE=${SERVICE} \
     LISTEN_HOST=0.0.0.0
-# Copy the whole built workspace. `pnpm prune --prod` then removes dev deps.
-# Simpler + smaller final image than the alternative (re-installing --prod
-# from scratch, which has to re-resolve every workspace symlink).
-COPY --from=build /app ./
-RUN pnpm --filter @household/${SERVICE}... prune --prod || true
+# A real --prod install, not "install everything then try to strip dev
+# deps back out" — pnpm has no reliable command for the latter (the
+# previous approach here, `pnpm --filter X... prune --prod`, isn't a real
+# pnpm command; it silently failed with "Unknown option: 'recursive'" and
+# was swallowed by `|| true`, meaning every image had shipped every
+# service's full devDependencies — jest, eslint, ts-node, the works — the
+# whole time). Same cache mount as `build`, so this is a fast cache hit,
+# not a slow re-download.
+#
+# This instruction (and its inputs, from `manifests`) is byte-identical
+# regardless of ${SERVICE}, so unlike the old `COPY --from=build /app ./`
+# (which bundled this same node_modules together with that one service's
+# unique dist/ output into a single per-service layer, defeating sharing),
+# this node_modules layer is genuinely shared across all 6 final images —
+# fixed ~2.8GB of pure duplication measured across the 6 running images
+# (`docker system df -v`: ~470MB "unique" per image, mostly this).
+RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
+    pnpm install --frozen-lockfile --prod
+COPY --from=build /app/apps/${SERVICE}/dist ./apps/${SERVICE}/dist
+
+# scripts/seed-e2e-user.js runs inside the auth-service container (`docker
+# compose exec auth-service node scripts/seed-e2e-user.js`, see
+# api-scenarios.sh) — the old `COPY --from=build /app ./` carried the whole
+# build context along for free, but the scoped copy above doesn't. Copying
+# it into every service's image (not just auth-service's) keeps this one
+# instruction service-agnostic like the rest of this stage — the file is a
+# few KB and content-identical across builds, so it's a shared layer too.
+COPY scripts/seed-e2e-user.js ./scripts/seed-e2e-user.js
 
 # Entrypoint resolved at runtime — one CMD for every service. sh -c because
 # CMD-exec-form can't expand env vars.
