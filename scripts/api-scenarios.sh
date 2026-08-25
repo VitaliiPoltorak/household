@@ -123,8 +123,20 @@ for svc in "${ALL_SERVICES[@]}"; do
 done
 
 if $stack_incomplete; then
-  echo "api-scenarios: stack isn't fully up — starting it (cp .env.ci .env)…"
-  cp .env.ci .env
+  # Only seed .env from .env.ci on a genuine fresh clone (no .env at all) —
+  # an incomplete stack does NOT imply that. Any developer who commits while
+  # their stack is partially down (after a reboot, a crash, mid-rebuild) has
+  # a real, hand-configured .env — OAuth client secrets, JWT secrets, etc.
+  # `cp` unconditionally here used to silently clobber it with .env.ci's
+  # dummy CI values on every such commit, with no more warning than an
+  # easy-to-miss echo line (#260) — e.g. Google login breaking hours later
+  # with an opaque "Invalid Google token" once the real client ID was gone.
+  if [[ ! -f .env ]]; then
+    echo "api-scenarios: no .env yet (fresh clone) — seeding from .env.ci…"
+    cp .env.ci .env
+  else
+    echo "api-scenarios: stack isn't fully up — starting it (existing .env left untouched)…"
+  fi
   # No --build: if images already exist (the common case — stopped, not
   # removed) this is a fast start. A truly fresh clone with no images yet
   # still builds here (compose auto-builds a service with no image even
