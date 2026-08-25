@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useHousehold } from '../contexts/HouseholdContext';
 import { useAuth } from '../contexts/AuthContext';
 import { shoppingApi } from '../api/shopping';
-import type { ShoppingList, ShoppingListItem } from '../types/api';
+import { ApiError } from '../api/client';
+import type { ShoppingList, ShoppingListItem, Store, StoreType, StoreImpact } from '../types/api';
 import { Modal } from '../components/ui/Modal';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
@@ -22,6 +23,7 @@ export function ShoppingPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('active');
   const [selectedList, setSelectedList] = useState<ShoppingList | null>(null);
   const [showCreate, setShowCreate] = useState(false);
+  const [showStores, setShowStores] = useState(false);
 
   const { data: lists = [], isLoading } = useQuery({
     queryKey: ['shopping-lists', hid, statusFilter],
@@ -37,6 +39,13 @@ export function ShoppingPage() {
     queryFn: () => shoppingApi.getList(selectedList!.id, hid),
     enabled: !!selectedList,
   });
+
+  const { data: stores = [] } = useQuery({
+    queryKey: ['stores', hid],
+    queryFn: () => shoppingApi.getStores(hid),
+    enabled: !!hid,
+  });
+  const storeById = useMemo(() => new Map(stores.map((s) => [s.id, s])), [stores]);
 
   const createList = useMutation({
     mutationFn: (name: string) => shoppingApi.createList(hid, uid, { name }),
@@ -60,14 +69,22 @@ export function ShoppingPage() {
   });
 
   const addItem = useMutation({
-    mutationFn: ({ listId, name, quantity }: { listId: string; name: string; quantity: number }) =>
-      shoppingApi.addItem(listId, hid, uid, { name, quantity }),
+    mutationFn: (
+      { listId, name, quantity, preferredStoreId }:
+      { listId: string; name: string; quantity: number; preferredStoreId?: string },
+    ) => shoppingApi.addItem(listId, hid, uid, { name, quantity, preferredStoreId }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['shopping-list', selectedList?.id] }),
   });
 
   const toggleItem = useMutation({
     mutationFn: ({ listId, itemId, isPurchased }: { listId: string; itemId: string; isPurchased: boolean }) =>
       shoppingApi.updateItem(listId, itemId, hid, uid, { isPurchased }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['shopping-list', selectedList?.id] }),
+  });
+
+  const setActualStore = useMutation({
+    mutationFn: ({ listId, itemId, actualStoreId }: { listId: string; itemId: string; actualStoreId: string }) =>
+      shoppingApi.updateItem(listId, itemId, hid, uid, { actualStoreId }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['shopping-list', selectedList?.id] }),
   });
 
@@ -87,7 +104,10 @@ export function ShoppingPage() {
       <div className="flex w-72 shrink-0 flex-col gap-4">
         <div className="flex items-center justify-between">
           <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">{t('shopping.title')}</h1>
-          <Button size="sm" onClick={() => setShowCreate(true)}>{t('shopping.newList')}</Button>
+          <div className="flex gap-2">
+            <Button size="sm" variant="secondary" onClick={() => setShowStores(true)}>{t('shopping.manageStores')}</Button>
+            <Button size="sm" onClick={() => setShowCreate(true)}>{t('shopping.newList')}</Button>
+          </div>
         </div>
 
         {/* Status tabs */}
@@ -147,13 +167,20 @@ export function ShoppingPage() {
         ) : (
           <ListDetail
             list={openList ?? selectedList}
+            stores={stores}
+            storeById={storeById}
             onComplete={() => completeList.mutate(selectedList.id)}
             onDelete={() => deleteList.mutate(selectedList.id)}
-            onAddItem={(name, quantity) => addItem.mutate({ listId: selectedList.id, name, quantity })}
+            onAddItem={(name, quantity, preferredStoreId) =>
+              addItem.mutate({ listId: selectedList.id, name, quantity, preferredStoreId })
+            }
             onToggleItem={(itemId, isPurchased) =>
               toggleItem.mutate({ listId: selectedList.id, itemId, isPurchased })
             }
             onDeleteItem={(itemId) => deleteItem.mutate({ listId: selectedList.id, itemId })}
+            onSetActualStore={(itemId, actualStoreId) =>
+              setActualStore.mutate({ listId: selectedList.id, itemId, actualStoreId })
+            }
           />
         )}
       </div>
@@ -167,23 +194,31 @@ export function ShoppingPage() {
           }}
         />
       )}
+
+      {showStores && (
+        <StoreManagerModal stores={stores} hid={hid} uid={uid} onClose={() => setShowStores(false)} />
+      )}
     </div>
   );
 }
 
 function ListDetail({
-  list, onComplete, onDelete, onAddItem, onToggleItem, onDeleteItem,
+  list, stores, storeById, onComplete, onDelete, onAddItem, onToggleItem, onDeleteItem, onSetActualStore,
 }: {
   list: ShoppingList;
+  stores: Store[];
+  storeById: Map<string, Store>;
   onComplete: () => void;
   onDelete: () => void;
-  onAddItem: (name: string, qty: number) => void;
+  onAddItem: (name: string, qty: number, preferredStoreId?: string) => void;
   onToggleItem: (itemId: string, purchased: boolean) => void;
   onDeleteItem: (itemId: string) => void;
+  onSetActualStore: (itemId: string, storeId: string) => void;
 }) {
   const { t } = useTranslation();
   const [newItem, setNewItem] = useState('');
   const [qty, setQty] = useState('1');
+  const [newItemStoreId, setNewItemStoreId] = useState('');
 
   const purchased = list.items?.filter((i) => i.isPurchased).length ?? 0;
   const total = list.items?.length ?? 0;
@@ -191,9 +226,10 @@ function ListDetail({
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newItem.trim()) return;
-    onAddItem(newItem.trim(), parseInt(qty) || 1);
+    onAddItem(newItem.trim(), parseInt(qty) || 1, newItemStoreId || undefined);
     setNewItem('');
     setQty('1');
+    setNewItemStoreId('');
   };
 
   return (
@@ -236,6 +272,17 @@ function ListDetail({
             className="w-16 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
             title={t('shopping.quantity')}
           />
+          <select
+            value={newItemStoreId}
+            onChange={(e) => setNewItemStoreId(e.target.value)}
+            title={t('shopping.preferredStore')}
+            className="rounded-lg border border-gray-300 bg-white px-2 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+          >
+            <option value="">{t('shopping.noStore')}</option>
+            {stores.map((s) => (
+              <option key={s.id} value={s.id}>{s.name}</option>
+            ))}
+          </select>
           <Button type="submit" size="sm">{t('shopping.addItem')}</Button>
         </form>
       )}
@@ -250,8 +297,11 @@ function ListDetail({
               key={item.id}
               item={item}
               isActive={list.status === 'active'}
+              store={item.preferredStoreId ? storeById.get(item.preferredStoreId) ?? null : null}
+              stores={stores}
               onToggle={() => onToggleItem(item.id, !item.isPurchased)}
               onDelete={() => onDeleteItem(item.id)}
+              onSetActualStore={(storeId) => onSetActualStore(item.id, storeId)}
             />
           ))
         )}
@@ -261,13 +311,17 @@ function ListDetail({
 }
 
 function ItemRow({
-  item, isActive, onToggle, onDelete,
+  item, isActive, store, stores, onToggle, onDelete, onSetActualStore,
 }: {
   item: ShoppingListItem;
   isActive: boolean;
+  store: Store | null;
+  stores: Store[];
   onToggle: () => void;
   onDelete: () => void;
+  onSetActualStore: (storeId: string) => void;
 }) {
+  const { t } = useTranslation();
   return (
     <div className="flex items-center gap-3 px-4 py-3">
       {isActive && (
@@ -287,7 +341,25 @@ function ItemRow({
       >
         {item.name}
         {item.quantity > 1 && <span className="ml-1 text-gray-400 dark:text-gray-500">×{item.quantity}</span>}
+        {store && (
+          <span className="ml-2 rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500 dark:bg-gray-800 dark:text-gray-400">
+            {store.name}
+          </span>
+        )}
       </span>
+      {item.isPurchased && stores.length > 0 && (
+        <select
+          value={item.actualStoreId ?? ''}
+          onChange={(e) => e.target.value && onSetActualStore(e.target.value)}
+          title={t('shopping.boughtAt')}
+          className="rounded-lg border border-gray-300 bg-white px-1.5 py-1 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300"
+        >
+          <option value="">{t('shopping.boughtAt')}</option>
+          {stores.map((s) => (
+            <option key={s.id} value={s.id}>{s.name}</option>
+          ))}
+        </select>
+      )}
       {isActive && (
         <button onClick={onDelete} className="text-sm text-gray-300 hover:text-red-400 dark:text-gray-600 dark:hover:text-red-400">✕</button>
       )}
@@ -309,6 +381,109 @@ function CreateListModal({ onClose, onCreate }: { onClose: () => void; onCreate:
           <Button type="submit" className="flex-1" disabled={!name.trim()}>{t('common.create')}</Button>
         </div>
       </form>
+    </Modal>
+  );
+}
+
+function StoreManagerModal({
+  stores, hid, uid, onClose,
+}: {
+  stores: Store[];
+  hid: string;
+  uid: string;
+  onClose: () => void;
+}) {
+  const { t } = useTranslation();
+  const qc = useQueryClient();
+  const [name, setName] = useState('');
+  const [type, setType] = useState<StoreType>('other');
+  const [blocked, setBlocked] = useState<{ id: string; impact: StoreImpact } | null>(null);
+
+  const createStore = useMutation({
+    mutationFn: (data: { name: string; type: StoreType }) => shoppingApi.createStore(hid, uid, data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['stores', hid] });
+      setName('');
+      setType('other');
+    },
+  });
+
+  const deleteStore = useMutation({
+    mutationFn: (id: string) => shoppingApi.deleteStore(id, hid),
+    onSuccess: (_data, id) => {
+      qc.invalidateQueries({ queryKey: ['stores', hid] });
+      setBlocked((b) => (b?.id === id ? null : b));
+    },
+    onError: (err: unknown, id) => {
+      if (err instanceof ApiError && err.status === 409 && err.data?.['impact']) {
+        setBlocked({ id, impact: err.data['impact'] as StoreImpact });
+      }
+    },
+  });
+
+  return (
+    <Modal title={t('shopping.storesTitle')} onClose={onClose}>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (name.trim()) createStore.mutate({ name: name.trim(), type });
+        }}
+        className="mb-4 flex gap-2"
+      >
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder={t('shopping.storeName')}
+          className="flex-1 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500"
+        />
+        <select
+          value={type}
+          onChange={(e) => setType(e.target.value as StoreType)}
+          className="rounded-lg border border-gray-300 bg-white px-2 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+        >
+          <option value="supermarket">{t('shopping.storeTypes.supermarket')}</option>
+          <option value="greengrocer">{t('shopping.storeTypes.greengrocer')}</option>
+          <option value="pharmacy">{t('shopping.storeTypes.pharmacy')}</option>
+          <option value="other">{t('shopping.storeTypes.other')}</option>
+        </select>
+        <Button type="submit" size="sm" disabled={!name.trim() || createStore.isPending}>
+          {t('shopping.newStore')}
+        </Button>
+      </form>
+
+      {stores.length === 0 ? (
+        <p className="py-4 text-center text-sm text-gray-400 dark:text-gray-500">{t('shopping.noStores')}</p>
+      ) : (
+        <ul className="space-y-2">
+          {stores.map((s) => (
+            <li key={s.id} className="rounded-lg border border-gray-200 p-3 dark:border-gray-800">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{s.name}</p>
+                  <p className="text-xs text-gray-400 dark:text-gray-500">{t(`shopping.storeTypes.${s.type}`)}</p>
+                </div>
+                <Button
+                  size="sm"
+                  variant="danger"
+                  onClick={() => deleteStore.mutate(s.id)}
+                  disabled={deleteStore.isPending && deleteStore.variables === s.id}
+                >
+                  {t('common.delete')}
+                </Button>
+              </div>
+              {blocked?.id === s.id && (
+                <p className="mt-2 text-xs text-red-600 dark:text-red-400">
+                  {t('shopping.cannotDeleteStore', {
+                    products: blocked.impact.products,
+                    lists: blocked.impact.lists,
+                    items: blocked.impact.items,
+                  })}
+                </p>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
     </Modal>
   );
 }

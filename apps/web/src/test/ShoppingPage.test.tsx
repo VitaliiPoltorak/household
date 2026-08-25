@@ -1,4 +1,4 @@
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { renderWithProviders } from './wrapper';
@@ -9,6 +9,10 @@ const MOCK_LIST = {
   id: 'list-1', householdId: 'hh-1', name: 'Weekly Groceries', status: 'active' as const,
   storeId: null, createdBy: 'user-1', createdAt: '2026-07-01T00:00:00Z',
   items: [{ id: 'item-1', listId: 'list-1', productId: null, name: 'Milk', quantity: 2, unit: 'L', preferredStoreId: null, actualStoreId: null, isPurchased: false, price: null }],
+};
+
+const MOCK_STORE = {
+  id: 'store-1', householdId: 'hh-1', name: 'Silpo', type: 'supermarket' as const, address: null,
 };
 
 describe('ShoppingPage', () => {
@@ -101,5 +105,73 @@ describe('ShoppingPage', () => {
 
     await waitFor(() => expect(screen.getByText('Select a list to view items')).toBeInTheDocument(), { timeout: 3000 });
     expect(screen.queryByText('Milk')).not.toBeInTheDocument();
+  });
+
+  it('shows a store badge on an item with a preferred store', async () => {
+    const listWithStore = {
+      ...MOCK_LIST,
+      items: [{ ...MOCK_LIST.items[0], preferredStoreId: MOCK_STORE.id }],
+    };
+    server.use(
+      http.get('/api/v1/stores', () => HttpResponse.json([MOCK_STORE])),
+      http.get('/api/v1/shopping-lists', () => HttpResponse.json([listWithStore])),
+      http.get('/api/v1/shopping-lists/:id', () => HttpResponse.json(listWithStore)),
+    );
+
+    renderWithProviders(<ShoppingPage />);
+    await waitFor(() => screen.getByText('Weekly Groceries'), { timeout: 3000 });
+    await userEvent.click(screen.getByText('Weekly Groceries'));
+
+    await waitFor(() => expect(screen.getByText('Milk')).toBeInTheDocument(), { timeout: 3000 });
+    const itemRow = screen.getByText('Milk').closest('div')!;
+    expect(within(itemRow).getByText('Silpo')).toBeInTheDocument();
+  });
+
+  it('creates a store from the store manager modal', async () => {
+    let stores: (typeof MOCK_STORE)[] = [];
+    server.use(
+      http.get('/api/v1/stores', () => HttpResponse.json(stores)),
+      http.post('/api/v1/stores', async ({ request }) => {
+        const body = await request.json() as { name: string; type: string };
+        const created = { ...MOCK_STORE, name: body.name };
+        stores = [created];
+        return HttpResponse.json(created, { status: 201 });
+      }),
+    );
+
+    renderWithProviders(<ShoppingPage />);
+    await waitFor(() => screen.getByText('Manage stores'), { timeout: 3000 });
+    await userEvent.click(screen.getByText('Manage stores'));
+
+    expect(screen.getByText('Stores')).toBeInTheDocument();
+    await userEvent.type(screen.getByPlaceholderText('Store name'), 'Novus');
+    await userEvent.click(screen.getByRole('button', { name: '+ Add store' }));
+
+    await waitFor(() => expect(screen.getByText('Novus')).toBeInTheDocument(), { timeout: 3000 });
+  });
+
+  it('shows the impact message when deleting a referenced store is blocked', async () => {
+    server.use(
+      http.get('/api/v1/stores', () => HttpResponse.json([MOCK_STORE])),
+      http.delete('/api/v1/stores/:id', () =>
+        HttpResponse.json(
+          { message: 'Cannot delete store with existing references', impact: { storeId: MOCK_STORE.id, products: 1, lists: 0, items: 2 } },
+          { status: 409 },
+        ),
+      ),
+    );
+
+    renderWithProviders(<ShoppingPage />);
+    await waitFor(() => screen.getByText('Manage stores'), { timeout: 3000 });
+    await userEvent.click(screen.getByText('Manage stores'));
+
+    await waitFor(() => screen.getByText('Silpo'), { timeout: 3000 });
+    await userEvent.click(screen.getByRole('button', { name: 'Delete' }));
+
+    await waitFor(
+      () => expect(screen.getByText(/referenced by 1 product\(s\), 0 list\(s\), 2 item\(s\)/)).toBeInTheDocument(),
+      { timeout: 3000 },
+    );
+    expect(screen.getByText('Silpo')).toBeInTheDocument();
   });
 });

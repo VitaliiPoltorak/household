@@ -238,7 +238,22 @@
     "purchased": "Gekauft",
     "listName": "Listenname",
     "newListTitle": "Neue Einkaufsliste",
-    "store": "Geschäft"
+    "store": "Geschäft",
+    "manageStores": "Geschäfte verwalten",
+    "storesTitle": "Geschäfte",
+    "newStore": "+ Geschäft hinzufügen",
+    "storeName": "Geschäftsname",
+    "noStores": "Noch keine Geschäfte.",
+    "preferredStore": "Bevorzugtes Geschäft",
+    "noStore": "Kein Geschäft",
+    "boughtAt": "Gekauft bei",
+    "cannotDeleteStore": "Kann nicht gelöscht werden — referenziert von {{products}} Produkt(en), {{lists}} Liste(n), {{items}} Artikel.",
+    "storeTypes": {
+      "supermarket": "Supermarkt",
+      "greengrocer": "Obst- und Gemüsehändler",
+      "pharmacy": "Apotheke",
+      "other": "Sonstiges"
+    }
   },
   "household": {
     "title": "Haushalt",
