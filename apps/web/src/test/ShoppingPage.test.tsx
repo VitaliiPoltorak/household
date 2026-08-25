@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from '@testing-library/react';
+import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { renderWithProviders } from './wrapper';
@@ -13,6 +13,11 @@ const MOCK_LIST = {
 
 const MOCK_STORE = {
   id: 'store-1', householdId: 'hh-1', name: 'Silpo', type: 'supermarket' as const, address: null,
+};
+
+const MOCK_PRODUCT = {
+  id: 'product-1', householdId: 'hh-1', name: 'Oat Milk', category: null, unit: 'L',
+  preferredStoreId: null, alternativeStoreIds: [], lastPrice: null, notes: null,
 };
 
 describe('ShoppingPage', () => {
@@ -173,5 +178,75 @@ describe('ShoppingPage', () => {
       { timeout: 3000 },
     );
     expect(screen.getByText('Silpo')).toBeInTheDocument();
+  });
+
+  describe('item-name autocomplete (#196)', () => {
+    it('shows matching product suggestions after debounce', async () => {
+      server.use(
+        http.get('/api/v1/shopping-lists', () => HttpResponse.json([MOCK_LIST])),
+        http.get('/api/v1/shopping-lists/:id', () => HttpResponse.json(MOCK_LIST)),
+        http.get('/api/v1/products', ({ request }) => {
+          const search = new URL(request.url).searchParams.get('search');
+          return HttpResponse.json(search ? [MOCK_PRODUCT] : []);
+        }),
+      );
+
+      renderWithProviders(<ShoppingPage />);
+      await waitFor(() => screen.getByText('Weekly Groceries'), { timeout: 3000 });
+      await userEvent.click(screen.getByText('Weekly Groceries'));
+      await waitFor(() => screen.getByText('Milk'), { timeout: 3000 });
+
+      await userEvent.type(screen.getByPlaceholderText('Item name'), 'Oat');
+
+      await waitFor(() => expect(screen.getByText('Oat Milk')).toBeInTheDocument(), { timeout: 3000 });
+    });
+
+    it('does not show a dropdown when there are no matches', async () => {
+      server.use(
+        http.get('/api/v1/shopping-lists', () => HttpResponse.json([MOCK_LIST])),
+        http.get('/api/v1/shopping-lists/:id', () => HttpResponse.json(MOCK_LIST)),
+        http.get('/api/v1/products', () => HttpResponse.json([])),
+      );
+
+      renderWithProviders(<ShoppingPage />);
+      await waitFor(() => screen.getByText('Weekly Groceries'), { timeout: 3000 });
+      await userEvent.click(screen.getByText('Weekly Groceries'));
+      await waitFor(() => screen.getByText('Milk'), { timeout: 3000 });
+
+      await userEvent.type(screen.getByPlaceholderText('Item name'), 'Xyz');
+
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 300));
+      });
+      expect(screen.queryByRole('listitem')).not.toBeInTheDocument();
+    });
+
+    it('links the selected product when adding the item', async () => {
+      let lastBody: Record<string, unknown> | undefined;
+      server.use(
+        http.get('/api/v1/shopping-lists', () => HttpResponse.json([MOCK_LIST])),
+        http.get('/api/v1/shopping-lists/:id', () => HttpResponse.json(MOCK_LIST)),
+        http.get('/api/v1/products', () => HttpResponse.json([MOCK_PRODUCT])),
+        http.post('/api/v1/shopping-lists/:listId/items', async ({ request }) => {
+          lastBody = (await request.json()) as Record<string, unknown>;
+          return HttpResponse.json(
+            { ...MOCK_LIST.items[0], id: 'item-2', name: lastBody['name'], productId: lastBody['productId'] ?? null },
+            { status: 201 },
+          );
+        }),
+      );
+
+      renderWithProviders(<ShoppingPage />);
+      await waitFor(() => screen.getByText('Weekly Groceries'), { timeout: 3000 });
+      await userEvent.click(screen.getByText('Weekly Groceries'));
+      await waitFor(() => screen.getByText('Milk'), { timeout: 3000 });
+
+      await userEvent.type(screen.getByPlaceholderText('Item name'), 'Oat');
+      await waitFor(() => expect(screen.getByText('Oat Milk')).toBeInTheDocument(), { timeout: 3000 });
+      await userEvent.click(screen.getByText('Oat Milk'));
+      await userEvent.click(screen.getByRole('button', { name: 'Add item' }));
+
+      await waitFor(() => expect(lastBody?.['productId']).toBe(MOCK_PRODUCT.id), { timeout: 3000 });
+    });
   });
 });
