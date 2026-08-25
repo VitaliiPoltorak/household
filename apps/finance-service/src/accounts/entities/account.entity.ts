@@ -1,4 +1,4 @@
-import { Entity, Column } from 'typeorm';
+import { Entity, Column, Index } from 'typeorm';
 import { BaseEntity } from '@household/database';
 
 export enum AccountType {
@@ -9,6 +9,18 @@ export enum AccountType {
   DEPOSIT = 'deposit',
 }
 
+// Case-insensitive uniqueness (#191): name keeps the user's chosen casing for
+// display, nameNormalized is the lowercased comparison key. Partial index —
+// only non-archived accounts occupy the name, so a user can archive "Cash"
+// and later create a fresh "Cash" account without renaming history.
+@Index(
+  'idx_accounts_household_name_unique',
+  ['householdId', 'nameNormalized'],
+  {
+    unique: true,
+    where: '"is_archived" = false',
+  },
+)
 @Entity({ name: 'accounts', schema: 'finance' })
 export class Account extends BaseEntity {
   @Column({ name: 'household_id' })
@@ -16,6 +28,16 @@ export class Account extends BaseEntity {
 
   @Column()
   name: string;
+
+  // Nullable so `synchronize` can ADD COLUMN against a dev database that
+  // already has rows — a NOT NULL add would fail outright with no way to
+  // backfill (TypeORM migrations are frozen while Phase 3 stabilises, so
+  // there's no migration step to backfill existing rows here). Pre-existing
+  // accounts keep NULL — and unenforced uniqueness, same as before this
+  // change — until they're next created/renamed through the service, which
+  // always populates it.
+  @Column({ name: 'name_normalized', type: 'varchar', nullable: true })
+  nameNormalized: string | null;
 
   @Column({ type: 'enum', enum: AccountType })
   type: AccountType;

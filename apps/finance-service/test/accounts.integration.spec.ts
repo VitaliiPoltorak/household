@@ -1,6 +1,11 @@
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
-import { createTestApp, cleanDatabase, resetKafkaMocks, mockKafkaProducer } from '@household/testing';
+import {
+  createTestApp,
+  cleanDatabase,
+  resetKafkaMocks,
+  mockKafkaProducer,
+} from '@household/testing';
 import { AppModule } from '../src/app.module';
 
 describe('Accounts (integration)', () => {
@@ -69,20 +74,139 @@ describe('Accounts (integration)', () => {
     });
   });
 
+  // #191 — account name must be unique per household, case-insensitively.
+  describe('account name uniqueness (#191)', () => {
+    it('rejects a duplicate name in the same household with 409', async () => {
+      await request(app.getHttpServer())
+        .post('/accounts')
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
+        .send({ name: 'Cash', type: 'cash' })
+        .expect(201);
+
+      const res = await request(app.getHttpServer())
+        .post('/accounts')
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
+        .send({ name: 'Cash', type: 'bank' })
+        .expect(409);
+
+      expect(res.body).toMatchObject({ statusCode: 409, error: 'CONFLICT' });
+      expect(res.body.message).toContain('Cash');
+    });
+
+    it('rejects a case-insensitive collision ("cash" vs "Cash") with 409', async () => {
+      await request(app.getHttpServer())
+        .post('/accounts')
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
+        .send({ name: 'Cash', type: 'cash' })
+        .expect(201);
+
+      await request(app.getHttpServer())
+        .post('/accounts')
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
+        .send({ name: '  cash  ', type: 'cash' })
+        .expect(409);
+    });
+
+    it('allows the same name in a different household', async () => {
+      await request(app.getHttpServer())
+        .post('/accounts')
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
+        .send({ name: 'Cash', type: 'cash' })
+        .expect(201);
+
+      await request(app.getHttpServer())
+        .post('/accounts')
+        .set('X-User-Id', U)
+        .set('X-Household-Id', 'other-household')
+        .send({ name: 'Cash', type: 'cash' })
+        .expect(201);
+    });
+
+    it('allows reusing a name after the original account is archived', async () => {
+      const first = await request(app.getHttpServer())
+        .post('/accounts')
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
+        .send({ name: 'Cash', type: 'cash' })
+        .expect(201);
+
+      await request(app.getHttpServer())
+        .delete(`/accounts/${first.body.id}`)
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
+        .expect(204);
+
+      await request(app.getHttpServer())
+        .post('/accounts')
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
+        .send({ name: 'Cash', type: 'bank' })
+        .expect(201);
+    });
+
+    it('rejects renaming an account to collide with an existing one (PATCH)', async () => {
+      await request(app.getHttpServer())
+        .post('/accounts')
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
+        .send({ name: 'Cash', type: 'cash' })
+        .expect(201);
+      const second = await request(app.getHttpServer())
+        .post('/accounts')
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
+        .send({ name: 'Savings', type: 'bank' })
+        .expect(201);
+
+      const res = await request(app.getHttpServer())
+        .patch(`/accounts/${second.body.id}`)
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
+        .send({ name: 'Cash' })
+        .expect(409);
+
+      expect(res.body).toMatchObject({ statusCode: 409, error: 'CONFLICT' });
+    });
+
+    it('allows renaming an account to its own current name (no self-collision)', async () => {
+      const account = await request(app.getHttpServer())
+        .post('/accounts')
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
+        .send({ name: 'Cash', type: 'cash' })
+        .expect(201);
+
+      await request(app.getHttpServer())
+        .patch(`/accounts/${account.body.id}`)
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
+        .send({ name: 'Cash', type: 'bank' })
+        .expect(200);
+    });
+  });
+
   describe('GET /accounts', () => {
     it('returns only non-archived accounts for household', async () => {
       await request(app.getHttpServer())
         .post('/accounts')
-        .set('X-User-Id', U).set('X-Household-Id', H)
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
         .send({ name: 'A', type: 'bank' });
       await request(app.getHttpServer())
         .post('/accounts')
-        .set('X-User-Id', U).set('X-Household-Id', 'other-household')
+        .set('X-User-Id', U)
+        .set('X-Household-Id', 'other-household')
         .send({ name: 'B', type: 'cash' });
 
       const res = await request(app.getHttpServer())
         .get('/accounts')
-        .set('X-User-Id', U).set('X-Household-Id', H)
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
         .expect(200);
 
       expect(res.body).toHaveLength(1);
@@ -94,7 +218,8 @@ describe('Accounts (integration)', () => {
     it('returns zero totalBalance for empty household', async () => {
       const res = await request(app.getHttpServer())
         .get('/accounts/summary')
-        .set('X-User-Id', U).set('X-Household-Id', H)
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
         .expect(200);
 
       expect(res.body.totalBalance).toBe(0);
@@ -103,21 +228,30 @@ describe('Accounts (integration)', () => {
 
     it('sums account balances with DECIMAL precision (no float drift)', async () => {
       // 0.10 + 0.20 + 0.10 in JS float = 0.4000000000000001. In SQL DECIMAL it's 0.40.
-      const values = [0.10, 0.20, 0.10];
+      const values = [0.1, 0.2, 0.1];
       for (let i = 0; i < values.length; i++) {
         const acc = await request(app.getHttpServer())
           .post('/accounts')
-          .set('X-User-Id', U).set('X-Household-Id', H)
+          .set('X-User-Id', U)
+          .set('X-Household-Id', H)
           .send({ name: `Acc${i}`, type: 'bank', currency: 'UAH' });
         await request(app.getHttpServer())
           .post('/transactions')
-          .set('X-User-Id', U).set('X-Household-Id', H)
-          .send({ accountId: acc.body.id, type: 'income', amount: values[i], currency: 'UAH', date: '2026-07-30' });
+          .set('X-User-Id', U)
+          .set('X-Household-Id', H)
+          .send({
+            accountId: acc.body.id,
+            type: 'income',
+            amount: values[i],
+            currency: 'UAH',
+            date: '2026-07-30',
+          });
       }
 
       const summary = await request(app.getHttpServer())
         .get('/accounts/summary')
-        .set('X-User-Id', U).set('X-Household-Id', H)
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
         .expect(200);
 
       expect(summary.body.totalBalance).toBe(0.4);
@@ -129,17 +263,20 @@ describe('Accounts (integration)', () => {
     it('archives account instead of deleting', async () => {
       const created = await request(app.getHttpServer())
         .post('/accounts')
-        .set('X-User-Id', U).set('X-Household-Id', H)
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
         .send({ name: 'To Archive', type: 'cash' });
 
       await request(app.getHttpServer())
         .delete(`/accounts/${created.body.id}`)
-        .set('X-User-Id', U).set('X-Household-Id', H)
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
         .expect(204);
 
       const list = await request(app.getHttpServer())
         .get('/accounts')
-        .set('X-User-Id', U).set('X-Household-Id', H)
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
         .expect(200);
 
       expect(list.body).toHaveLength(0); // not returned because isArchived=true
@@ -150,13 +287,15 @@ describe('Accounts (integration)', () => {
     const seedAccountWithBalance = async (start: number) => {
       const account = await request(app.getHttpServer())
         .post('/accounts')
-        .set('X-User-Id', U).set('X-Household-Id', H)
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
         .send({ name: 'Cash', type: 'cash' });
 
       if (start !== 0) {
         await request(app.getHttpServer())
           .post('/transactions')
-          .set('X-User-Id', U).set('X-Household-Id', H)
+          .set('X-User-Id', U)
+          .set('X-Household-Id', H)
           .send({
             accountId: account.body.id,
             type: 'income',
@@ -173,7 +312,8 @@ describe('Accounts (integration)', () => {
 
       const res = await request(app.getHttpServer())
         .post(`/accounts/${id}/adjust-balance`)
-        .set('X-User-Id', U).set('X-Household-Id', H)
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
         .send({ newBalance: 11000, description: 'Found cash' })
         .expect(201);
 
@@ -182,7 +322,8 @@ describe('Accounts (integration)', () => {
 
       const account = await request(app.getHttpServer())
         .get(`/accounts/${id}`)
-        .set('X-User-Id', U).set('X-Household-Id', H);
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H);
       expect(Number(account.body.balance)).toBe(11000);
 
       expect(mockKafkaProducer.emit).toHaveBeenCalledWith(
@@ -197,7 +338,8 @@ describe('Accounts (integration)', () => {
 
       const res = await request(app.getHttpServer())
         .post(`/accounts/${id}/adjust-balance`)
-        .set('X-User-Id', U).set('X-Household-Id', H)
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
         .send({ newBalance: 9000 })
         .expect(201);
 
@@ -205,7 +347,8 @@ describe('Accounts (integration)', () => {
 
       const account = await request(app.getHttpServer())
         .get(`/accounts/${id}`)
-        .set('X-User-Id', U).set('X-Household-Id', H);
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H);
       expect(Number(account.body.balance)).toBe(9000);
     });
 
@@ -214,7 +357,8 @@ describe('Accounts (integration)', () => {
 
       await request(app.getHttpServer())
         .post(`/accounts/${id}/adjust-balance`)
-        .set('X-User-Id', U).set('X-Household-Id', H)
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
         .send({ newBalance: 10000 })
         .expect(400);
     });
@@ -224,7 +368,8 @@ describe('Accounts (integration)', () => {
 
       await request(app.getHttpServer())
         .post(`/accounts/${id}/adjust-balance`)
-        .set('X-User-Id', U).set('X-Household-Id', 'other-household')
+        .set('X-User-Id', U)
+        .set('X-Household-Id', 'other-household')
         .send({ newBalance: 1000 })
         .expect(404);
     });
