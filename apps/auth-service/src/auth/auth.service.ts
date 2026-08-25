@@ -10,7 +10,7 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'crypto';
-import { getAccessTtlSeconds, maskId } from '@household/common';
+import { getAccessTtlSeconds, maskId, maskEmail } from '@household/common';
 import { EVENT_PUBLISHER, IEventPublisher } from '@household/contracts';
 import { UsersService, OAuthProfile } from '../users/users.service';
 import { SessionsService } from '../sessions/sessions.service';
@@ -18,6 +18,7 @@ import { User } from '../users/entities/user.entity';
 import { PasswordHasherService } from './password-hasher.service';
 import { EmailVerificationService } from './email-verification.service';
 import { EmailThrottlerService } from './email-throttler.service';
+import { shouldLogDevSecrets } from './dev-secret-logging';
 import { HibpService } from './hibp.service';
 import { PasswordComplexityService } from './password-complexity.service';
 import { LoginAttemptTrackerService } from './login-attempt-tracker.service';
@@ -108,7 +109,8 @@ export class AuthService {
     if (!complexity.ok) {
       throw new BadRequestException({
         code: 'WEAK_PASSWORD',
-        message: 'Password is too easy to guess. Try a longer or less common phrase.',
+        message:
+          'Password is too easy to guess. Try a longer or less common phrase.',
         score: complexity.score,
         warning: complexity.warning,
         suggestions: complexity.suggestions,
@@ -142,12 +144,17 @@ export class AuthService {
     });
 
     // Dev-only: log the code so integration testers / Postman users can
-    // proceed without a real mailbox. Never include the code in an API
-    // response or Kafka payload — notification-service (#30) will be the
-    // legitimate reader once it lands, and it can read Redis directly.
-    this.logger.log(
-      `[dev-only] verification code for ${user.email}: ${code}`,
-    );
+    // proceed without a real mailbox. Gated by AUTH_DEV_LOG_SECRETS (default
+    // false; refused outright in production, see
+    // requireNoDevSecretLoggingInProduction in main.ts). Never include the
+    // code in an API response or Kafka payload — notification-service (#30)
+    // will be the legitimate reader once it lands, and it can read Redis
+    // directly.
+    if (shouldLogDevSecrets(this.config)) {
+      this.logger.log(
+        `[dev-only] verification code for ${maskEmail(user.email)}: ${code}`,
+      );
+    }
 
     return { userId: user.id, email: user.email };
   }
@@ -169,7 +176,8 @@ export class AuthService {
     if (result.status === 'missing') {
       throw new BadRequestException({
         code: 'CODE_EXPIRED_OR_MISSING',
-        message: 'Verification code has expired or was never issued. Request a new one.',
+        message:
+          'Verification code has expired or was never issued. Request a new one.',
       });
     }
     if (result.status === 'exhausted') {
@@ -196,7 +204,8 @@ export class AuthService {
       );
       throw new BadRequestException({
         code: 'CODE_EXPIRED_OR_MISSING',
-        message: 'Verification code has expired or was never issued. Request a new one.',
+        message:
+          'Verification code has expired or was never issued. Request a new one.',
       });
     }
 
@@ -225,7 +234,9 @@ export class AuthService {
 
     const user = await this.users.findByEmail(email);
     if (!user) {
-      this.logger.debug(`resendVerification: no user for ${email} — silent no-op`);
+      this.logger.debug(
+        `resendVerification: no user for ${email} — silent no-op`,
+      );
       return;
     }
     if (user.emailVerifiedAt) {
@@ -241,9 +252,11 @@ export class AuthService {
       email: user.email,
       displayName: user.displayName,
     });
-    this.logger.log(
-      `[dev-only] verification code for ${user.email}: ${code}`,
-    );
+    if (shouldLogDevSecrets(this.config)) {
+      this.logger.log(
+        `[dev-only] verification code for ${maskEmail(user.email)}: ${code}`,
+      );
+    }
   }
 
   /**
@@ -287,16 +300,21 @@ export class AuthService {
 
     const ok = await this.hasher.compare(input.password, user.passwordHash);
     if (!ok) {
-      const result = await this.loginTracker.recordFailure(input.email, user.id);
+      const result = await this.loginTracker.recordFailure(
+        input.email,
+        user.id,
+      );
       if (result.status === 'lockedNow') {
         await this.events.emit('auth.account.locked', {
           userId: user.id,
           email: user.email,
           displayName: user.displayName,
         });
-        this.logger.log(
-          `[dev-only] unlock token for ${user.email}: ${result.unlockToken}`,
-        );
+        if (shouldLogDevSecrets(this.config)) {
+          this.logger.log(
+            `[dev-only] unlock token for ${maskEmail(user.email)}: ${result.unlockToken}`,
+          );
+        }
       }
       throw new UnauthorizedException('Invalid credentials');
     }

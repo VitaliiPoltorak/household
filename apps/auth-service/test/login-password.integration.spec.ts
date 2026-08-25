@@ -1,4 +1,4 @@
-import { INestApplication } from '@nestjs/common';
+import { INestApplication, Logger } from '@nestjs/common';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import request from 'supertest';
@@ -95,7 +95,9 @@ describe('POST /auth/login with email + password (integration)', () => {
         expiresIn: expect.any(Number),
       });
       const cookies = res.headers['set-cookie'] as unknown as string[];
-      expect(cookies.some((c) => c.startsWith('household_refresh='))).toBe(true);
+      expect(cookies.some((c) => c.startsWith('household_refresh='))).toBe(
+        true,
+      );
       expect(cookies.some((c) => c.startsWith('household_csrf='))).toBe(true);
     });
 
@@ -263,6 +265,59 @@ describe('POST /auth/login with email + password (integration)', () => {
       }
       expect(await loginTracker.isLocked(email)).toBe(false);
     });
+
+    // #212 — unlock token must never reach prod logs.
+    describe('AUTH_DEV_LOG_SECRETS gating', () => {
+      let logSpy: jest.SpyInstance;
+      const originalFlag = process.env.AUTH_DEV_LOG_SECRETS;
+
+      beforeEach(() => {
+        logSpy = jest.spyOn(Logger.prototype, 'log').mockImplementation();
+      });
+
+      afterEach(() => {
+        logSpy.mockRestore();
+        if (originalFlag === undefined) {
+          delete process.env.AUTH_DEV_LOG_SECRETS;
+        } else {
+          process.env.AUTH_DEV_LOG_SECRETS = originalFlag;
+        }
+      });
+
+      it('emits no unlock token in captured logs when the flag is unset', async () => {
+        delete process.env.AUTH_DEV_LOG_SECRETS;
+        const { email } = await seedVerified();
+
+        for (let i = 0; i < 5; i++) {
+          await request(app.getHttpServer())
+            .post('/auth/login')
+            .send({ email, password: `Wrong-Attempt-${i}-xxx` })
+            .expect(401);
+        }
+        const logged = logSpy.mock.calls.map((c) => String(c[0])).join('\n');
+        expect(logged).not.toContain(email);
+        expect(logged).not.toContain('unlock token');
+      });
+
+      it('logs the masked email + unlock token when the flag is explicitly true', async () => {
+        process.env.AUTH_DEV_LOG_SECRETS = 'true';
+        const { email } = await seedVerified();
+
+        for (let i = 0; i < 5; i++) {
+          await request(app.getHttpServer())
+            .post('/auth/login')
+            .send({ email, password: `Wrong-Attempt-${i}-xxx` })
+            .expect(401);
+        }
+
+        const match = logSpy.mock.calls
+          .map((c) => String(c[0]))
+          .find((m) => m.includes('unlock token'));
+        expect(match).toBeTruthy();
+        expect(match).not.toContain(email); // masked local part, domain kept
+        expect(match).toContain('@example.com');
+      });
+    });
   });
 
   describe('POST /auth/unlock', () => {
@@ -321,7 +376,9 @@ describe('POST /auth/login with email + password (integration)', () => {
       // params in finally keeps the mutation local to this test.
       const { email, password, user } = await seedVerified();
       const originalHash = user.passwordHash!;
-      const params = (hasher as unknown as { currentParams: { memoryCost: number } }).currentParams;
+      const params = (
+        hasher as unknown as { currentParams: { memoryCost: number } }
+      ).currentParams;
       const originalMemory = params.memoryCost;
       params.memoryCost = originalMemory * 2;
 

@@ -26,10 +26,29 @@ export function maskId(value: string | null | undefined): string {
 }
 
 /**
+ * Masks an email's local part down to its first 2 characters, keeping the
+ * domain intact for correlation (e.g. "al***@example.com"). Falls back to
+ * '***' for malformed input.
+ */
+export function maskEmail(email: string): string {
+  const [local, domain] = email.split('@');
+  if (!local || !domain) return '***';
+  return `${local.slice(0, 2)}***@${domain}`;
+}
+
+/**
  * Fields the redactor should always strip from an object before logging.
  * Extend as new sensitive shapes appear.
  */
-const REDACTED_KEYS = new Set(['userId', 'email', 'token', 'accessToken', 'refreshToken', 'authorization', 'password']);
+const REDACTED_KEYS = new Set([
+  'userId',
+  'email',
+  'token',
+  'accessToken',
+  'refreshToken',
+  'authorization',
+  'password',
+]);
 
 /**
  * Shallow-redacts an object for structured logging. Non-object input passes
