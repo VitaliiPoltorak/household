@@ -1,4 +1,3 @@
-
 const API_URL = import.meta.env.VITE_API_URL ?? '/api/v1';
 
 interface RequestOptions {
@@ -60,7 +59,10 @@ async function request<T>(
   }
 
   // Build headers
-  const reqHeaders: Record<string, string> = { 'Content-Type': 'application/json', ...headers };
+  const reqHeaders: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...headers,
+  };
   if (accessToken) reqHeaders['Authorization'] = `Bearer ${accessToken}`;
 
   // Automatically attach CSRF token to the cookie-authenticated refresh call.
@@ -106,14 +108,26 @@ async function request<T>(
     }
 
     clearSession();
-    window.location.href = '/login';
+    // Guard against a reload loop: if the browser is already on /login and
+    // something there also calls a protected endpoint (e.g. AuthContext's
+    // own bootstrap refresh), setting .href to the page we're already on
+    // still forces a full navigation — which reruns AuthContext from
+    // scratch, hits this same 401, and reloads again. Without clearSession
+    // wiping the CSRF cookie too, this repeated forever on a stale/expired
+    // session (#258).
+    if (window.location.pathname !== '/login') {
+      window.location.href = '/login';
+    }
     throw new ApiError(401, {}, 'Unauthorized');
   }
 
   // 204 No Content
   if (res.status === 204) return undefined as T;
 
-  const responseData = await res.json().catch(() => ({})) as Record<string, unknown>;
+  const responseData = (await res.json().catch(() => ({}))) as Record<
+    string,
+    unknown
+  >;
 
   if (!res.ok) {
     throw new ApiError(
@@ -134,14 +148,22 @@ export function clearSession() {
   localStorage.removeItem('accessToken');
   localStorage.removeItem('refreshToken');
   localStorage.removeItem('sessionId');
+  // The server only clears household_csrf on an explicit /auth/logout — a
+  // refresh that 401s because the session is dead never gets there, so the
+  // cookie survives. Without this, readCsrfCookie() keeps returning
+  // truthy on every future page load, AuthContext keeps trying to refresh
+  // a session that will never come back, and (before the /login pathname
+  // guard above) that fed an infinite reload loop (#258). Path must match
+  // how it was set (see apps/auth-service/src/auth/cookies.ts) or the
+  // browser treats this as a different cookie and leaves the real one.
+  document.cookie = 'household_csrf=; Max-Age=0; path=/';
 }
 
 type GetOptions = Omit<RequestOptions, 'body' | '_retry'>;
 type BodyOptions = Omit<RequestOptions, 'body' | '_retry'>;
 
 export const api = {
-  get: <T>(path: string, opts?: GetOptions) =>
-    request<T>('GET', path, opts),
+  get: <T>(path: string, opts?: GetOptions) => request<T>('GET', path, opts),
 
   post: <T>(path: string, body?: unknown, opts?: BodyOptions) =>
     request<T>('POST', path, { ...opts, body }),
