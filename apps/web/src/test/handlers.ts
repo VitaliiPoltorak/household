@@ -160,6 +160,7 @@ export const handlers = [
 
   // Shopping
   http.get(`${BASE}/stores`, () => HttpResponse.json([])),
+  http.get(`${BASE}/products`, () => HttpResponse.json([])),
   http.get(`${BASE}/shopping-lists`, () => HttpResponse.json([])),
   http.post(`${BASE}/shopping-lists`, async ({ request }) => {
     const body = await request.json() as { name: string };

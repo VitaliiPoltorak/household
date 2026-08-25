@@ -3,9 +3,10 @@ import { useTranslation } from 'react-i18next';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useHousehold } from '../contexts/HouseholdContext';
 import { useAuth } from '../contexts/AuthContext';
+import { useDebouncedValue } from '../hooks/useDebouncedValue';
 import { shoppingApi } from '../api/shopping';
 import { ApiError } from '../api/client';
-import type { ShoppingList, ShoppingListItem, Store, StoreType, StoreImpact } from '../types/api';
+import type { ShoppingList, ShoppingListItem, Store, StoreType, StoreImpact, Product } from '../types/api';
 import { Modal } from '../components/ui/Modal';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
@@ -70,9 +71,9 @@ export function ShoppingPage() {
 
   const addItem = useMutation({
     mutationFn: (
-      { listId, name, quantity, preferredStoreId }:
-      { listId: string; name: string; quantity: number; preferredStoreId?: string },
-    ) => shoppingApi.addItem(listId, hid, uid, { name, quantity, preferredStoreId }),
+      { listId, name, quantity, preferredStoreId, productId }:
+      { listId: string; name: string; quantity: number; preferredStoreId?: string; productId?: string },
+    ) => shoppingApi.addItem(listId, hid, uid, { name, quantity, preferredStoreId, productId }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['shopping-list', selectedList?.id] }),
   });
 
@@ -167,12 +168,13 @@ export function ShoppingPage() {
         ) : (
           <ListDetail
             list={openList ?? selectedList}
+            hid={hid}
             stores={stores}
             storeById={storeById}
             onComplete={() => completeList.mutate(selectedList.id)}
             onDelete={() => deleteList.mutate(selectedList.id)}
-            onAddItem={(name, quantity, preferredStoreId) =>
-              addItem.mutate({ listId: selectedList.id, name, quantity, preferredStoreId })
+            onAddItem={(name, quantity, preferredStoreId, productId) =>
+              addItem.mutate({ listId: selectedList.id, name, quantity, preferredStoreId, productId })
             }
             onToggleItem={(itemId, isPurchased) =>
               toggleItem.mutate({ listId: selectedList.id, itemId, isPurchased })
@@ -203,14 +205,15 @@ export function ShoppingPage() {
 }
 
 function ListDetail({
-  list, stores, storeById, onComplete, onDelete, onAddItem, onToggleItem, onDeleteItem, onSetActualStore,
+  list, hid, stores, storeById, onComplete, onDelete, onAddItem, onToggleItem, onDeleteItem, onSetActualStore,
 }: {
   list: ShoppingList;
+  hid: string;
   stores: Store[];
   storeById: Map<string, Store>;
   onComplete: () => void;
   onDelete: () => void;
-  onAddItem: (name: string, qty: number, preferredStoreId?: string) => void;
+  onAddItem: (name: string, qty: number, preferredStoreId?: string, productId?: string) => void;
   onToggleItem: (itemId: string, purchased: boolean) => void;
   onDeleteItem: (itemId: string) => void;
   onSetActualStore: (itemId: string, storeId: string) => void;
@@ -219,17 +222,37 @@ function ListDetail({
   const [newItem, setNewItem] = useState('');
   const [qty, setQty] = useState('1');
   const [newItemStoreId, setNewItemStoreId] = useState('');
+  const [selectedProductId, setSelectedProductId] = useState('');
+  const [suggestOpen, setSuggestOpen] = useState(false);
 
   const purchased = list.items?.filter((i) => i.isPurchased).length ?? 0;
   const total = list.items?.length ?? 0;
 
+  // Debounced so typing a product name doesn't fire a search request per
+  // keystroke (#196).
+  const debouncedQuery = useDebouncedValue(newItem.trim(), 200);
+  const { data: suggestions = [] } = useQuery({
+    queryKey: ['products-search', hid, debouncedQuery],
+    queryFn: () => shoppingApi.getProducts(hid, debouncedQuery),
+    enabled: !!hid && debouncedQuery.length > 0,
+  });
+
+  const selectSuggestion = (product: Product) => {
+    setNewItem(product.name);
+    setSelectedProductId(product.id);
+    if (product.preferredStoreId && !newItemStoreId) setNewItemStoreId(product.preferredStoreId);
+    setSuggestOpen(false);
+  };
+
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newItem.trim()) return;
-    onAddItem(newItem.trim(), parseInt(qty) || 1, newItemStoreId || undefined);
+    onAddItem(newItem.trim(), parseInt(qty) || 1, newItemStoreId || undefined, selectedProductId || undefined);
     setNewItem('');
     setQty('1');
     setNewItemStoreId('');
+    setSelectedProductId('');
+    setSuggestOpen(false);
   };
 
   return (
@@ -261,12 +284,43 @@ function ListDetail({
       {/* Add item form */}
       {list.status === 'active' && (
         <form onSubmit={submit} className="flex gap-2">
-          <input
-            value={newItem}
-            onChange={(e) => setNewItem(e.target.value)}
-            placeholder={t('shopping.itemName')}
-            className="flex-1 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500"
-          />
+          <div className="relative flex-1">
+            <input
+              value={newItem}
+              onChange={(e) => {
+                setNewItem(e.target.value);
+                setSelectedProductId('');
+              }}
+              onFocus={() => setSuggestOpen(true)}
+              onBlur={() => setSuggestOpen(false)}
+              placeholder={t('shopping.itemName')}
+              autoComplete="off"
+              className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500"
+            />
+            {suggestOpen && suggestions.length > 0 && (
+              <ul className="absolute z-10 mt-1 w-full overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-800">
+                {suggestions.map((p) => (
+                  <li key={p.id}>
+                    <button
+                      type="button"
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        selectSuggestion(p);
+                      }}
+                      className="flex w-full items-center justify-between px-3 py-2 text-left text-sm text-gray-900 hover:bg-gray-50 dark:text-gray-100 dark:hover:bg-gray-700"
+                    >
+                      <span>{p.name}</span>
+                      {p.preferredStoreId && storeById.get(p.preferredStoreId) && (
+                        <span className="text-xs text-gray-400 dark:text-gray-500">
+                          {storeById.get(p.preferredStoreId)!.name}
+                        </span>
+                      )}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
           <input
             type="number" min="1" value={qty} onChange={(e) => setQty(e.target.value)}
             className="w-16 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
