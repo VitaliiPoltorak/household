@@ -1,9 +1,15 @@
-import { createContext, useContext, useState, useCallback, ReactNode, useEffect } from 'react';
+import { createContext, useContext, useState, useCallback, useRef, ReactNode, useEffect } from 'react';
 import i18n from '../i18n';
 import type { User, LoginResponse } from '../types/api';
 import { authApi } from '../api/auth';
-import { clearSession, readCsrfCookie, setAccessToken } from '../api/client';
+import { ApiError, clearSession, readCsrfCookie, setAccessToken } from '../api/client';
 import type { SupportedLng } from '@household/locales';
+
+// /auth/refresh is capped at 5 req/60s per IP (api-gateway's AuthRateLimit,
+// #54) — deliberately tight, not something to relax. A 429 here means the
+// refresh cookie is almost certainly still valid; retry once after the
+// window clears instead of treating it like an expired session (#247).
+const REFRESH_RATE_LIMIT_RETRY_DELAY_MS = 65_000;
 
 function applyLocale(locale: string) {
   const supported: SupportedLng[] = ['en', 'uk', 'de', 'es'];
@@ -41,7 +47,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [migrationNeeded, setMigrationNeeded] = useState(false);
 
+  // React StrictMode double-invokes effects in dev — without this guard,
+  // the bootstrap below would fire two /auth/refresh calls per page load,
+  // needlessly burning half the 5-req/60s budget on every reload (#247).
+  // No-op in production (StrictMode never double-invokes there).
+  const bootstrapped = useRef(false);
+
   useEffect(() => {
+    if (bootstrapped.current) return;
+    bootstrapped.current = true;
+
     // Migration path takes precedence: if legacy localStorage exists, don't
     // touch the network. The banner UX handles re-auth explicitly.
     if (hasLegacyLocalStorageAuth()) {
@@ -60,21 +75,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    // Try to bootstrap: refresh with the cookie, then load profile.
-    authApi.refresh()
-      .then(({ accessToken }) => {
-        setAccessToken(accessToken);
-        return authApi.getMe();
-      })
-      .then((user) => {
-        applyLocale(user.locale);
-        setState({ user });
-      })
-      .catch(() => {
-        // Cookie was stale / server rejected — clean slate.
-        clearSession();
-      })
-      .finally(() => setIsLoading(false));
+    // Try to bootstrap: refresh with the cookie, then load profile. A 429
+    // (rate-limited, not a real auth failure — see #247) retries once
+    // after the window instead of logging the user out.
+    const bootstrap = (retriesLeft: number) => {
+      authApi.refresh()
+        .then(({ accessToken }) => {
+          setAccessToken(accessToken);
+          return authApi.getMe();
+        })
+        .then((user) => {
+          applyLocale(user.locale);
+          setState({ user });
+          setIsLoading(false);
+        })
+        .catch((err) => {
+          if (err instanceof ApiError && err.status === 429 && retriesLeft > 0) {
+            setTimeout(() => bootstrap(retriesLeft - 1), REFRESH_RATE_LIMIT_RETRY_DELAY_MS);
+            return;
+          }
+          // Cookie was stale / server rejected — clean slate.
+          clearSession();
+          setIsLoading(false);
+        });
+    };
+
+    bootstrap(1);
   }, []);
 
   const login = useCallback(async (tokens: LoginResponse) => {
