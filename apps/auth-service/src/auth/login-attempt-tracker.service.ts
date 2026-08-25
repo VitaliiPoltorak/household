@@ -2,10 +2,11 @@ import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Redis from 'ioredis';
 import { randomBytes } from 'crypto';
+import { maskEmail } from '@household/common';
 
 const DEFAULT_MAX_FAILS = 5;
 const DEFAULT_FAILS_WINDOW_SEC = 900; // 15 min
-const DEFAULT_LOCK_TTL_SEC = 3600;    // 1 h
+const DEFAULT_LOCK_TTL_SEC = 3600; // 1 h
 const DEFAULT_UNLOCK_TOKEN_TTL_SEC = 3600;
 
 export type FailResult =
@@ -48,13 +49,19 @@ export class LoginAttemptTrackerService implements OnModuleDestroy {
       config.get<string>('LOGIN_MAX_FAILS', String(DEFAULT_MAX_FAILS)),
     );
     this.failsWindowSec = Number(
-      config.get<string>('LOGIN_FAILS_WINDOW_SEC', String(DEFAULT_FAILS_WINDOW_SEC)),
+      config.get<string>(
+        'LOGIN_FAILS_WINDOW_SEC',
+        String(DEFAULT_FAILS_WINDOW_SEC),
+      ),
     );
     this.lockTtlSec = Number(
       config.get<string>('LOGIN_LOCK_TTL_SEC', String(DEFAULT_LOCK_TTL_SEC)),
     );
     this.unlockTokenTtlSec = Number(
-      config.get<string>('UNLOCK_TOKEN_TTL_SEC', String(DEFAULT_UNLOCK_TOKEN_TTL_SEC)),
+      config.get<string>(
+        'UNLOCK_TOKEN_TTL_SEC',
+        String(DEFAULT_UNLOCK_TOKEN_TTL_SEC),
+      ),
     );
   }
 
@@ -150,10 +157,4 @@ export class LoginAttemptTrackerService implements OnModuleDestroy {
   private unlockTokenKey(token: string): string {
     return `unlock-token:${token}`;
   }
-}
-
-function maskEmail(email: string): string {
-  const [local, domain] = email.split('@');
-  if (!local || !domain) return '***';
-  return `${local.slice(0, 2)}***@${domain}`;
 }

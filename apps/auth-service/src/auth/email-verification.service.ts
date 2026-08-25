@@ -2,6 +2,7 @@ import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Redis from 'ioredis';
 import { randomInt } from 'crypto';
+import { maskEmail } from '@household/common';
 
 export type VerifyResult =
   | { status: 'ok' }
@@ -85,7 +86,10 @@ export class EmailVerificationService implements OnModuleDestroy {
     return code;
   }
 
-  async verifyCode(email: string, submittedCode: string): Promise<VerifyResult> {
+  async verifyCode(
+    email: string,
+    submittedCode: string,
+  ): Promise<VerifyResult> {
     const result = (await this.redis.eval(
       EmailVerificationService.VERIFY_LUA,
       1,
@@ -110,13 +114,17 @@ export class EmailVerificationService implements OnModuleDestroy {
       default:
         // Defensive — Lua script contract is fixed above, but if it ever
         // drifts we don't want to accidentally return 'ok'.
-        this.logger.error(`Unexpected verify result: ${JSON.stringify(result)}`);
+        this.logger.error(
+          `Unexpected verify result: ${JSON.stringify(result)}`,
+        );
         return { status: 'missing' };
     }
   }
 
   /** Test-only helper — inspect what's in Redis without consuming the code. */
-  async peekForTest(email: string): Promise<{ code: string; attempts: number } | null> {
+  async peekForTest(
+    email: string,
+  ): Promise<{ code: string; attempts: number } | null> {
     const raw = await this.redis.get(this.key(email));
     return raw ? JSON.parse(raw) : null;
   }
@@ -135,11 +143,4 @@ export class EmailVerificationService implements OnModuleDestroy {
     // number. String pad handles the (rare) leading-zero case.
     return String(randomInt(0, 1_000_000)).padStart(6, '0');
   }
-}
-
-function maskEmail(email: string): string {
-  const [local, domain] = email.split('@');
-  if (!local || !domain) return '***';
-  const head = local.slice(0, 2);
-  return `${head}***@${domain}`;
 }

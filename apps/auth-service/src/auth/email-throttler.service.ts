@@ -7,10 +7,16 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Redis from 'ioredis';
+import { maskEmail } from '@household/common';
 
 export interface EmailThrottleRule {
   /** Human-readable action name, used as the Redis key namespace. */
-  action: 'register' | 'login' | 'verify-email' | 'resend-verification' | 'password-change';
+  action:
+    | 'register'
+    | 'login'
+    | 'verify-email'
+    | 'resend-verification'
+    | 'password-change';
   /** Max allowed hits per email per window. */
   limit: number;
   /** Window length in seconds. */
@@ -21,7 +27,10 @@ export interface EmailThrottleRule {
 // second dimension defends against a distributed attacker rotating IPs while
 // pounding a single email. Kept intentionally aggressive on register/resend
 // since those are the ones with side effects (mailbox spam).
-const DEFAULT_RULES: Record<EmailThrottleRule['action'], Omit<EmailThrottleRule, 'action'>> = {
+const DEFAULT_RULES: Record<
+  EmailThrottleRule['action'],
+  Omit<EmailThrottleRule, 'action'>
+> = {
   register: { limit: 5, windowSec: 3600 },
   login: { limit: 10, windowSec: 900 },
   'verify-email': { limit: 10, windowSec: 900 },
@@ -60,7 +69,10 @@ export class EmailThrottlerService implements OnModuleDestroy {
    * action. Uses the email in lowercase as the throttle bucket so
    * "Alice@x.com" and "alice@x.com" share a bucket.
    */
-  async consume(action: EmailThrottleRule['action'], email: string): Promise<void> {
+  async consume(
+    action: EmailThrottleRule['action'],
+    email: string,
+  ): Promise<void> {
     const rule = DEFAULT_RULES[action];
     const key = `email-rl:${action}:${email.toLowerCase()}`;
 
@@ -95,13 +107,10 @@ export class EmailThrottlerService implements OnModuleDestroy {
   }
 
   /** Test-only helper — resets the counter for an action + email pair. */
-  async resetForTest(action: EmailThrottleRule['action'], email: string): Promise<void> {
+  async resetForTest(
+    action: EmailThrottleRule['action'],
+    email: string,
+  ): Promise<void> {
     await this.redis.del(`email-rl:${action}:${email.toLowerCase()}`);
   }
-}
-
-function maskEmail(email: string): string {
-  const [local, domain] = email.split('@');
-  if (!local || !domain) return '***';
-  return `${local.slice(0, 2)}***@${domain}`;
 }

@@ -1,4 +1,4 @@
-import { INestApplication } from '@nestjs/common';
+import { INestApplication, Logger } from '@nestjs/common';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import request from 'supertest';
@@ -72,7 +72,10 @@ describe('register → verify → resend flow (integration)', () => {
 
       // Code lives in Redis, not the payload or the DB.
       const stored = await verification.peekForTest(email);
-      expect(stored).toEqual({ code: expect.stringMatching(/^\d{6}$/), attempts: 0 });
+      expect(stored).toEqual({
+        code: expect.stringMatching(/^\d{6}$/),
+        attempts: 0,
+      });
 
       // verification_requested payload does NOT include the plaintext code —
       // notification-service will read it directly from Redis when #30 lands.
@@ -147,7 +150,10 @@ describe('register → verify → resend flow (integration)', () => {
 
     it('normalises the email to lowercase before persist', async () => {
       const local = `Mixed+${unique()}`;
-      await throttler.resetForTest('register', `${local.toLowerCase()}@example.com`);
+      await throttler.resetForTest(
+        'register',
+        `${local.toLowerCase()}@example.com`,
+      );
 
       await request(app.getHttpServer())
         .post('/auth/register')
@@ -159,7 +165,9 @@ describe('register → verify → resend flow (integration)', () => {
         .expect(202);
 
       // Only the lowercase form should be findable.
-      const lower = await userRepo.findOne({ where: { email: `${local.toLowerCase()}@example.com` } });
+      const lower = await userRepo.findOne({
+        where: { email: `${local.toLowerCase()}@example.com` },
+      });
       expect(lower).toBeTruthy();
     });
   });
@@ -194,7 +202,9 @@ describe('register → verify → resend flow (integration)', () => {
       });
 
       const cookies = res.headers['set-cookie'] as unknown as string[];
-      expect(cookies.some((c) => c.startsWith('household_refresh='))).toBe(true);
+      expect(cookies.some((c) => c.startsWith('household_refresh='))).toBe(
+        true,
+      );
       expect(cookies.some((c) => c.startsWith('household_csrf='))).toBe(true);
 
       // Code atomically consumed on match.
@@ -206,7 +216,11 @@ describe('register → verify → resend flow (integration)', () => {
 
       expect(mockKafkaProducer.emit).toHaveBeenCalledWith(
         'auth.user.created',
-        expect.objectContaining({ userId: user!.id, email, provider: 'password' }),
+        expect.objectContaining({
+          userId: user!.id,
+          email,
+          provider: 'password',
+        }),
       );
     });
 
@@ -365,6 +379,61 @@ describe('register → verify → resend flow (integration)', () => {
         .post('/auth/verify-email/resend')
         .send({ email })
         .expect(429);
+    });
+  });
+
+  // #212 — verification codes / unlock tokens must never reach prod logs.
+  describe('AUTH_DEV_LOG_SECRETS gating (#212)', () => {
+    let logSpy: jest.SpyInstance;
+    const originalFlag = process.env.AUTH_DEV_LOG_SECRETS;
+
+    beforeEach(() => {
+      logSpy = jest.spyOn(Logger.prototype, 'log').mockImplementation();
+    });
+
+    afterEach(() => {
+      logSpy.mockRestore();
+      if (originalFlag === undefined) {
+        delete process.env.AUTH_DEV_LOG_SECRETS;
+      } else {
+        process.env.AUTH_DEV_LOG_SECRETS = originalFlag;
+      }
+    });
+
+    it('emits no code in captured logs when the flag is unset', async () => {
+      delete process.env.AUTH_DEV_LOG_SECRETS;
+      const email = `nolog+${unique()}@example.com`;
+      await throttler.resetForTest('register', email);
+
+      await request(app.getHttpServer())
+        .post('/auth/register')
+        .send({ email, password: strongPassword(), displayName: 'NoLog' })
+        .expect(202);
+
+      const stored = await verification.peekForTest(email);
+      const logged = logSpy.mock.calls.map((c) => String(c[0])).join('\n');
+      expect(logged).not.toContain(stored!.code);
+      expect(logged).not.toContain(email);
+    });
+
+    it('logs the masked email + code when the flag is explicitly true', async () => {
+      process.env.AUTH_DEV_LOG_SECRETS = 'true';
+      const email = `withlog+${unique()}@example.com`;
+      await throttler.resetForTest('register', email);
+
+      await request(app.getHttpServer())
+        .post('/auth/register')
+        .send({ email, password: strongPassword(), displayName: 'WithLog' })
+        .expect(202);
+
+      const stored = await verification.peekForTest(email);
+      const match = logSpy.mock.calls
+        .map((c) => String(c[0]))
+        .find((m) => m.includes('verification code'));
+      expect(match).toBeTruthy();
+      expect(match).toContain(stored!.code);
+      expect(match).not.toContain(email); // masked local part, domain kept
+      expect(match).toContain('@example.com');
     });
   });
 });
