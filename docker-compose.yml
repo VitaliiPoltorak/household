@@ -72,7 +72,14 @@ services:
     volumes:
       - kafka_data:/var/lib/kafka/data
     healthcheck:
-      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server kafka:29092 >/dev/null 2>&1"]
+      # Plain TCP-connect probe, same "port accepts a connection ⇒ ready"
+      # approach the internal app services use — not
+      # kafka-broker-api-versions.sh, which spawns a fresh JVM per
+      # invocation and took 8-20s depending on load on this Docker Desktop
+      # VM (measured directly), blowing even a generous timeout and
+      # blocking every dependent service's `docker compose up --wait`.
+      # `start_period` still covers real startup time before the port opens.
+      test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/127.0.0.1/29092'"]
       interval: 10s
       timeout: 5s
       retries: 15
