@@ -75,6 +75,16 @@ if ! command -v docker >/dev/null 2>&1; then
   exit 1
 fi
 
+# Opportunistic cache hygiene: every rebuild's `COPY . .` step invalidates
+# cache for that layer onward for EVERY service (content-addressed — one
+# changed byte anywhere in the build context busts it), so stale BuildKit
+# layers accumulate commit over commit with nothing ever reclaiming them,
+# until the Docker Desktop VM's disk fills ("no space left on device").
+# Prune only cache older than 3 days — never touches running
+# containers/volumes/images, so it can't undo the "leave the stack up"
+# invariant above. Best-effort: a prune failure must never block a commit.
+docker builder prune -f --filter until=72h >/dev/null 2>&1 || true
+
 RUNNING="$(docker compose ps --services --status=running 2>/dev/null || true)"
 
 stack_incomplete=false
@@ -96,8 +106,19 @@ if $stack_incomplete; then
 elif [[ ${#changed_targets[@]} -gt 0 ]]; then
   # Stack is already up — rebuild only services whose staged sources
   # changed, so a same-service-only commit doesn't rebuild the other five.
-  echo "api-scenarios: rebuilding ${changed_targets[*]} (staged changes)…"
-  docker compose up -d --build --wait --wait-timeout 240 "${changed_targets[@]}"
+  #
+  # One service at a time, NOT `docker compose up --build svc1 svc2 …` in
+  # one call — that builds them concurrently via buildx bake. On a dev
+  # machine where Docker Desktop's VM is capped at a few CPUs / a couple GB
+  # RAM (see `docker info`), N concurrent NestJS/tsc builds contend for that
+  # tiny budget (swap pressure, not real parallelism) instead of actually
+  # running in parallel, and pin the host CPU without proportionate gain
+  # (#244). Sequential trades a longer per-commit wall clock for not
+  # thrashing the whole machine.
+  for svc in "${changed_targets[@]}"; do
+    echo "api-scenarios: rebuilding ${svc} (staged changes)…"
+    docker compose up -d --build --wait --wait-timeout 240 "$svc"
+  done
 fi
 
 # .env is guaranteed to exist by this point (either just copied from
