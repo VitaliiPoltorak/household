@@ -606,11 +606,13 @@ function CreateAccountModal({
   const [type, setType] = useState<AccountType>('bank');
   const [currency, setCurrency] = useState('UAH');
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
     setSaving(true);
+    setError(null);
     try {
       await financeApi.createAccount(hid, {
         name: name.trim(),
@@ -618,6 +620,8 @@ function CreateAccountModal({
         currency,
       });
       onCreated();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
     } finally {
       setSaving(false);
     }
@@ -656,6 +660,11 @@ function CreateAccountModal({
             </option>
           ))}
         </Select>
+        {error && (
+          <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600 dark:bg-red-900/30 dark:text-red-300">
+            {error}
+          </p>
+        )}
         <div className="flex gap-2 pt-2">
           <Button
             type="button"
@@ -693,10 +702,12 @@ function EditAccountModal({
   const [type, setType] = useState(account.type);
   const [currency, setCurrency] = useState(account.currency);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
+    setError(null);
     try {
       await financeApi.updateAccount(account.id, hid, {
         name: name.trim(),
@@ -704,6 +715,8 @@ function EditAccountModal({
         currency,
       });
       onSaved();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
     } finally {
       setSaving(false);
     }
@@ -741,6 +754,11 @@ function EditAccountModal({
             </option>
           ))}
         </Select>
+        {error && (
+          <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600 dark:bg-red-900/30 dark:text-red-300">
+            {error}
+          </p>
+        )}
         <div className="flex gap-2 pt-2">
           <Button
             type="button"

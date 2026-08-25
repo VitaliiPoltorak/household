@@ -1,9 +1,20 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { EntityManager, Repository } from 'typeorm';
-import { EVENT_PUBLISHER, IEventPublisher, LIST_HARD_LIMIT } from '@household/contracts';
+import { EntityManager, QueryFailedError, Repository } from 'typeorm';
+import {
+  EVENT_PUBLISHER,
+  IEventPublisher,
+  LIST_HARD_LIMIT,
+} from '@household/contracts';
 import { Account } from './entities/account.entity';
 import { CreateAccountDto, UpdateAccountDto } from './dto/account.dto';
+
+const UNIQUE_VIOLATION = '23505';
 
 @Injectable()
 export class AccountsService {
@@ -13,12 +24,23 @@ export class AccountsService {
     @Inject(EVENT_PUBLISHER) private readonly events: IEventPublisher,
   ) {}
 
-  async create(householdId: string, userId: string, dto: CreateAccountDto): Promise<Account> {
-    const account = await this.repo.save(
-      this.repo.create({ ...dto, householdId }),
+  async create(
+    householdId: string,
+    userId: string,
+    dto: CreateAccountDto,
+  ): Promise<Account> {
+    const account = this.repo.create({
+      ...dto,
+      householdId,
+      nameNormalized: normalizeAccountName(dto.name),
+    });
+    const saved = await this.save(account, dto.name);
+    await this.events.emit(
+      'finance.account.created',
+      { accountId: saved.id, householdId },
+      { userId, householdId },
     );
-    await this.events.emit('finance.account.created', { accountId: account.id, householdId }, { userId, householdId });
-    return account;
+    return saved;
   }
 
   findAll(householdId: string): Promise<Account[]> {
@@ -35,10 +57,17 @@ export class AccountsService {
     return account;
   }
 
-  async update(id: string, householdId: string, dto: UpdateAccountDto): Promise<Account> {
-    await this.findOne(id, householdId);
-    await this.repo.update(id, dto);
-    return this.findOne(id, householdId);
+  async update(
+    id: string,
+    householdId: string,
+    dto: UpdateAccountDto,
+  ): Promise<Account> {
+    const account = await this.findOne(id, householdId);
+    Object.assign(account, dto);
+    if (dto.name !== undefined) {
+      account.nameNormalized = normalizeAccountName(dto.name);
+    }
+    return this.save(account, account.name);
   }
 
   async remove(id: string, householdId: string): Promise<void> {
@@ -46,7 +75,11 @@ export class AccountsService {
     await this.repo.update(id, { isArchived: true });
   }
 
-  async adjustBalance(id: string, delta: number, manager?: EntityManager): Promise<void> {
+  async adjustBalance(
+    id: string,
+    delta: number,
+    manager?: EntityManager,
+  ): Promise<void> {
     const repo = manager ? manager.getRepository(Account) : this.repo;
     if (delta > 0) {
       await repo.increment({ id }, 'balance', delta);
@@ -55,7 +88,9 @@ export class AccountsService {
     }
   }
 
-  async getSummary(householdId: string): Promise<{ totalBalance: number; accounts: Account[] }> {
+  async getSummary(
+    householdId: string,
+  ): Promise<{ totalBalance: number; accounts: Account[] }> {
     const accounts = await this.findAll(householdId);
     // SUM in SQL keeps DECIMAL precision through aggregation. The pg driver
     // returns numeric as a string; a single parseFloat at the JS boundary is
@@ -63,9 +98,32 @@ export class AccountsService {
     const raw = await this.repo
       .createQueryBuilder('a')
       .select('COALESCE(SUM(a.balance), 0)', 'total')
-      .where('a.household_id = :hid AND a.is_archived = false', { hid: householdId })
+      .where('a.household_id = :hid AND a.is_archived = false', {
+        hid: householdId,
+      })
       .getRawOne<{ total: string }>();
     const totalBalance = Number(raw?.total ?? '0');
     return { totalBalance, accounts };
   }
+
+  /** Saves and translates the (household_id, lower(name)) unique violation into a 409. */
+  private async save(account: Account, name: string): Promise<Account> {
+    try {
+      return await this.repo.save(account);
+    } catch (err) {
+      if (
+        err instanceof QueryFailedError &&
+        (err as unknown as { code?: string }).code === UNIQUE_VIOLATION
+      ) {
+        throw new ConflictException(
+          `An account named "${name}" already exists in this household`,
+        );
+      }
+      throw err;
+    }
+  }
+}
+
+function normalizeAccountName(name: string): string {
+  return name.trim().toLowerCase();
 }
