@@ -1,7 +1,11 @@
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
+import { lookup } from 'dns/promises';
 import { createTestApp, cleanDatabase, resetKafkaMocks } from '@household/testing';
 import { AppModule } from '../src/app.module';
+
+jest.mock('dns/promises', () => ({ lookup: jest.fn() }));
+const mockLookup = lookup as jest.MockedFunction<typeof lookup>;
 
 const H = 'test-household-id';
 
@@ -13,6 +17,8 @@ describe('Products (integration)', () => {
   beforeEach(async () => {
     await cleanDatabase(app);
     resetKafkaMocks();
+    jest.restoreAllMocks();
+    mockLookup.mockReset();
     storeId = (
       await request(app.getHttpServer()).post('/stores').set('X-Household-Id', H).send({ name: 'Silpo' })
     ).body.id;
@@ -103,6 +109,89 @@ describe('Products (integration)', () => {
 
     it('rejects GET /products without X-Household-Id (401)', async () => {
       await request(app.getHttpServer()).get('/products').expect(401);
+    });
+  });
+
+  describe('Product link + preview (#197)', () => {
+    it('fetches and caches og:title/og:image for a valid, safe URL', async () => {
+      mockLookup.mockResolvedValue([{ address: '93.184.216.34', family: 4 }] as never);
+      const html = `<html><head>
+        <meta property="og:title" content="Nice Oat Milk" />
+        <meta property="og:image" content="https://cdn.example.com/oat.jpg" />
+      </head></html>`;
+      jest.spyOn(global, 'fetch').mockResolvedValue(new Response(html, { status: 200 }));
+
+      const res = await request(app.getHttpServer())
+        .post('/products').set('X-Household-Id', H)
+        .send({ name: 'Oat Milk', url: 'https://store.example/oat-milk' })
+        .expect(201);
+
+      expect(res.body.url).toBe('https://store.example/oat-milk');
+      expect(res.body.previewTitle).toBe('Nice Oat Milk');
+      expect(res.body.imageUrl).toBe('https://cdn.example.com/oat.jpg');
+    });
+
+    it('still creates the product when the URL is safe but unreachable — no crash, null preview', async () => {
+      mockLookup.mockResolvedValue([{ address: '93.184.216.34', family: 4 }] as never);
+      jest.spyOn(global, 'fetch').mockRejectedValue(new Error('ECONNREFUSED'));
+
+      const res = await request(app.getHttpServer())
+        .post('/products').set('X-Household-Id', H)
+        .send({ name: 'Bread', url: 'https://store.example/bread' })
+        .expect(201);
+
+      expect(res.body.url).toBe('https://store.example/bread');
+      expect(res.body.imageUrl).toBeNull();
+      expect(res.body.previewTitle).toBeNull();
+    });
+
+    it('rejects an SSRF attempt with 400 and never calls fetch', async () => {
+      mockLookup.mockResolvedValue([{ address: '169.254.169.254', family: 4 }] as never);
+      const fetchSpy = jest.spyOn(global, 'fetch');
+
+      await request(app.getHttpServer())
+        .post('/products').set('X-Household-Id', H)
+        .send({ name: 'Evil', url: 'http://attacker-controlled.example/' })
+        .expect(400);
+
+      expect(fetchSpy).not.toHaveBeenCalled();
+    });
+
+    it('rejects a direct localhost URL with 400 without a DNS lookup', async () => {
+      const fetchSpy = jest.spyOn(global, 'fetch');
+
+      await request(app.getHttpServer())
+        .post('/products').set('X-Household-Id', H)
+        .send({ name: 'Evil', url: 'http://localhost:22/' })
+        .expect(400);
+
+      expect(fetchSpy).not.toHaveBeenCalled();
+      expect(mockLookup).not.toHaveBeenCalled();
+    });
+
+    it('re-fetches the preview only when the URL actually changes on update', async () => {
+      mockLookup.mockResolvedValue([{ address: '93.184.216.34', family: 4 }] as never);
+      const fetchSpy = jest
+        .spyOn(global, 'fetch')
+        .mockResolvedValue(new Response('<html><head></head></html>', { status: 200 }));
+
+      const created = await request(app.getHttpServer())
+        .post('/products').set('X-Household-Id', H)
+        .send({ name: 'Milk', url: 'https://store.example/milk' })
+        .expect(201);
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+
+      await request(app.getHttpServer())
+        .patch(`/products/${created.body.id}`).set('X-Household-Id', H)
+        .send({ lastPrice: 42 })
+        .expect(200);
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+
+      await request(app.getHttpServer())
+        .patch(`/products/${created.body.id}`).set('X-Household-Id', H)
+        .send({ url: 'https://store.example/milk-2' })
+        .expect(200);
+      expect(fetchSpy).toHaveBeenCalledTimes(2);
     });
   });
 });

@@ -48,6 +48,15 @@ export function ShoppingPage() {
   });
   const storeById = useMemo(() => new Map(stores.map((s) => [s.id, s])), [stores]);
 
+  // Full catalog (no search filter) so item rows can show a linked product's
+  // preview thumbnail (#197) without an extra round trip per item.
+  const { data: products = [] } = useQuery({
+    queryKey: ['products', hid],
+    queryFn: () => shoppingApi.getProducts(hid),
+    enabled: !!hid,
+  });
+  const productById = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
+
   const createList = useMutation({
     mutationFn: (name: string) => shoppingApi.createList(hid, uid, { name }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['shopping-lists', hid] }),
@@ -76,6 +85,28 @@ export function ShoppingPage() {
     ) => shoppingApi.addItem(listId, hid, uid, { name, quantity, preferredStoreId, productId }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['shopping-list', selectedList?.id] }),
   });
+
+  // A link is attached to the Product, not the item instance (#197) — so
+  // adding an item with a link either updates the already-selected product
+  // (from #196 autocomplete) or creates a new one, before the item itself
+  // is added. Plain async function rather than a mutation: it's a one-off
+  // multi-step orchestration, not a reusable server-state mutation.
+  const addItemWithLink = async (
+    name: string, quantity: number, preferredStoreId: string | undefined,
+    productId: string | undefined, linkUrl: string | undefined,
+  ) => {
+    let finalProductId = productId;
+    if (linkUrl) {
+      if (productId) {
+        await shoppingApi.updateProduct(productId, hid, { url: linkUrl });
+      } else {
+        const created = await shoppingApi.createProduct(hid, uid, { name, url: linkUrl });
+        finalProductId = created.id;
+      }
+      qc.invalidateQueries({ queryKey: ['products', hid] });
+    }
+    addItem.mutate({ listId: selectedList!.id, name, quantity, preferredStoreId, productId: finalProductId });
+  };
 
   const toggleItem = useMutation({
     mutationFn: ({ listId, itemId, isPurchased }: { listId: string; itemId: string; isPurchased: boolean }) =>
@@ -171,10 +202,11 @@ export function ShoppingPage() {
             hid={hid}
             stores={stores}
             storeById={storeById}
+            productById={productById}
             onComplete={() => completeList.mutate(selectedList.id)}
             onDelete={() => deleteList.mutate(selectedList.id)}
-            onAddItem={(name, quantity, preferredStoreId, productId) =>
-              addItem.mutate({ listId: selectedList.id, name, quantity, preferredStoreId, productId })
+            onAddItem={(name, quantity, preferredStoreId, productId, linkUrl) =>
+              void addItemWithLink(name, quantity, preferredStoreId, productId, linkUrl)
             }
             onToggleItem={(itemId, isPurchased) =>
               toggleItem.mutate({ listId: selectedList.id, itemId, isPurchased })
@@ -205,15 +237,16 @@ export function ShoppingPage() {
 }
 
 function ListDetail({
-  list, hid, stores, storeById, onComplete, onDelete, onAddItem, onToggleItem, onDeleteItem, onSetActualStore,
+  list, hid, stores, storeById, productById, onComplete, onDelete, onAddItem, onToggleItem, onDeleteItem, onSetActualStore,
 }: {
   list: ShoppingList;
   hid: string;
   stores: Store[];
   storeById: Map<string, Store>;
+  productById: Map<string, Product>;
   onComplete: () => void;
   onDelete: () => void;
-  onAddItem: (name: string, qty: number, preferredStoreId?: string, productId?: string) => void;
+  onAddItem: (name: string, qty: number, preferredStoreId?: string, productId?: string, linkUrl?: string) => void;
   onToggleItem: (itemId: string, purchased: boolean) => void;
   onDeleteItem: (itemId: string) => void;
   onSetActualStore: (itemId: string, storeId: string) => void;
@@ -223,6 +256,7 @@ function ListDetail({
   const [qty, setQty] = useState('1');
   const [newItemStoreId, setNewItemStoreId] = useState('');
   const [selectedProductId, setSelectedProductId] = useState('');
+  const [linkUrl, setLinkUrl] = useState('');
   const [suggestOpen, setSuggestOpen] = useState(false);
 
   const purchased = list.items?.filter((i) => i.isPurchased).length ?? 0;
@@ -247,11 +281,15 @@ function ListDetail({
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newItem.trim()) return;
-    onAddItem(newItem.trim(), parseInt(qty) || 1, newItemStoreId || undefined, selectedProductId || undefined);
+    onAddItem(
+      newItem.trim(), parseInt(qty) || 1, newItemStoreId || undefined,
+      selectedProductId || undefined, linkUrl.trim() || undefined,
+    );
     setNewItem('');
     setQty('1');
     setNewItemStoreId('');
     setSelectedProductId('');
+    setLinkUrl('');
     setSuggestOpen(false);
   };
 
@@ -337,6 +375,13 @@ function ListDetail({
               <option key={s.id} value={s.id}>{s.name}</option>
             ))}
           </select>
+          <input
+            type="url"
+            value={linkUrl}
+            onChange={(e) => setLinkUrl(e.target.value)}
+            placeholder={t('shopping.itemLink')}
+            className="w-32 rounded-lg border border-gray-300 bg-white px-2 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500"
+          />
           <Button type="submit" size="sm">{t('shopping.addItem')}</Button>
         </form>
       )}
@@ -352,6 +397,7 @@ function ListDetail({
               item={item}
               isActive={list.status === 'active'}
               store={item.preferredStoreId ? storeById.get(item.preferredStoreId) ?? null : null}
+              product={item.productId ? productById.get(item.productId) ?? null : null}
               stores={stores}
               onToggle={() => onToggleItem(item.id, !item.isPurchased)}
               onDelete={() => onDeleteItem(item.id)}
@@ -365,11 +411,12 @@ function ListDetail({
 }
 
 function ItemRow({
-  item, isActive, store, stores, onToggle, onDelete, onSetActualStore,
+  item, isActive, store, product, stores, onToggle, onDelete, onSetActualStore,
 }: {
   item: ShoppingListItem;
   isActive: boolean;
   store: Store | null;
+  product: Product | null;
   stores: Store[];
   onToggle: () => void;
   onDelete: () => void;
@@ -385,6 +432,28 @@ function ItemRow({
           onChange={onToggle}
           className="h-4 w-4 rounded border-gray-300 text-primary-600 dark:border-gray-600 dark:bg-gray-800"
         />
+      )}
+      {product?.url && (
+        product.imageUrl ? (
+          <a href={product.url} target="_blank" rel="noopener noreferrer" title={product.previewTitle ?? product.url}>
+            <img
+              src={product.imageUrl}
+              alt=""
+              className="h-8 w-8 shrink-0 rounded object-cover"
+              onError={(e) => { e.currentTarget.style.display = 'none'; }}
+            />
+          </a>
+        ) : (
+          <a
+            href={product.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            title={product.previewTitle ?? product.url}
+            className="shrink-0 text-gray-300 hover:text-primary-500 dark:text-gray-600 dark:hover:text-primary-400"
+          >
+            🔗
+          </a>
+        )
       )}
       <span
         className={`flex-1 text-sm ${

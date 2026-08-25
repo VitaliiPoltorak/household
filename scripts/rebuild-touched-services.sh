@@ -15,6 +15,12 @@ set -u
 # a single-service request, defeating the one-at-a-time loop below (#251).
 export COMPOSE_BAKE=false
 
+# COMPOSE_BAKE=false alone isn't sufficient either — `docker compose up
+# --build <svc>` rebuilds every OTHER service whose build context is ALSO
+# stale, not just the named one; only the separate `docker compose build
+# <svc>` subcommand genuinely scopes to one service. See api-scenarios.sh
+# for the full writeup (#251 follow-up).
+
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck source=./lib/changed-services.sh
 source "$REPO_ROOT/scripts/lib/changed-services.sh"
@@ -76,12 +82,12 @@ echo "→ Docker: rebuilding ${targets[*]} (changed files trigger auto-rebuild)"
 # service must not skip rebuilding the rest.
 failed=()
 for svc in "${targets[@]}"; do
-  if ! docker compose up -d --build "$svc" 1>&2; then
+  if ! docker compose build "$svc" 1>&2 || ! docker compose up -d "$svc" 1>&2; then
     failed+=("$svc")
   fi
 done
 if [[ ${#failed[@]} -gt 0 ]]; then
-  echo "⚠️  docker compose up -d --build failed for: ${failed[*]}" >&2
+  echo "⚠️  docker compose build/up failed for: ${failed[*]}" >&2
   echo "    Fix manually and re-run: docker compose up -d --build ${failed[*]}" >&2
 fi
 

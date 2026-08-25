@@ -234,6 +234,7 @@
     "complete": "Completar lista",
     "addItem": "Agregar artículo",
     "itemName": "Nombre del artículo",
+    "itemLink": "Enlace (opcional)",
     "quantity": "Cantidad",
     "purchased": "Comprado",
     "listName": "Nombre de la lista",

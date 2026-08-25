@@ -21,9 +21,27 @@ export class Product extends BaseEntity {
   @Column({ name: 'alternative_store_ids', type: 'jsonb', default: '[]' })
   alternativeStoreIds: string[];
 
-  @Column({ name: 'last_price', type: 'decimal', precision: 10, scale: 2, nullable: true })
+  @Column({
+    name: 'last_price',
+    type: 'decimal',
+    precision: 10,
+    scale: 2,
+    nullable: true,
+  })
   lastPrice: number | null;
 
   @Column({ type: 'varchar', nullable: true })
   notes: string | null;
+
+  // #197: optional link to the product on a store's website. imageUrl/
+  // previewTitle are fetched server-side (Open Graph / Twitter Card) and
+  // cached here — never re-fetched on read, only when `url` is set/changed.
+  @Column({ type: 'varchar', nullable: true })
+  url: string | null;
+
+  @Column({ name: 'image_url', type: 'varchar', nullable: true })
+  imageUrl: string | null;
+
+  @Column({ name: 'preview_title', type: 'varchar', nullable: true })
+  previewTitle: string | null;
 }

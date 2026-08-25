@@ -1,34 +1,58 @@
-import { IsArray, IsNotEmpty, IsNumber, IsOptional, IsString, IsPositive } from 'class-validator';
+import {
+  IsArray,
+  IsNotEmpty,
+  IsNumber,
+  IsOptional,
+  IsString,
+  IsPositive,
+  IsUrl,
+} from 'class-validator';
 import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
 
 export class CreateProductDto {
   @ApiProperty()
-  @IsString() @IsNotEmpty()
+  @IsString()
+  @IsNotEmpty()
   name: string;
 
   @ApiPropertyOptional()
-  @IsString() @IsOptional()
+  @IsString()
+  @IsOptional()
   category?: string;
 
   @ApiPropertyOptional()
-  @IsString() @IsOptional()
+  @IsString()
+  @IsOptional()
   unit?: string;
 
   @ApiPropertyOptional()
-  @IsString() @IsOptional()
+  @IsString()
+  @IsOptional()
   preferredStoreId?: string;
 
   @ApiPropertyOptional({ type: [String] })
-  @IsArray() @IsOptional()
+  @IsArray()
+  @IsOptional()
   alternativeStoreIds?: string[];
 
   @ApiPropertyOptional()
-  @IsNumber() @IsPositive() @IsOptional()
+  @IsNumber()
+  @IsPositive()
+  @IsOptional()
   lastPrice?: number;
 
   @ApiPropertyOptional()
-  @IsString() @IsOptional()
+  @IsString()
+  @IsOptional()
   notes?: string;
+
+  @ApiPropertyOptional({
+    description:
+      "Link to the product on a store's website — preview image/title are fetched server-side",
+  })
+  @IsUrl()
+  @IsOptional()
+  url?: string;
 }
 
 export class UpdateProductDto extends PartialType(CreateProductDto) {}

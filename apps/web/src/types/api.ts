@@ -225,6 +225,9 @@ export interface Product {
   alternativeStoreIds: string[];
   lastPrice: number | null;
   notes: string | null;
+  url: string | null;
+  imageUrl: string | null;
+  previewTitle: string | null;
 }
 
 export interface ShoppingList {
