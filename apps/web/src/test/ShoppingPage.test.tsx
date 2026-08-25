@@ -85,4 +85,21 @@ describe('ShoppingPage', () => {
     await userEvent.click(checkbox);
     // Verify checkbox interaction — patch should be called without throwing
   });
+
+  it('clears the selected list when switching status tabs', async () => {
+    server.use(
+      http.get('/api/v1/shopping-lists', () => HttpResponse.json([MOCK_LIST])),
+      http.get('/api/v1/shopping-lists/:id', () => HttpResponse.json(MOCK_LIST)),
+    );
+
+    renderWithProviders(<ShoppingPage />);
+    await waitFor(() => screen.getByText('Weekly Groceries'), { timeout: 3000 });
+    await userEvent.click(screen.getByText('Weekly Groceries'));
+    await waitFor(() => expect(screen.getByText('Milk')).toBeInTheDocument(), { timeout: 3000 });
+
+    await userEvent.click(screen.getByText('Completed'));
+
+    await waitFor(() => expect(screen.getByText('Select a list to view items')).toBeInTheDocument(), { timeout: 3000 });
+    expect(screen.queryByText('Milk')).not.toBeInTheDocument();
+  });
 });

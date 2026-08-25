@@ -95,7 +95,10 @@ export function ShoppingPage() {
           {statuses.map((s) => (
             <button
               key={s}
-              onClick={() => setStatusFilter(s)}
+              onClick={() => {
+                setStatusFilter(s);
+                setSelectedList(null);
+              }}
               className={`flex-1 rounded-md px-2 py-1 text-xs font-medium transition-colors ${
                 statusFilter === s
                   ? 'bg-white text-gray-900 shadow dark:bg-gray-700 dark:text-gray-100'
