@@ -41,7 +41,21 @@ async function bootstrap() {
     host: config.get<string>('REDIS_HOST', 'localhost'),
     port: config.get<number>('REDIS_PORT', 6379),
   });
-  app.use(createAuthRateLimitMiddleware(authRateLimitRedis));
+  // Default (5/60s) is the correct, strict value in production — a real
+  // deploy behind a reverse proxy sees each client's real IP. Overridable
+  // only for /auth/refresh because local dev sits behind Docker's bridge
+  // networking, where every request from the host machine shares one IP
+  // (the bridge gateway) regardless of tab/reload count — see
+  // auth-rate-limit.middleware.ts for the full explanation (#249).
+  app.use(
+    createAuthRateLimitMiddleware(authRateLimitRedis, {
+      refreshLimit: config.get<number>('AUTH_REFRESH_RATE_LIMIT', 5),
+      refreshWindowSeconds: config.get<number>(
+        'AUTH_REFRESH_RATE_WINDOW_SECONDS',
+        60,
+      ),
+    }),
+  );
 
   setupProxies(app);
 
@@ -65,7 +79,8 @@ async function bootstrap() {
   const host = config.get<string>('LISTEN_HOST', '0.0.0.0');
   await app.listen(port, host);
   logger.log(`API Gateway running on http://${host}:${port}`);
-  if (swaggerEnabled) logger.log(`Swagger docs at http://${host}:${port}/api/docs`);
+  if (swaggerEnabled)
+    logger.log(`Swagger docs at http://${host}:${port}/api/docs`);
   logger.log(`CORS allowed origins: ${corsOrigins.join(', ')}`);
 }
 bootstrap();
