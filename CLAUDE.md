@@ -183,6 +183,24 @@ If a future refactor moves `app.listen()` earlier (e.g. a lazy DB connection), t
 
 If a PR truly changes nothing user-visible or plan-relevant (e.g. an internal refactor with identical behaviour and no new deps), state that explicitly in the PR description — don't just skip the check silently.
 
+## Git workflow
+
+All changes — even one-line fixes — go through a branch and a PR, never a
+direct commit to `main`:
+
+1. Create a branch off `main` (e.g. `fix/<issue-number>-<short-slug>`,
+   `docs/<short-slug>`).
+2. Commit there, push, open a PR with `gh pr create`.
+3. Wait for CI (`gh pr checks <n> --watch`). Once every check is green (or
+   skipped because the change touches nothing CI tracks) **and** the
+   underlying issue's fix is verified (tests pass, and a real browser check
+   where relevant), merge immediately with squash + delete-branch — no need
+   to ask for confirmation each time.
+4. Fast-forward local `main` (`git pull`) and drop the local branch copy.
+
+This mirrors the existing PR history (#233-#240) and keeps `main` always in
+a state CI has actually validated.
+
 ## Surfacing problems as issues
 
 When you notice a **potential problem outside the scope of the task you're working on** — a bug, a design flaw, a missing edge case, a stale comment, a place where a past-audit rule was quietly violated — do NOT silently fix it in the current PR (scope creep) and do NOT drop it on the floor.
