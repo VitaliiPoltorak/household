@@ -65,9 +65,19 @@ if [[ ${#targets[@]} -eq 0 ]]; then
 fi
 
 echo "→ Docker: rebuilding ${targets[*]} (changed files trigger auto-rebuild)" >&2
-if ! docker compose up -d --build "${targets[@]}" 1>&2; then
-  echo "⚠️  docker compose up -d --build failed for: ${targets[*]}" >&2
-  echo "    Fix manually and re-run: docker compose up -d --build ${targets[*]}" >&2
+# One service at a time — building several NestJS services concurrently via
+# buildx bake overwhelms a Docker Desktop VM with only a few CPUs / a couple
+# GB RAM (swap pressure instead of real parallelism, #244). A failure on one
+# service must not skip rebuilding the rest.
+failed=()
+for svc in "${targets[@]}"; do
+  if ! docker compose up -d --build "$svc" 1>&2; then
+    failed+=("$svc")
+  fi
+done
+if [[ ${#failed[@]} -gt 0 ]]; then
+  echo "⚠️  docker compose up -d --build failed for: ${failed[*]}" >&2
+  echo "    Fix manually and re-run: docker compose up -d --build ${failed[*]}" >&2
 fi
 
 exit 0

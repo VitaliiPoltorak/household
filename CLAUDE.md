@@ -156,7 +156,7 @@ The compose services are built into `household/<service>` images — a pulled/me
 
 `post-merge`/`post-checkout` delegate to `scripts/rebuild-touched-services.sh`, which:
 1. Diffs the two refs to find changed files.
-2. Maps `apps/<svc>/**` → that service, and `libs/**` / `Dockerfile` / `docker-compose.yml` / root `package.json` / `pnpm-lock.yaml` → all backend services — via the shared table in `scripts/lib/changed-services.sh` (also used by `scripts/api-scenarios.sh`, so the mapping can't drift between the two callers).
+2. Maps `apps/<svc>/**` → that service, and `libs/**` (except `libs/locales`, a web/mobile-only i18n package no backend service imports, #243) / `Dockerfile` / `docker-compose.yml` / root `package.json` / `pnpm-lock.yaml` → all backend services — via the shared table in `scripts/lib/changed-services.sh` (also used by `scripts/api-scenarios.sh`, so the mapping can't drift between the two callers).
 3. Intersects with `docker compose ps --services --status=running` — never starts a service that wasn't already up.
 4. Runs `docker compose up -d --build <targets>` for the intersection.
 

@@ -7,7 +7,12 @@
 # list of changed file paths on stdin — it prints affected service names,
 # one per line, deduped and sorted. A change under libs/, docker-compose.yml,
 # Dockerfile, root package.json, or pnpm-lock.yaml maps to EVERY service
-# (they all share the base image / shared libs), not just the touched one.
+# (they all share the base image / shared libs), not just the touched one —
+# EXCEPT libs/locales, which is web/mobile-only (no backend service imports
+# @household/locales; verified via `grep -rl "@household/locales"
+# apps/*/package.json`, empty) and so maps to no backend service at all
+# (#243). Keep that exclusion narrow: every other libs/* subpath is
+# genuinely shared and must keep triggering a full rebuild.
 #
 # This file only computes "which services are affected" — it has no opinion
 # on what to do about it. That policy differs by caller:
@@ -42,6 +47,9 @@ changed_services() {
 
   while IFS= read -r file; do
     case "$file" in
+      libs/locales/*)
+        # No backend service depends on this — see the header comment (#243).
+        ;;
       libs/*|Dockerfile|docker-compose.yml|package.json|pnpm-lock.yaml)
         rebuild_all=true
         ;;
