@@ -49,8 +49,8 @@ apps/
   finance-service/     # Port 3003 — accounts, transactions, categories, reports
   shopping-service/    # Port 3004 — stores, products, shopping lists + items
   realtime-gateway/    # Port 3010 — Socket.IO, presence, Kafka→WS bridge
-  integration-service/ # Phase 3 — Monobank sync
-  notification-service/# Phase 3 — email + push
+  integration-service/ # Phase 3 — Monobank sync (not implemented)
+  notification-service/# Phase 6 — email + push (not implemented)
   web/                 # Port 5173 — React 18 + Vite SPA (Dashboard, Accounts,
                        #   Transactions, Shopping, Household settings)
   mobile/              # Phase 5 — React Native (Expo)
@@ -209,7 +209,7 @@ Three completed audits — Security (milestone 9), Bugs (milestone 10), Architec
 
 ## Current implementation status
 
-**Phases 0–4 complete.** Implemented:
+**Phases 0–2 and 4 complete. Phase 3 (Integrations) partially done** — `auth-service` OAuth providers (Google/Apple/Facebook) are implemented; `integration-service` (Monobank connect + sync, transaction mapping) does not exist yet (issues #20, #21). Implemented so far:
 
 **Libs:** `common`, `contracts`, `database`, `kafka`, `locales` (i18n en/uk/de/es), `testing`
 
@@ -228,4 +228,4 @@ Three completed audits — Security (milestone 9), Bugs (milestone 10), Architec
 - Real-time: Socket.IO client (entity updates, presence avatars, editing indicators)
 - i18n: 4 languages, language switcher in Header, user.locale sync
 
-Next: **Phase 5** — React Native mobile app.
+Next: finish **Phase 3** (`integration-service` — Monobank sync), then **Phase 5** — React Native mobile app.
