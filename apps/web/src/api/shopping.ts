@@ -1,5 +1,5 @@
 import { api } from './client';
-import type { Store, Product, ShoppingList, ShoppingListItem } from '../types/api';
+import type { Store, StoreImpact, Product, ShoppingList, ShoppingListItem } from '../types/api';
 
 const cfg = (hid: string) => ({ headers: { 'X-Household-Id': hid } });
 const ctx = (hid: string, uid: string) => ({
@@ -13,7 +13,13 @@ export const shoppingApi = {
   createStore: (hid: string, uid: string, data: object) =>
     api.post<Store>('/stores', data, ctx(hid, uid)),
 
+  updateStore: (id: string, hid: string, data: object) =>
+    api.patch<Store>(`/stores/${id}`, data, cfg(hid)),
+
   deleteStore: (id: string, hid: string) => api.delete(`/stores/${id}`, cfg(hid)),
+
+  getStoreImpact: (id: string, hid: string) =>
+    api.get<StoreImpact>(`/stores/${id}/impact`, cfg(hid)),
 
   // Products
   getProducts: (hid: string, search?: string, storeId?: string) =>
@@ -21,6 +27,9 @@ export const shoppingApi = {
 
   createProduct: (hid: string, uid: string, data: object) =>
     api.post<Product>('/products', data, ctx(hid, uid)),
+
+  updateProduct: (id: string, hid: string, data: object) =>
+    api.patch<Product>(`/products/${id}`, data, cfg(hid)),
 
   deleteProduct: (id: string, hid: string) => api.delete(`/products/${id}`, cfg(hid)),
 

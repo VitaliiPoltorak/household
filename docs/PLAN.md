@@ -630,7 +630,8 @@ Finance Service → Kafka: finance.transaction.created
 | POST | `/stores` | Add a store |
 | GET | `/stores` | List household stores |
 | PATCH | `/stores/:id` | Update |
-| DELETE | `/stores/:id` | Delete |
+| DELETE | `/stores/:id` | Delete — 409 with an impact body if referenced by any product/list/item (#198) |
+| GET | `/stores/:id/impact` | Reference counts (products/lists/items) — same "impact check before destructive action" pattern as categories |
 
 ---
 

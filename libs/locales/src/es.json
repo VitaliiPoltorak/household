@@ -238,7 +238,22 @@
     "purchased": "Comprado",
     "listName": "Nombre de la lista",
     "newListTitle": "Nueva lista de compras",
-    "store": "Tienda"
+    "store": "Tienda",
+    "manageStores": "Gestionar tiendas",
+    "storesTitle": "Tiendas",
+    "newStore": "+ Agregar tienda",
+    "storeName": "Nombre de la tienda",
+    "noStores": "Aún no hay tiendas.",
+    "preferredStore": "Tienda preferida",
+    "noStore": "Sin tienda",
+    "boughtAt": "Comprado en",
+    "cannotDeleteStore": "No se puede eliminar — referenciado por {{products}} producto(s), {{lists}} lista(s), {{items}} artículo(s).",
+    "storeTypes": {
+      "supermarket": "Supermercado",
+      "greengrocer": "Frutería",
+      "pharmacy": "Farmacia",
+      "other": "Otro"
+    }
   },
   "household": {
     "title": "Hogar",

@@ -1,6 +1,15 @@
 import {
-  Controller, Get, Post, Patch, Delete,
-  Param, Body, Headers, HttpCode, HttpStatus, UnauthorizedException,
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Delete,
+  Param,
+  Body,
+  Headers,
+  HttpCode,
+  HttpStatus,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { ApiTags, ApiHeader } from '@nestjs/swagger';
 import { StoresService } from './stores.service';
@@ -31,9 +40,19 @@ export class StoresController {
   }
 
   @Patch(':id')
-  update(@Headers('x-household-id') hid: string, @Param('id') id: string, @Body() dto: UpdateStoreDto) {
+  update(
+    @Headers('x-household-id') hid: string,
+    @Param('id') id: string,
+    @Body() dto: UpdateStoreDto,
+  ) {
     this.require(hid);
     return this.svc.update(id, hid, dto);
+  }
+
+  @Get(':id/impact')
+  getImpact(@Headers('x-household-id') hid: string, @Param('id') id: string) {
+    this.require(hid);
+    return this.svc.getImpact(id, hid);
   }
 
   @Delete(':id')

@@ -1224,6 +1224,33 @@
           }
         },
         {
+          "name": "Delete store blocked while referenced",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 409', () => pm.response.to.have.status(409));",
+                  "pm.test('Impact reports the referencing product', () => {",
+                  "  pm.expect(pm.response.json().impact.products).to.be.at.least(1);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "X-Household-Id",
+                "value": "{{householdId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/stores/{{storeId}}"
+          }
+        },
+        {
           "name": "List products",
           "event": [
             {

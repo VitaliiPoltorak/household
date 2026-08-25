@@ -208,6 +208,13 @@ export interface Store {
   address: string | null;
 }
 
+export interface StoreImpact {
+  storeId: string;
+  products: number;
+  lists: number;
+  items: number;
+}
+
 export interface Product {
   id: string;
   householdId: string;

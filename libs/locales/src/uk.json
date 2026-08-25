@@ -239,7 +239,22 @@
     "purchased": "Куплено",
     "listName": "Назва списку",
     "newListTitle": "Новий список покупок",
-    "store": "Магазин"
+    "store": "Магазин",
+    "manageStores": "Керувати магазинами",
+    "storesTitle": "Магазини",
+    "newStore": "+ Додати магазин",
+    "storeName": "Назва магазину",
+    "noStores": "Магазинів ще немає.",
+    "preferredStore": "Бажаний магазин",
+    "noStore": "Без магазину",
+    "boughtAt": "Куплено в",
+    "cannotDeleteStore": "Неможливо видалити — використовується у {{products}} товар(ах), {{lists}} списк(ах), {{items}} елемент(ах).",
+    "storeTypes": {
+      "supermarket": "Супермаркет",
+      "greengrocer": "Овочева крамниця",
+      "pharmacy": "Аптека",
+      "other": "Інше"
+    }
   },
   "household": {
     "title": "Дім",

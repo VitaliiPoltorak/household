@@ -238,7 +238,22 @@
     "purchased": "Purchased",
     "listName": "List name",
     "newListTitle": "New shopping list",
-    "store": "Store"
+    "store": "Store",
+    "manageStores": "Manage stores",
+    "storesTitle": "Stores",
+    "newStore": "+ Add store",
+    "storeName": "Store name",
+    "noStores": "No stores yet.",
+    "preferredStore": "Preferred store",
+    "noStore": "No store",
+    "boughtAt": "Bought at",
+    "cannotDeleteStore": "Cannot delete — referenced by {{products}} product(s), {{lists}} list(s), {{items}} item(s).",
+    "storeTypes": {
+      "supermarket": "Supermarket",
+      "greengrocer": "Greengrocer",
+      "pharmacy": "Pharmacy",
+      "other": "Other"
+    }
   },
   "household": {
     "title": "Household",
