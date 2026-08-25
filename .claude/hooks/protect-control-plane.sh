@@ -29,7 +29,12 @@ fi
 if [[ -n "$repo_root" && "$file_path" == "$repo_root"/* ]]; then
   rel="${file_path#"$repo_root"/}"
 else
-  rel="$file_path"
+  # File isn't inside a resolvable repo (or repo root is unknown), so there's
+  # no repo-relative path to check. Falling back to the absolute path here
+  # would let it spuriously match control-plane patterns like "*/.claude/*"
+  # or "*/.git/*" just because they appear somewhere outside the repo
+  # (e.g. a file under the user's home-directory ~/.claude/).
+  exit 0
 fi
 
 # TypeORM migrations at any depth under apps/<svc>/src (bash case can't recurse).
