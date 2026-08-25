@@ -158,7 +158,7 @@ The compose services are built into `household/<service>` images — a pulled/me
 1. Diffs the two refs to find changed files.
 2. Maps `apps/<svc>/**` → that service, and `libs/**` (except `libs/locales`, a web/mobile-only i18n package no backend service imports, #243) / `Dockerfile` / `docker-compose.yml` / root `package.json` / `pnpm-lock.yaml` → all backend services — via the shared table in `scripts/lib/changed-services.sh` (also used by `scripts/api-scenarios.sh`, so the mapping can't drift between the two callers).
 3. Intersects with `docker compose ps --services --status=running` — never starts a service that wasn't already up.
-4. Runs `docker compose up -d --build <targets>` for the intersection.
+4. Runs `docker compose up -d --build <targets>` **one target at a time** (#244) with `COMPOSE_BAKE=false` (#251) — bake's default multi-target graph resolution would otherwise silently rebuild every backend service even when only one was passed, both overwhelming a resource-constrained Docker Desktop VM and defeating the point of the one-at-a-time loop.
 
 Failures are logged, never blocking — the git operation succeeds either way.
 
