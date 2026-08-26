@@ -32,6 +32,7 @@ export function ShoppingPage() {
   const [selectedList, setSelectedList] = useState<ShoppingList | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [showStores, setShowStores] = useState(false);
+  const [showRename, setShowRename] = useState(false);
 
   const { data: lists = [], isLoading } = useQuery({
     queryKey: ['shopping-lists', hid, statusFilter],
@@ -90,6 +91,15 @@ export function ShoppingPage() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['shopping-lists', hid] });
       setSelectedList(null);
+    },
+  });
+
+  const renameList = useMutation({
+    mutationFn: ({ id, name }: { id: string; name: string }) =>
+      shoppingApi.updateList(id, hid, { name }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['shopping-lists', hid] });
+      qc.invalidateQueries({ queryKey: ['shopping-list', selectedList?.id] });
     },
   });
 
@@ -292,6 +302,7 @@ export function ShoppingPage() {
             productById={productById}
             onComplete={() => completeList.mutate(selectedList.id)}
             onArchive={() => archiveList.mutate(selectedList.id)}
+            onRenameClick={() => setShowRename(true)}
             onDelete={() => deleteList.mutate(selectedList.id)}
             onAddItem={(name, quantity, preferredStoreId, productId, linkUrl) =>
               void addItemWithLink(
@@ -341,6 +352,17 @@ export function ShoppingPage() {
           onClose={() => setShowStores(false)}
         />
       )}
+
+      {showRename && selectedList && (
+        <RenameListModal
+          currentName={selectedList.name}
+          onClose={() => setShowRename(false)}
+          onRename={(name) => {
+            renameList.mutate({ id: selectedList.id, name });
+            setShowRename(false);
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -353,6 +375,7 @@ function ListDetail({
   productById,
   onComplete,
   onArchive,
+  onRenameClick,
   onDelete,
   onAddItem,
   onToggleItem,
@@ -366,6 +389,7 @@ function ListDetail({
   productById: Map<string, Product>;
   onComplete: () => void;
   onArchive: () => void;
+  onRenameClick: () => void;
   onDelete: () => void;
   onAddItem: (
     name: string,
@@ -432,9 +456,19 @@ function ListDetail({
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">
-            {list.name}
-          </h2>
+          <div className="flex items-center gap-2">
+            <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">
+              {list.name}
+            </h2>
+            <button
+              onClick={onRenameClick}
+              title={t('shopping.rename')}
+              aria-label={t('shopping.rename')}
+              className="text-gray-300 hover:text-primary-500 dark:text-gray-600 dark:hover:text-primary-400"
+            >
+              ✏️
+            </button>
+          </div>
           <p className="text-sm text-gray-400 dark:text-gray-500">
             {purchased}/{total} {t('shopping.purchased')}
           </p>
@@ -720,6 +754,54 @@ function CreateListModal({
           </Button>
           <Button type="submit" className="flex-1" disabled={!name.trim()}>
             {t('common.create')}
+          </Button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function RenameListModal({
+  currentName,
+  onClose,
+  onRename,
+}: {
+  currentName: string;
+  onClose: () => void;
+  onRename: (name: string) => void;
+}) {
+  const { t } = useTranslation();
+  const [name, setName] = useState(currentName);
+  return (
+    <Modal title={t('shopping.rename')} onClose={onClose}>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (name.trim() && name.trim() !== currentName) onRename(name.trim());
+        }}
+        className="space-y-4"
+      >
+        <Input
+          label={t('shopping.listName')}
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          autoFocus
+        />
+        <div className="flex gap-2">
+          <Button
+            type="button"
+            variant="secondary"
+            className="flex-1"
+            onClick={onClose}
+          >
+            {t('common.cancel')}
+          </Button>
+          <Button
+            type="submit"
+            className="flex-1"
+            disabled={!name.trim() || name.trim() === currentName}
+          >
+            {t('common.save')}
           </Button>
         </div>
       </form>

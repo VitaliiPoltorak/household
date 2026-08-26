@@ -256,7 +256,8 @@
       "other": "Other"
     },
     "itemNameTooShort": "Item name must be at least 3 characters",
-    "archive": "Archive"
+    "archive": "Archive",
+    "rename": "Rename"
   },
   "household": {
     "title": "Household",
