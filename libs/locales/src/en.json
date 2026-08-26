@@ -285,7 +285,19 @@
     "settings": "Settings",
     "rename": "Rename",
     "danger": "Danger zone",
-    "deleteHome": "Delete home"
+    "deleteHome": "Delete home",
+    "acceptInvite": {
+      "title": "Household invite",
+      "checking": "Checking your invite…",
+      "needsAuth": "Sign in or create an account to accept this invite.",
+      "success": "You've joined the household! Redirecting…",
+      "error": {
+        "emailMismatch": "This invite was sent to a different email address than the one you're signed in with.",
+        "invalid": "This invite link is invalid or has expired.",
+        "conflict": "This invite has already been used, or you're already a member of this household.",
+        "generic": "Something went wrong accepting this invite. Please try again."
+      }
+    }
   },
   "settings": {
     "title": "Settings",

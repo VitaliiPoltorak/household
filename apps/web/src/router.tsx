@@ -4,6 +4,7 @@ import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { VerifyEmailPage } from './pages/VerifyEmailPage';
 import { UnlockAccountPage } from './pages/UnlockAccountPage';
+import { InviteAcceptPage } from './pages/InviteAcceptPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { AccountsPage } from './pages/AccountsPage';
 import { TransactionsPage } from './pages/TransactionsPage';
@@ -19,6 +20,7 @@ export const router = createBrowserRouter([
   { path: '/register', element: <RegisterPage /> },
   { path: '/verify-email', element: <VerifyEmailPage /> },
   { path: '/unlock', element: <UnlockAccountPage /> },
+  { path: '/invite', element: <InviteAcceptPage /> },
   {
     element: <Layout />,
     children: [

@@ -14,7 +14,8 @@ const ROLES: MemberRole[] = ['admin', 'member', 'viewer'];
 
 export function HouseholdPage() {
   const { t } = useTranslation();
-  const { activeHousehold, households, setActiveHousehold, refetch } = useHousehold();
+  const { activeHousehold, households, setActiveHousehold, refetch } =
+    useHousehold();
   const qc = useQueryClient();
   const hid = activeHousehold?.id ?? '';
 
@@ -53,12 +54,14 @@ export function HouseholdPage() {
   });
 
   const removeMember = useMutation({
-    mutationFn: (memberId: string) => householdsApi.removeMember(hid, memberId, hid),
+    mutationFn: (memberId: string) =>
+      householdsApi.removeMember(hid, memberId, hid),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['members', hid] }),
   });
 
   const revokeInvite = useMutation({
-    mutationFn: (inviteId: string) => householdsApi.deleteInvite(hid, inviteId, hid),
+    mutationFn: (inviteId: string) =>
+      householdsApi.deleteInvite(hid, inviteId, hid),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['invites', hid] }),
   });
 
@@ -71,16 +74,29 @@ export function HouseholdPage() {
     },
   });
 
-  if (!activeHousehold) return <p className="text-gray-500 dark:text-gray-400">Select a household first.</p>;
+  if (!activeHousehold)
+    return (
+      <p className="text-gray-500 dark:text-gray-400">
+        Select a household first.
+      </p>
+    );
 
-  const activeInvites = invites.filter((i) => !i.acceptedAt && new Date(i.expiresAt) > new Date());
+  const activeInvites = invites.filter(
+    (i) => !i.acceptedAt && new Date(i.expiresAt) > new Date(),
+  );
 
   return (
     <div className="max-w-2xl space-y-8">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{activeHousehold.name}</h1>
-        <Button size="sm" variant="secondary" onClick={() => setShowRename(true)}>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+          {activeHousehold.name}
+        </h1>
+        <Button
+          size="sm"
+          variant="secondary"
+          onClick={() => setShowRename(true)}
+        >
           ✏️ {t('household.rename')}
         </Button>
       </div>
@@ -92,15 +108,23 @@ export function HouseholdPage() {
             const profile = userById.get(m.userId);
             const displayName = profile?.displayName ?? shortId(m.userId);
             return (
-              <div key={m.id} className="flex items-center justify-between px-4 py-3">
+              <div
+                key={m.id}
+                className="flex items-center justify-between px-4 py-3"
+              >
                 <div className="flex items-center gap-3 min-w-0">
-                  <Avatar name={displayName} avatarUrl={profile?.avatarUrl ?? null} />
+                  <Avatar
+                    name={displayName}
+                    avatarUrl={profile?.avatarUrl ?? null}
+                  />
                   <div className="min-w-0">
                     <p className="flex items-center gap-2 text-sm font-medium text-gray-900 dark:text-gray-100">
                       <span className="truncate">{displayName}</span>
                       <RoleBadge role={m.role} />
                     </p>
-                    <p className="font-mono text-xs text-gray-400 dark:text-gray-500">{shortId(m.userId)}</p>
+                    <p className="font-mono text-xs text-gray-400 dark:text-gray-500">
+                      {shortId(m.userId)}
+                    </p>
                   </div>
                 </div>
                 {m.role !== 'owner' && (
@@ -125,11 +149,17 @@ export function HouseholdPage() {
         <Section title={t('household.invites')}>
           <div className="divide-y divide-gray-100 rounded-xl border border-gray-200 bg-white dark:divide-gray-800 dark:border-gray-800 dark:bg-gray-900">
             {activeInvites.map((inv) => (
-              <div key={inv.id} className="flex items-center justify-between px-4 py-3">
+              <div
+                key={inv.id}
+                className="flex items-center justify-between px-4 py-3"
+              >
                 <div>
-                  <p className="text-sm text-gray-900 dark:text-gray-100">{inv.email}</p>
+                  <p className="text-sm text-gray-900 dark:text-gray-100">
+                    {inv.email}
+                  </p>
                   <p className="text-xs capitalize text-gray-400 dark:text-gray-500">
-                    {t(`household.roles.${inv.role}`)} · expires {new Date(inv.expiresAt).toLocaleDateString()}
+                    {t(`household.roles.${inv.role}`)} · expires{' '}
+                    {new Date(inv.expiresAt).toLocaleDateString()}
                   </p>
                 </div>
                 <button
@@ -148,12 +178,15 @@ export function HouseholdPage() {
       {households.length > 1 && (
         <Section title={t('household.danger')}>
           <div className="rounded-xl border border-red-200 bg-red-50 p-4 dark:border-red-900/50 dark:bg-red-900/20">
-            <p className="mb-3 text-sm text-red-700 dark:text-red-300">This will permanently delete the household and all its data.</p>
+            <p className="mb-3 text-sm text-red-700 dark:text-red-300">
+              This will permanently delete the household and all its data.
+            </p>
             <Button
               variant="danger"
               size="sm"
               onClick={() => {
-                if (confirm('Are you sure? This cannot be undone.')) deleteHousehold.mutate();
+                if (confirm('Are you sure? This cannot be undone.'))
+                  deleteHousehold.mutate();
               }}
             >
               {t('household.deleteHome')}
@@ -189,10 +222,18 @@ export function HouseholdPage() {
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
   return (
     <div>
-      <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{title}</h2>
+      <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+        {title}
+      </h2>
       {children}
     </div>
   );
@@ -212,7 +253,13 @@ function shortId(id: string): string {
  * on a coloured background when no image URL is available (or the image fails
  * to load).
  */
-function Avatar({ name, avatarUrl }: { name: string; avatarUrl: string | null }) {
+function Avatar({
+  name,
+  avatarUrl,
+}: {
+  name: string;
+  avatarUrl: string | null;
+}) {
   const [broken, setBroken] = useState(false);
   const initial = name.trim().charAt(0).toUpperCase() || '?';
 
@@ -237,8 +284,14 @@ function Avatar({ name, avatarUrl }: { name: string; avatarUrl: string | null })
 }
 
 function InviteModal({
-  hid, onClose, onInvited,
-}: { hid: string; onClose: () => void; onInvited: () => void }) {
+  hid,
+  onClose,
+  onInvited,
+}: {
+  hid: string;
+  onClose: () => void;
+  onInvited: () => void;
+}) {
   const { t } = useTranslation();
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<MemberRole>('member');
@@ -250,24 +303,51 @@ function InviteModal({
     setSaving(true);
     try {
       const invite = await householdsApi.createInvite(hid, email, role, hid);
-      const link = `${window.location.origin}/invite/${invite.token}`;
+      const link = `${window.location.origin}/invite?token=${invite.token}`;
       await navigator.clipboard.writeText(link).catch(() => null);
       setCopied(true);
       setTimeout(onInvited, 1500);
-    } finally { setSaving(false); }
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
     <Modal title={t('household.inviteByEmail')} onClose={onClose}>
       <form onSubmit={submit} className="space-y-4">
-        <Input label={t('household.email')} type="email" value={email}
-          onChange={(e) => setEmail(e.target.value)} required placeholder="partner@example.com" />
-        <Select label={t('household.role')} value={role} onChange={(e) => setRole(e.target.value as MemberRole)}>
-          {ROLES.map((r) => <option key={r} value={r}>{t(`household.roles.${r}`)}</option>)}
+        <Input
+          label={t('household.email')}
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          required
+          placeholder="partner@example.com"
+        />
+        <Select
+          label={t('household.role')}
+          value={role}
+          onChange={(e) => setRole(e.target.value as MemberRole)}
+        >
+          {ROLES.map((r) => (
+            <option key={r} value={r}>
+              {t(`household.roles.${r}`)}
+            </option>
+          ))}
         </Select>
-        {copied && <p className="text-sm text-green-600 dark:text-green-400">✓ Invite link copied to clipboard!</p>}
+        {copied && (
+          <p className="text-sm text-green-600 dark:text-green-400">
+            ✓ Invite link copied to clipboard!
+          </p>
+        )}
         <div className="flex gap-2">
-          <Button type="button" variant="secondary" className="flex-1" onClick={onClose}>{t('common.cancel')}</Button>
+          <Button
+            type="button"
+            variant="secondary"
+            className="flex-1"
+            onClick={onClose}
+          >
+            {t('common.cancel')}
+          </Button>
           <Button type="submit" className="flex-1" disabled={saving}>
             {saving ? '…' : t('household.invite')}
           </Button>
@@ -278,8 +358,16 @@ function InviteModal({
 }
 
 function RenameModal({
-  hid, currentName, onClose, onRenamed,
-}: { hid: string; currentName: string; onClose: () => void; onRenamed: (h: Awaited<ReturnType<typeof householdsApi.update>>) => void }) {
+  hid,
+  currentName,
+  onClose,
+  onRenamed,
+}: {
+  hid: string;
+  currentName: string;
+  onClose: () => void;
+  onRenamed: (h: Awaited<ReturnType<typeof householdsApi.update>>) => void;
+}) {
   const { t } = useTranslation();
   const [name, setName] = useState(currentName);
   const [saving, setSaving] = useState(false);
@@ -291,16 +379,34 @@ function RenameModal({
     try {
       const updated = await householdsApi.update(hid, hid, name.trim());
       onRenamed(updated);
-    } finally { setSaving(false); }
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
     <Modal title={t('household.rename')} onClose={onClose}>
       <form onSubmit={submit} className="space-y-4">
-        <Input label={t('household.title')} value={name} onChange={(e) => setName(e.target.value)} autoFocus />
+        <Input
+          label={t('household.title')}
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          autoFocus
+        />
         <div className="flex gap-2">
-          <Button type="button" variant="secondary" className="flex-1" onClick={onClose}>{t('common.cancel')}</Button>
-          <Button type="submit" className="flex-1" disabled={saving || !name.trim() || name === currentName}>
+          <Button
+            type="button"
+            variant="secondary"
+            className="flex-1"
+            onClick={onClose}
+          >
+            {t('common.cancel')}
+          </Button>
+          <Button
+            type="submit"
+            className="flex-1"
+            disabled={saving || !name.trim() || name === currentName}
+          >
             {saving ? '…' : t('common.save')}
           </Button>
         </div>

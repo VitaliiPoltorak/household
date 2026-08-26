@@ -5,9 +5,13 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useAuth } from '../contexts/AuthContext';
 import { authApi } from '../api/auth';
-import { verifyEmailSchema, type VerifyEmailFormValues } from '../lib/auth-schemas';
+import {
+  verifyEmailSchema,
+  type VerifyEmailFormValues,
+} from '../lib/auth-schemas';
 import { mapAuthError, type MappedAuthError } from '../lib/auth-errors';
 import { td } from '../lib/i18n-dynamic';
+import { consumeReturnTo } from '../lib/auth-redirect';
 
 const RESEND_COOLDOWN_SEC = 30;
 
@@ -49,7 +53,10 @@ export function VerifyEmailPage() {
   // stops when it hits 0.
   useEffect(() => {
     if (resendCooldown <= 0) return;
-    const id = setInterval(() => setResendCooldown((n) => Math.max(0, n - 1)), 1000);
+    const id = setInterval(
+      () => setResendCooldown((n) => Math.max(0, n - 1)),
+      1000,
+    );
     return () => clearInterval(id);
   }, [resendCooldown]);
 
@@ -62,7 +69,7 @@ export function VerifyEmailPage() {
       // set on this response, and login() will pick up /auth/me + hydrate
       // AuthContext.
       await login(tokens);
-      navigate('/dashboard', { replace: true });
+      navigate(consumeReturnTo(), { replace: true });
     } catch (err) {
       const mapped = mapAuthError(err);
       setGlobalError(mapped);
@@ -123,7 +130,9 @@ export function VerifyEmailPage() {
             <p>{td(t, globalError.key)}</p>
             {typeof globalError.attemptsRemaining === 'number' && (
               <p className="mt-1 text-xs opacity-90">
-                {t('auth.verifyEmail.attemptsLeft', { count: globalError.attemptsRemaining })}
+                {t('auth.verifyEmail.attemptsLeft', {
+                  count: globalError.attemptsRemaining,
+                })}
               </p>
             )}
           </div>
@@ -166,7 +175,9 @@ export function VerifyEmailPage() {
             disabled={form.formState.isSubmitting}
             className="w-full rounded-md bg-primary-600 px-3 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-primary-700 disabled:opacity-60"
           >
-            {form.formState.isSubmitting ? t('auth.verifying') : t('auth.verify')}
+            {form.formState.isSubmitting
+              ? t('auth.verifying')
+              : t('auth.verify')}
           </button>
         </form>
 
@@ -182,7 +193,10 @@ export function VerifyEmailPage() {
         </button>
 
         <div className="mt-6 text-center text-sm">
-          <Link to="/login" className="text-gray-500 hover:underline dark:text-gray-400">
+          <Link
+            to="/login"
+            className="text-gray-500 hover:underline dark:text-gray-400"
+          >
             {t('auth.backToLogin')}
           </Link>
         </div>

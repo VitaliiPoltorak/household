@@ -285,7 +285,19 @@
     "settings": "Configuración",
     "rename": "Renombrar",
     "danger": "Zona peligrosa",
-    "deleteHome": "Eliminar hogar"
+    "deleteHome": "Eliminar hogar",
+    "acceptInvite": {
+      "title": "Invitación al household",
+      "checking": "Comprobando la invitación…",
+      "needsAuth": "Inicia sesión o crea una cuenta para aceptar esta invitación.",
+      "success": "¡Te has unido al household! Redirigiendo…",
+      "error": {
+        "emailMismatch": "Esta invitación se envió a una dirección de correo distinta a la de tu sesión actual.",
+        "invalid": "Este enlace de invitación no es válido o ha caducado.",
+        "conflict": "Esta invitación ya se ha usado, o ya eres miembro de este household.",
+        "generic": "Algo salió mal al aceptar la invitación. Inténtalo de nuevo."
+      }
+    }
   },
   "settings": {
     "title": "Configuración",

@@ -1,9 +1,8 @@
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../contexts/AuthContext';
+import { setReturnTo } from '../../lib/auth-redirect';
 
-// See LoginPage — same key.
-const RETURN_TO_KEY = 'auth:return_to';
 const LEGACY_KEYS = ['accessToken', 'refreshToken', 'sessionId'] as const;
 
 /**
@@ -25,7 +24,7 @@ export function MigrationBanner({ children }: { children: ReactNode }) {
     // Save whatever URL the user was trying to reach so LoginPage can send
     // them back after OAuth completes.
     if (window.location.pathname !== '/login') {
-      sessionStorage.setItem(RETURN_TO_KEY, window.location.pathname + window.location.search);
+      setReturnTo(window.location.pathname + window.location.search);
     }
     // Clear legacy tokens FIRST so the reload doesn't loop the banner.
     for (const key of LEGACY_KEYS) {
