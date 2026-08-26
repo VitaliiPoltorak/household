@@ -240,6 +240,21 @@ export function ShoppingPage() {
       qc.invalidateQueries({ queryKey: ['shopping-list', selectedList?.id] }),
   });
 
+  const setPreferredStore = useMutation({
+    mutationFn: ({
+      listId,
+      itemId,
+      preferredStoreId,
+    }: {
+      listId: string;
+      itemId: string;
+      preferredStoreId: string | null;
+    }) =>
+      shoppingApi.updateItem(listId, itemId, hid, uid, { preferredStoreId }),
+    onSuccess: () =>
+      qc.invalidateQueries({ queryKey: ['shopping-list', selectedList?.id] }),
+  });
+
   const deleteItem = useMutation({
     mutationFn: ({ listId, itemId }: { listId: string; itemId: string }) =>
       shoppingApi.deleteItem(listId, itemId, hid),
@@ -376,6 +391,13 @@ export function ShoppingPage() {
                 actualStoreId,
               })
             }
+            onSetPreferredStore={(itemId, preferredStoreId) =>
+              setPreferredStore.mutate({
+                listId: selectedList.id,
+                itemId,
+                preferredStoreId,
+              })
+            }
             onEditItemLink={(itemId, productId, itemName, url) =>
               void editItemLink(itemId, productId, itemName, url)
             }
@@ -431,6 +453,7 @@ function ListDetail({
   onToggleItem,
   onDeleteItem,
   onSetActualStore,
+  onSetPreferredStore,
   onEditItemLink,
 }: {
   list: ShoppingList;
@@ -453,6 +476,7 @@ function ListDetail({
   onToggleItem: (itemId: string, purchased: boolean) => void;
   onDeleteItem: (itemId: string) => void;
   onSetActualStore: (itemId: string, storeId: string) => void;
+  onSetPreferredStore: (itemId: string, storeId: string | null) => void;
   onEditItemLink: (
     itemId: string,
     productId: string | null,
@@ -692,6 +716,9 @@ function ListDetail({
               onToggle={() => onToggleItem(item.id, !item.isPurchased)}
               onDelete={() => onDeleteItem(item.id)}
               onSetActualStore={(storeId) => onSetActualStore(item.id, storeId)}
+              onSetPreferredStore={(storeId) =>
+                onSetPreferredStore(item.id, storeId)
+              }
               onEditLink={() => setEditingLinkItem(item)}
             />
           ))
@@ -867,6 +894,7 @@ function ItemRow({
   onToggle,
   onDelete,
   onSetActualStore,
+  onSetPreferredStore,
   onEditLink,
 }: {
   item: ShoppingListItem;
@@ -877,6 +905,7 @@ function ItemRow({
   onToggle: () => void;
   onDelete: () => void;
   onSetActualStore: (storeId: string) => void;
+  onSetPreferredStore: (storeId: string | null) => void;
   onEditLink: () => void;
 }) {
   const { t } = useTranslation();
@@ -948,6 +977,21 @@ function ItemRow({
           </span>
         )}
       </span>
+      {!item.isPurchased && stores.length > 0 && (
+        <select
+          value={item.preferredStoreId ?? ''}
+          onChange={(e) => onSetPreferredStore(e.target.value || null)}
+          title={t('shopping.preferredStore')}
+          className="rounded-lg border border-gray-300 bg-white px-1.5 py-1 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300"
+        >
+          <option value="">{t('shopping.noStore')}</option>
+          {stores.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.name}
+            </option>
+          ))}
+        </select>
+      )}
       {item.isPurchased && stores.length > 0 && (
         <select
           value={item.actualStoreId ?? ''}
