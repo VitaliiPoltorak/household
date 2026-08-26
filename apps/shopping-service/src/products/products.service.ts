@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { ILike, Repository } from 'typeorm';
+import { EntityManager, ILike, Repository } from 'typeorm';
 import { LIST_HARD_LIMIT } from '@household/contracts';
 import { Product } from './entities/product.entity';
 import { CreateProductDto, UpdateProductDto } from './dto/product.dto';
@@ -58,6 +58,39 @@ export class ProductsService {
         url: dto.url ?? null,
         imageUrl: preview.imageUrl,
         previewTitle: preview.previewTitle,
+      }),
+    );
+  }
+
+  // Auto-links a plain (no productId) item add to the household's product
+  // catalog (#273) — reuses an existing product with the same name
+  // (case-insensitive exact match, not a fuzzy search) instead of creating a
+  // duplicate. Accepts the caller's optional EntityManager so it can join
+  // the same DB transaction as the item insert (never opens its own, same
+  // pattern as finance-service's balance-adjustment.service.ts).
+  async findOrCreateByName(
+    householdId: string,
+    name: string,
+    manager?: EntityManager,
+  ): Promise<Product> {
+    const repo = manager ? manager.getRepository(Product) : this.repo;
+    const existing = await repo.findOne({
+      where: { householdId, name: ILike(name) },
+    });
+    if (existing) return existing;
+    return repo.save(
+      repo.create({
+        householdId,
+        name,
+        category: null,
+        unit: null,
+        preferredStoreId: null,
+        alternativeStoreIds: [],
+        lastPrice: null,
+        notes: null,
+        url: null,
+        imageUrl: null,
+        previewTitle: null,
       }),
     );
   }
