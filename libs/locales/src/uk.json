@@ -344,7 +344,12 @@
     "refreshRatesDesc": "Вручну отримати свіжі курси з ПриватБанку. За замовчуванням оновлюються раз на день.",
     "refreshRatesSuccess": "Курси оновлено",
     "refreshRatesError": "Не вдалося оновити курси",
-    "refreshRatesCooldown": "Зачекайте хвилину, перш ніж оновлювати знову."
+    "refreshRatesCooldown": "Зачекайте хвилину, перш ніж оновлювати знову.",
+    "dateFormat": "Формат дати",
+    "dateFormats": {
+      "auto": "Як у моїй мові"
+    },
+    "dateFormatPreview": "Сьогодні: {{date}}"
   },
   "categoryMgmt": {
     "title": "Категорії",

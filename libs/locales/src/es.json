@@ -341,7 +341,12 @@
     "refreshRatesDesc": "Obtén tipos actualizados de PrivatBank manualmente. Si no, se actualizan una vez al día.",
     "refreshRatesSuccess": "Tipos actualizados",
     "refreshRatesError": "No se pudieron actualizar los tipos",
-    "refreshRatesCooldown": "Espera un minuto antes de actualizar de nuevo."
+    "refreshRatesCooldown": "Espera un minuto antes de actualizar de nuevo.",
+    "dateFormat": "Formato de fecha",
+    "dateFormats": {
+      "auto": "Como mi idioma"
+    },
+    "dateFormatPreview": "Hoy: {{date}}"
   },
   "categoryMgmt": {
     "title": "Categorías",

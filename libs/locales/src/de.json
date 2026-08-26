@@ -341,7 +341,12 @@
     "refreshRatesDesc": "Aktuelle Kurse manuell von der PrivatBank abrufen. Ansonsten einmal täglich.",
     "refreshRatesSuccess": "Kurse aktualisiert",
     "refreshRatesError": "Kurse konnten nicht aktualisiert werden",
-    "refreshRatesCooldown": "Bitte eine Minute warten, bevor Sie erneut aktualisieren."
+    "refreshRatesCooldown": "Bitte eine Minute warten, bevor Sie erneut aktualisieren.",
+    "dateFormat": "Datumsformat",
+    "dateFormats": {
+      "auto": "Wie meine Sprache"
+    },
+    "dateFormatPreview": "Heute: {{date}}"
   },
   "categoryMgmt": {
     "title": "Kategorien",

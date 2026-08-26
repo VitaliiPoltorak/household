@@ -341,7 +341,12 @@
     "refreshRatesDesc": "Manually pull fresh rates from PrivatBank. Otherwise updates once daily.",
     "refreshRatesSuccess": "Rates updated",
     "refreshRatesError": "Failed to refresh rates",
-    "refreshRatesCooldown": "Please wait a minute before refreshing again."
+    "refreshRatesCooldown": "Please wait a minute before refreshing again.",
+    "dateFormat": "Date format",
+    "dateFormats": {
+      "auto": "Match my language"
+    },
+    "dateFormatPreview": "Today: {{date}}"
   },
   "categoryMgmt": {
     "title": "Categories",

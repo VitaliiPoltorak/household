@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { householdsApi } from '../api/households';
 import { useAcceptInvite } from '../hooks/useAcceptInvite';
 import { Button } from '../components/ui/Button';
+import { formatDate } from '../lib/date-format';
 
 /**
  * Active invites addressed to the current user's email — the counterpart to
@@ -60,7 +61,7 @@ export function InvitesPage() {
                 <p className="text-xs text-gray-400 dark:text-gray-500">
                   {t(`household.roles.${invite.role}`)} ·{' '}
                   {t('household.expiresOn', {
-                    date: new Date(invite.expiresAt).toLocaleDateString(),
+                    date: formatDate(invite.expiresAt),
                   })}
                 </p>
               </div>

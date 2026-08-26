@@ -12,15 +12,34 @@ import { Button } from '../components/ui/Button';
 import { Input, Select } from '../components/ui/Input';
 import { supportedLngs, type SupportedLng } from '@household/locales';
 import { useTheme, type ThemePreference } from '../contexts/ThemeContext';
-import { changePasswordSchema, type ChangePasswordFormValues } from '../lib/auth-schemas';
+import {
+  DATE_FORMAT_OPTIONS,
+  formatDate,
+  getDateFormatPreference,
+  setDateFormatPreference,
+  type DateFormatPreference,
+} from '../lib/date-format';
+import {
+  changePasswordSchema,
+  type ChangePasswordFormValues,
+} from '../lib/auth-schemas';
 import { mapAuthError, type MappedAuthError } from '../lib/auth-errors';
 import { td } from '../lib/i18n-dynamic';
 
 const CURRENCIES = ['UAH', 'USD', 'EUR'];
 const DEFAULT_CURRENCY_KEY = 'accounts:baseCurrency';
 
-const FLAG: Record<SupportedLng, string> = { en: '🇬🇧', uk: '🇺🇦', de: '🇩🇪', es: '🇪🇸' };
-const THEME_ICON: Record<ThemePreference, string> = { light: '☀️', dark: '🌙', system: '🖥️' };
+const FLAG: Record<SupportedLng, string> = {
+  en: '🇬🇧',
+  uk: '🇺🇦',
+  de: '🇩🇪',
+  es: '🇪🇸',
+};
+const THEME_ICON: Record<ThemePreference, string> = {
+  light: '☀️',
+  dark: '🌙',
+  system: '🖥️',
+};
 const THEME_OPTIONS: ThemePreference[] = ['light', 'dark', 'system'];
 
 export function SettingsPage() {
@@ -30,7 +49,9 @@ export function SettingsPage() {
 
   return (
     <div className="max-w-lg space-y-8">
-      <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{t('settings.title')}</h1>
+      <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+        {t('settings.title')}
+      </h1>
 
       <ProfileSection user={user} />
       <PreferencesSection i18n={i18n} />
@@ -72,14 +93,22 @@ function SecuritySection({
   return (
     <Section title={t('settings.security')}>
       <div className="space-y-3 rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
-        <p className="text-sm text-gray-600 dark:text-gray-300">{t('settings.logoutAllDesc')}</p>
+        <p className="text-sm text-gray-600 dark:text-gray-300">
+          {t('settings.logoutAllDesc')}
+        </p>
         {!showConfirm ? (
-          <Button variant="secondary" size="sm" onClick={() => setShowConfirm(true)}>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => setShowConfirm(true)}
+          >
             {t('settings.logoutAll')}
           </Button>
         ) : (
           <div className="space-y-2">
-            <p className="text-sm text-amber-700 dark:text-amber-300">{t('settings.logoutAllWarning')}</p>
+            <p className="text-sm text-amber-700 dark:text-amber-300">
+              {t('settings.logoutAllWarning')}
+            </p>
             <div className="flex gap-2">
               <Button
                 variant="secondary"
@@ -114,7 +143,11 @@ function ChangePasswordSection() {
   const [success, setSuccess] = useState(false);
   const form = useForm<ChangePasswordFormValues>({
     resolver: zodResolver(changePasswordSchema),
-    defaultValues: { currentPassword: '', newPassword: '', confirmPassword: '' },
+    defaultValues: {
+      currentPassword: '',
+      newPassword: '',
+      confirmPassword: '',
+    },
   });
 
   const submit = form.handleSubmit(async (values) => {
@@ -220,12 +253,17 @@ function PasswordField(props: {
   id: string;
   label: string;
   autoComplete: string;
-  register: ReturnType<ReturnType<typeof useForm<ChangePasswordFormValues>>['register']>;
+  register: ReturnType<
+    ReturnType<typeof useForm<ChangePasswordFormValues>>['register']
+  >;
   error?: string;
 }) {
   return (
     <div className="flex flex-col gap-1">
-      <label htmlFor={props.id} className="text-sm font-medium text-gray-700 dark:text-gray-300">
+      <label
+        htmlFor={props.id}
+        className="text-sm font-medium text-gray-700 dark:text-gray-300"
+      >
         {props.label}
       </label>
       <input
@@ -235,7 +273,9 @@ function PasswordField(props: {
         {...props.register}
         className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500"
       />
-      {props.error && <p className="text-xs text-red-600 dark:text-red-400">{props.error}</p>}
+      {props.error && (
+        <p className="text-xs text-red-600 dark:text-red-400">{props.error}</p>
+      )}
     </div>
   );
 }
@@ -250,8 +290,12 @@ function ManageSection() {
             to="/settings/categories"
             className="flex items-center justify-between px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800"
           >
-            <span className="text-sm text-gray-900 dark:text-gray-100">{t('categoryMgmt.title')}</span>
-            <span className="text-gray-400 dark:text-gray-500" aria-hidden>›</span>
+            <span className="text-sm text-gray-900 dark:text-gray-100">
+              {t('categoryMgmt.title')}
+            </span>
+            <span className="text-gray-400 dark:text-gray-500" aria-hidden>
+              ›
+            </span>
           </Link>
         </li>
       </ul>
@@ -262,7 +306,11 @@ function ManageSection() {
 // ──────────────────────────────────────────────
 // Profile section
 // ──────────────────────────────────────────────
-function ProfileSection({ user }: { user: ReturnType<typeof useAuth>['user'] }) {
+function ProfileSection({
+  user,
+}: {
+  user: ReturnType<typeof useAuth>['user'];
+}) {
   const { t, i18n } = useTranslation();
   const [displayName, setDisplayName] = useState(user?.displayName ?? '');
   const [avatarUrl, setAvatarUrl] = useState(user?.avatarUrl ?? '');
@@ -278,7 +326,9 @@ function ProfileSection({ user }: { user: ReturnType<typeof useAuth>['user'] }) 
       });
       setStatus('saved');
       setTimeout(() => setStatus('idle'), 2000);
-    } catch { setStatus('idle'); }
+    } catch {
+      setStatus('idle');
+    }
   };
 
   const handleLocaleChange = async (lng: SupportedLng) => {
@@ -290,19 +340,23 @@ function ProfileSection({ user }: { user: ReturnType<typeof useAuth>['user'] }) 
     <Section title={t('settings.profile')}>
       <form onSubmit={save} className="space-y-4">
         <div className="mb-2 flex items-center gap-4">
-          {(avatarUrl || user?.avatarUrl) ? (
+          {avatarUrl || user?.avatarUrl ? (
             <img
               src={avatarUrl || user?.avatarUrl || ''}
               alt=""
               className="h-16 w-16 rounded-full border border-gray-200 object-cover dark:border-gray-700"
-              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+              onError={(e) => {
+                (e.target as HTMLImageElement).style.display = 'none';
+              }}
             />
           ) : (
             <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary-100 text-2xl font-bold text-primary-600 dark:bg-primary-900/40 dark:text-primary-300">
               {(displayName || user?.displayName || '?')[0]?.toUpperCase()}
             </div>
           )}
-          <div className="text-sm text-gray-500 dark:text-gray-400">{user?.email}</div>
+          <div className="text-sm text-gray-500 dark:text-gray-400">
+            {user?.email}
+          </div>
         </div>
 
         <Input
@@ -320,7 +374,9 @@ function ProfileSection({ user }: { user: ReturnType<typeof useAuth>['user'] }) 
 
         {/* Language */}
         <div className="flex flex-col gap-1">
-          <label className="text-sm font-medium text-gray-700 dark:text-gray-300">{t('settings.language')}</label>
+          <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+            {t('settings.language')}
+          </label>
           <div className="flex flex-wrap gap-2">
             {supportedLngs.map((lng) => (
               <button
@@ -345,7 +401,9 @@ function ProfileSection({ user }: { user: ReturnType<typeof useAuth>['user'] }) 
             {status === 'saving' ? t('settings.saving') : t('common.save')}
           </Button>
           {status === 'saved' && (
-            <span className="text-sm text-green-600 dark:text-green-400">✓ {t('settings.saved')}</span>
+            <span className="text-sm text-green-600 dark:text-green-400">
+              ✓ {t('settings.saved')}
+            </span>
           )}
         </div>
       </form>
@@ -356,11 +414,18 @@ function ProfileSection({ user }: { user: ReturnType<typeof useAuth>['user'] }) 
 // ──────────────────────────────────────────────
 // Preferences section
 // ──────────────────────────────────────────────
-function PreferencesSection({ i18n: _i18n }: { i18n: ReturnType<typeof useTranslation>['i18n'] }) {
+function PreferencesSection({
+  i18n: _i18n,
+}: {
+  i18n: ReturnType<typeof useTranslation>['i18n'];
+}) {
   const { t } = useTranslation();
   const { theme, setTheme } = useTheme();
   const [currency, setCurrency] = useState(
     () => localStorage.getItem(DEFAULT_CURRENCY_KEY) ?? 'UAH',
+  );
+  const [dateFormat, setDateFormat] = useState<DateFormatPreference>(() =>
+    getDateFormatPreference(),
   );
 
   const handleCurrencyChange = (c: string) => {
@@ -368,12 +433,19 @@ function PreferencesSection({ i18n: _i18n }: { i18n: ReturnType<typeof useTransl
     localStorage.setItem(DEFAULT_CURRENCY_KEY, c);
   };
 
+  const handleDateFormatChange = (f: DateFormatPreference) => {
+    setDateFormat(f);
+    setDateFormatPreference(f);
+  };
+
   return (
     <Section title={t('settings.preferences')}>
       <div className="space-y-4">
         {/* Theme */}
         <div className="flex flex-col gap-1">
-          <label className="text-sm font-medium text-gray-700 dark:text-gray-300">{t('settings.theme')}</label>
+          <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+            {t('settings.theme')}
+          </label>
           <div className="flex flex-wrap gap-2">
             {THEME_OPTIONS.map((opt) => (
               <button
@@ -391,7 +463,35 @@ function PreferencesSection({ i18n: _i18n }: { i18n: ReturnType<typeof useTransl
               </button>
             ))}
           </div>
-          <p className="text-xs text-gray-400 dark:text-gray-500">{t('settings.themeHint')}</p>
+          <p className="text-xs text-gray-400 dark:text-gray-500">
+            {t('settings.themeHint')}
+          </p>
+        </div>
+
+        {/* Date format (#275) */}
+        <div className="flex flex-col gap-1">
+          <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+            {t('settings.dateFormat')}
+          </label>
+          <div className="flex flex-wrap gap-2">
+            {DATE_FORMAT_OPTIONS.map((opt) => (
+              <button
+                key={opt}
+                type="button"
+                onClick={() => handleDateFormatChange(opt)}
+                className={`rounded-lg border px-3 py-1.5 text-sm transition-colors ${
+                  dateFormat === opt
+                    ? 'border-primary-500 bg-primary-50 font-medium text-primary-700 dark:border-primary-500 dark:bg-primary-900/40 dark:text-primary-300'
+                    : 'border-gray-200 text-gray-600 hover:border-gray-300 dark:border-gray-700 dark:text-gray-300 dark:hover:border-gray-600'
+                }`}
+              >
+                {opt === 'auto' ? t('settings.dateFormats.auto') : opt}
+              </button>
+            ))}
+          </div>
+          <p className="text-xs text-gray-400 dark:text-gray-500">
+            {t('settings.dateFormatPreview', { date: formatDate(new Date()) })}
+          </p>
         </div>
 
         <Select
@@ -399,10 +499,15 @@ function PreferencesSection({ i18n: _i18n }: { i18n: ReturnType<typeof useTransl
           value={currency}
           onChange={(e) => handleCurrencyChange(e.target.value)}
         >
-          {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
+          {CURRENCIES.map((c) => (
+            <option key={c} value={c}>
+              {c}
+            </option>
+          ))}
         </Select>
         <p className="text-xs text-gray-400 dark:text-gray-500">
-          {t('settings.defaultCurrency')} — used as base currency for multi-currency total on Accounts page.
+          {t('settings.defaultCurrency')} — used as base currency for
+          multi-currency total on Accounts page.
         </p>
 
         <RefreshRatesRow />
@@ -456,7 +561,8 @@ function RefreshRatesRow() {
         startCooldown();
         return;
       }
-      const message = err instanceof Error ? err.message : t('settings.refreshRatesError');
+      const message =
+        err instanceof Error ? err.message : t('settings.refreshRatesError');
       setStatus({ kind: 'error', message });
       // Auto-clear the error after a few seconds so the row doesn't stay red
       // forever, but don't lock the button — user can retry immediately.
@@ -466,7 +572,10 @@ function RefreshRatesRow() {
     }
   };
 
-  const disabled = status.kind === 'loading' || status.kind === 'success' || status.kind === 'cooldown';
+  const disabled =
+    status.kind === 'loading' ||
+    status.kind === 'success' ||
+    status.kind === 'cooldown';
 
   return (
     <div className="flex flex-col gap-2 border-t border-gray-100 pt-4">
@@ -475,8 +584,15 @@ function RefreshRatesRow() {
       </label>
       <p className="text-xs text-gray-400">{t('settings.refreshRatesDesc')}</p>
       <div className="flex items-center gap-3 pt-1">
-        <Button variant="secondary" size="sm" onClick={handleClick} disabled={disabled}>
-          {status.kind === 'loading' ? t('settings.saving') : t('settings.refreshRates')}
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={handleClick}
+          disabled={disabled}
+        >
+          {status.kind === 'loading'
+            ? t('settings.saving')
+            : t('settings.refreshRates')}
         </Button>
         {status.kind === 'success' && (
           <span className="text-sm text-green-600">
@@ -522,16 +638,24 @@ function DangerSection({
       await authApi.deleteAccount();
       await logout();
       navigate('/login');
-    } catch { setDeleting(false); }
+    } catch {
+      setDeleting(false);
+    }
   };
 
   return (
     <Section title={t('settings.account')}>
       <div className="space-y-3 rounded-xl border border-red-200 bg-red-50 p-4 dark:border-red-900/50 dark:bg-red-900/20">
-        <p className="text-sm text-red-700 dark:text-red-300">{t('settings.deleteWarning')}</p>
+        <p className="text-sm text-red-700 dark:text-red-300">
+          {t('settings.deleteWarning')}
+        </p>
 
         {!showConfirm ? (
-          <Button variant="danger" size="sm" onClick={() => setShowConfirm(true)}>
+          <Button
+            variant="danger"
+            size="sm"
+            onClick={() => setShowConfirm(true)}
+          >
             {t('settings.deleteAccount')}
           </Button>
         ) : (
@@ -544,7 +668,14 @@ function DangerSection({
               type="email"
             />
             <div className="flex gap-2">
-              <Button variant="secondary" size="sm" onClick={() => { setShowConfirm(false); setConfirmEmail(''); }}>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  setShowConfirm(false);
+                  setConfirmEmail('');
+                }}
+              >
                 {t('common.cancel')}
               </Button>
               <Button
@@ -563,10 +694,18 @@ function DangerSection({
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
   return (
     <div>
-      <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{title}</h2>
+      <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+        {title}
+      </h2>
       {children}
     </div>
   );

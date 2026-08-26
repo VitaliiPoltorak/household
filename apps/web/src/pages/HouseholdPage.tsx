@@ -9,6 +9,7 @@ import { Button } from '../components/ui/Button';
 import { Input, Select } from '../components/ui/Input';
 import { Modal } from '../components/ui/Modal';
 import { RoleBadge } from '../components/households/RoleBadge';
+import { formatDate } from '../lib/date-format';
 
 const ROLES: MemberRole[] = ['admin', 'member', 'viewer'];
 
@@ -175,7 +176,7 @@ export function HouseholdPage() {
                   <p className="text-xs capitalize text-gray-400 dark:text-gray-500">
                     {t(`household.roles.${inv.role}`)} ·{' '}
                     {t('household.expiresOn', {
-                      date: new Date(inv.expiresAt).toLocaleDateString(),
+                      date: formatDate(inv.expiresAt),
                     })}
                   </p>
                   {copiedInviteId === inv.id && (
