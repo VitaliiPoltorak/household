@@ -307,7 +307,8 @@
     },
     "expiresOn": "expires {{date}}",
     "copyLink": "Copy link",
-    "linkCopied": "Link copied!"
+    "linkCopied": "Link copied!",
+    "roleChangeForbidden": "You don't have permission to change this member's role."
   },
   "settings": {
     "title": "Settings",

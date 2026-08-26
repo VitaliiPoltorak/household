@@ -307,7 +307,8 @@
     },
     "expiresOn": "caduca el {{date}}",
     "copyLink": "Copiar enlace",
-    "linkCopied": "¡Enlace copiado!"
+    "linkCopied": "¡Enlace copiado!",
+    "roleChangeForbidden": "No tienes permiso para cambiar el rol de este miembro."
   },
   "settings": {
     "title": "Configuración",

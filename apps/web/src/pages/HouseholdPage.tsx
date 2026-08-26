@@ -2,8 +2,10 @@ import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useHousehold } from '../contexts/HouseholdContext';
+import { useAuth } from '../contexts/AuthContext';
 import { householdsApi } from '../api/households';
 import { authApi } from '../api/auth';
+import { ApiError } from '../api/client';
 import type { MemberRole, PublicUserProfile } from '../types/api';
 import { Button } from '../components/ui/Button';
 import { Input, Select } from '../components/ui/Input';
@@ -13,16 +15,33 @@ import { formatDate } from '../lib/date-format';
 
 const ROLES: MemberRole[] = ['admin', 'member', 'viewer'];
 
+// Mirrors the backend's ROLE_WEIGHT (member-role.enum.ts) — used here only
+// to decide whether to SHOW a role picker for a row; the backend remains
+// the actual authority (#280). A row this predicts as manageable can still
+// come back 403 for the peer-elevation rule (canGrant), which is why the
+// mutation's onError path exists too rather than relying on this alone.
+const ROLE_WEIGHT: Record<MemberRole, number> = {
+  owner: 4,
+  admin: 3,
+  member: 2,
+  viewer: 1,
+};
+
 export function HouseholdPage() {
   const { t } = useTranslation();
   const { activeHousehold, households, setActiveHousehold, refetch } =
     useHousehold();
+  const { user } = useAuth();
   const qc = useQueryClient();
   const hid = activeHousehold?.id ?? '';
 
   const [showInvite, setShowInvite] = useState(false);
   const [showRename, setShowRename] = useState(false);
   const [copiedInviteId, setCopiedInviteId] = useState<string | null>(null);
+  const [roleError, setRoleError] = useState<{
+    memberId: string;
+    message: string;
+  } | null>(null);
 
   const { data: members = [] } = useQuery({
     queryKey: ['members', hid],
@@ -59,6 +78,25 @@ export function HouseholdPage() {
     mutationFn: (memberId: string) =>
       householdsApi.removeMember(hid, memberId, hid),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['members', hid] }),
+  });
+
+  // No Kafka event exists for a role change (checked members.service.ts —
+  // only remove() emits household.member.removed), and HouseholdPage
+  // doesn't subscribe to socket entity events for the members list at all
+  // today (removeMember above doesn't either) — a query invalidation on the
+  // acting client is the consistent v1 here, not new realtime infra (#280).
+  const updateMemberRole = useMutation({
+    mutationFn: ({ memberId, role }: { memberId: string; role: MemberRole }) =>
+      householdsApi.updateMemberRole(hid, memberId, role, hid),
+    onSuccess: (_data, { memberId }) => {
+      qc.invalidateQueries({ queryKey: ['members', hid] });
+      setRoleError((e) => (e?.memberId === memberId ? null : e));
+    },
+    onError: (err: unknown, { memberId }) => {
+      if (err instanceof ApiError && err.status === 403) {
+        setRoleError({ memberId, message: t('household.roleChangeForbidden') });
+      }
+    },
   });
 
   const revokeInvite = useMutation({
@@ -101,6 +139,11 @@ export function HouseholdPage() {
     (i) => !i.acceptedAt && new Date(i.expiresAt) > new Date(),
   );
 
+  const callerRole = members.find((m) => m.userId === user?.id)?.role;
+  const canManageRole = (targetRole: MemberRole) =>
+    (callerRole === 'owner' || callerRole === 'admin') &&
+    ROLE_WEIGHT[callerRole] > ROLE_WEIGHT[targetRole];
+
   return (
     <div className="max-w-2xl space-y-8">
       {/* Header */}
@@ -136,11 +179,39 @@ export function HouseholdPage() {
                   <div className="min-w-0">
                     <p className="flex items-center gap-2 text-sm font-medium text-gray-900 dark:text-gray-100">
                       <span className="truncate">{displayName}</span>
-                      <RoleBadge role={m.role} />
+                      {canManageRole(m.role) ? (
+                        <select
+                          value={m.role}
+                          onChange={(e) =>
+                            updateMemberRole.mutate({
+                              memberId: m.id,
+                              role: e.target.value as MemberRole,
+                            })
+                          }
+                          disabled={
+                            updateMemberRole.isPending &&
+                            updateMemberRole.variables?.memberId === m.id
+                          }
+                          className="rounded-md border border-gray-300 bg-white px-1 py-0.5 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300"
+                        >
+                          {ROLES.map((r) => (
+                            <option key={r} value={r}>
+                              {t(`household.roles.${r}`)}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <RoleBadge role={m.role} />
+                      )}
                     </p>
                     <p className="font-mono text-xs text-gray-400 dark:text-gray-500">
                       {shortId(m.userId)}
                     </p>
+                    {roleError?.memberId === m.id && (
+                      <p className="text-xs text-red-600 dark:text-red-400">
+                        {roleError.message}
+                      </p>
+                    )}
                   </div>
                 </div>
                 {m.role !== 'owner' && (
