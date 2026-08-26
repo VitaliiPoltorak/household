@@ -18,6 +18,7 @@ import { Modal } from '../components/ui/Modal';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { PasteIcon } from '../components/brand/icons';
+import { formatDate } from '../lib/date-format';
 
 type StatusFilter = 'active' | 'completed' | 'archived';
 
@@ -326,7 +327,7 @@ export function ShoppingPage() {
                   {list.name}
                 </p>
                 <p className="mt-0.5 text-xs text-gray-400 dark:text-gray-500">
-                  {new Date(list.createdAt).toLocaleDateString()} ·{' '}
+                  {formatDate(list.createdAt)} ·{' '}
                   {t('shopping.itemCount', { count: list.items?.length ?? 0 })}
                 </p>
               </button>

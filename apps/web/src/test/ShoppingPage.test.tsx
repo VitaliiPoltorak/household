@@ -5,6 +5,7 @@ import { renderWithProviders } from './wrapper';
 import { ShoppingPage } from '../pages/ShoppingPage';
 import { server } from './setup';
 import i18n from '../i18n';
+import { formatDate } from '../lib/date-format';
 
 const MOCK_LIST = {
   id: 'list-1',
@@ -72,6 +73,27 @@ describe('ShoppingPage', () => {
       () => expect(screen.getByText('Weekly Groceries')).toBeInTheDocument(),
       { timeout: 3000 },
     );
+  });
+
+  it('renders the list creation date per the stored date-format preference (#275)', async () => {
+    localStorage.setItem('dateFormat', 'YYYY-MM-DD');
+    try {
+      server.use(
+        http.get('/api/v1/shopping-lists', () =>
+          HttpResponse.json([MOCK_LIST]),
+        ),
+      );
+
+      renderWithProviders(<ShoppingPage />);
+
+      expect(
+        await screen.findByText(new RegExp(formatDate(MOCK_LIST.createdAt))),
+      ).toBeInTheDocument();
+    } finally {
+      // This file has no global localStorage reset between tests — clean up
+      // explicitly so this preference doesn't leak into sibling tests.
+      localStorage.removeItem('dateFormat');
+    }
   });
 
   it('opens create list modal', async () => {
