@@ -254,7 +254,8 @@
       "greengrocer": "Frutería",
       "pharmacy": "Farmacia",
       "other": "Otro"
-    }
+    },
+    "itemNameTooShort": "El nombre del artículo debe tener al menos 3 caracteres"
   },
   "household": {
     "title": "Hogar",

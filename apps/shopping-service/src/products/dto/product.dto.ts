@@ -1,18 +1,23 @@
 import {
   IsArray,
-  IsNotEmpty,
   IsNumber,
   IsOptional,
   IsString,
   IsPositive,
   IsUrl,
+  MinLength,
 } from 'class-validator';
+import { Transform } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
+
+const trim = ({ value }: { value: unknown }) =>
+  typeof value === 'string' ? value.trim() : value;
 
 export class CreateProductDto {
   @ApiProperty()
   @IsString()
-  @IsNotEmpty()
+  @Transform(trim)
+  @MinLength(3)
   name: string;
 
   @ApiPropertyOptional()

@@ -254,7 +254,8 @@
       "greengrocer": "Obst- und Gemüsehändler",
       "pharmacy": "Apotheke",
       "other": "Sonstiges"
-    }
+    },
+    "itemNameTooShort": "Der Artikelname muss mindestens 3 Zeichen lang sein"
   },
   "household": {
     "title": "Haushalt",

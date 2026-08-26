@@ -6,7 +6,14 @@ import { useAuth } from '../contexts/AuthContext';
 import { useDebouncedValue } from '../hooks/useDebouncedValue';
 import { shoppingApi } from '../api/shopping';
 import { ApiError } from '../api/client';
-import type { ShoppingList, ShoppingListItem, Store, StoreType, StoreImpact, Product } from '../types/api';
+import type {
+  ShoppingList,
+  ShoppingListItem,
+  Store,
+  StoreType,
+  StoreImpact,
+  Product,
+} from '../types/api';
 import { Modal } from '../components/ui/Modal';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
@@ -46,7 +53,10 @@ export function ShoppingPage() {
     queryFn: () => shoppingApi.getStores(hid),
     enabled: !!hid,
   });
-  const storeById = useMemo(() => new Map(stores.map((s) => [s.id, s])), [stores]);
+  const storeById = useMemo(
+    () => new Map(stores.map((s) => [s.id, s])),
+    [stores],
+  );
 
   // Full catalog (no search filter) so item rows can show a linked product's
   // preview thumbnail (#197) without an extra round trip per item.
@@ -55,11 +65,15 @@ export function ShoppingPage() {
     queryFn: () => shoppingApi.getProducts(hid),
     enabled: !!hid,
   });
-  const productById = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
+  const productById = useMemo(
+    () => new Map(products.map((p) => [p.id, p])),
+    [products],
+  );
 
   const createList = useMutation({
     mutationFn: (name: string) => shoppingApi.createList(hid, uid, { name }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['shopping-lists', hid] }),
+    onSuccess: () =>
+      qc.invalidateQueries({ queryKey: ['shopping-lists', hid] }),
   });
 
   const completeList = useMutation({
@@ -79,11 +93,27 @@ export function ShoppingPage() {
   });
 
   const addItem = useMutation({
-    mutationFn: (
-      { listId, name, quantity, preferredStoreId, productId }:
-      { listId: string; name: string; quantity: number; preferredStoreId?: string; productId?: string },
-    ) => shoppingApi.addItem(listId, hid, uid, { name, quantity, preferredStoreId, productId }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['shopping-list', selectedList?.id] }),
+    mutationFn: ({
+      listId,
+      name,
+      quantity,
+      preferredStoreId,
+      productId,
+    }: {
+      listId: string;
+      name: string;
+      quantity: number;
+      preferredStoreId?: string;
+      productId?: string;
+    }) =>
+      shoppingApi.addItem(listId, hid, uid, {
+        name,
+        quantity,
+        preferredStoreId,
+        productId,
+      }),
+    onSuccess: () =>
+      qc.invalidateQueries({ queryKey: ['shopping-list', selectedList?.id] }),
   });
 
   // A link is attached to the Product, not the item instance (#197) — so
@@ -92,41 +122,75 @@ export function ShoppingPage() {
   // is added. Plain async function rather than a mutation: it's a one-off
   // multi-step orchestration, not a reusable server-state mutation.
   const addItemWithLink = async (
-    name: string, quantity: number, preferredStoreId: string | undefined,
-    productId: string | undefined, linkUrl: string | undefined,
+    name: string,
+    quantity: number,
+    preferredStoreId: string | undefined,
+    productId: string | undefined,
+    linkUrl: string | undefined,
   ) => {
     let finalProductId = productId;
     if (linkUrl) {
       if (productId) {
         await shoppingApi.updateProduct(productId, hid, { url: linkUrl });
       } else {
-        const created = await shoppingApi.createProduct(hid, uid, { name, url: linkUrl });
+        const created = await shoppingApi.createProduct(hid, uid, {
+          name,
+          url: linkUrl,
+        });
         finalProductId = created.id;
       }
       qc.invalidateQueries({ queryKey: ['products', hid] });
     }
-    addItem.mutate({ listId: selectedList!.id, name, quantity, preferredStoreId, productId: finalProductId });
+    addItem.mutate({
+      listId: selectedList!.id,
+      name,
+      quantity,
+      preferredStoreId,
+      productId: finalProductId,
+    });
   };
 
   const toggleItem = useMutation({
-    mutationFn: ({ listId, itemId, isPurchased }: { listId: string; itemId: string; isPurchased: boolean }) =>
-      shoppingApi.updateItem(listId, itemId, hid, uid, { isPurchased }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['shopping-list', selectedList?.id] }),
+    mutationFn: ({
+      listId,
+      itemId,
+      isPurchased,
+    }: {
+      listId: string;
+      itemId: string;
+      isPurchased: boolean;
+    }) => shoppingApi.updateItem(listId, itemId, hid, uid, { isPurchased }),
+    onSuccess: () =>
+      qc.invalidateQueries({ queryKey: ['shopping-list', selectedList?.id] }),
   });
 
   const setActualStore = useMutation({
-    mutationFn: ({ listId, itemId, actualStoreId }: { listId: string; itemId: string; actualStoreId: string }) =>
-      shoppingApi.updateItem(listId, itemId, hid, uid, { actualStoreId }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['shopping-list', selectedList?.id] }),
+    mutationFn: ({
+      listId,
+      itemId,
+      actualStoreId,
+    }: {
+      listId: string;
+      itemId: string;
+      actualStoreId: string;
+    }) => shoppingApi.updateItem(listId, itemId, hid, uid, { actualStoreId }),
+    onSuccess: () =>
+      qc.invalidateQueries({ queryKey: ['shopping-list', selectedList?.id] }),
   });
 
   const deleteItem = useMutation({
     mutationFn: ({ listId, itemId }: { listId: string; itemId: string }) =>
       shoppingApi.deleteItem(listId, itemId, hid),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['shopping-list', selectedList?.id] }),
+    onSuccess: () =>
+      qc.invalidateQueries({ queryKey: ['shopping-list', selectedList?.id] }),
   });
 
-  if (!activeHousehold) return <p className="text-gray-500 dark:text-gray-400">Select a household first.</p>;
+  if (!activeHousehold)
+    return (
+      <p className="text-gray-500 dark:text-gray-400">
+        Select a household first.
+      </p>
+    );
 
   const statuses: StatusFilter[] = ['active', 'completed', 'archived'];
 
@@ -135,10 +199,20 @@ export function ShoppingPage() {
       {/* Lists panel */}
       <div className="flex w-72 shrink-0 flex-col gap-4">
         <div className="flex items-center justify-between">
-          <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">{t('shopping.title')}</h1>
+          <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">
+            {t('shopping.title')}
+          </h1>
           <div className="flex gap-2">
-            <Button size="sm" variant="secondary" onClick={() => setShowStores(true)}>{t('shopping.manageStores')}</Button>
-            <Button size="sm" onClick={() => setShowCreate(true)}>{t('shopping.newList')}</Button>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => setShowStores(true)}
+            >
+              {t('shopping.manageStores')}
+            </Button>
+            <Button size="sm" onClick={() => setShowCreate(true)}>
+              {t('shopping.newList')}
+            </Button>
           </div>
         </div>
 
@@ -166,7 +240,9 @@ export function ShoppingPage() {
         {isLoading ? (
           <Spinner />
         ) : lists.length === 0 ? (
-          <p className="py-8 text-center text-sm text-gray-400 dark:text-gray-500">{t('shopping.emptyLists')}</p>
+          <p className="py-8 text-center text-sm text-gray-400 dark:text-gray-500">
+            {t('shopping.emptyLists')}
+          </p>
         ) : (
           <div className="space-y-2 overflow-y-auto">
             {lists.map((list) => (
@@ -179,7 +255,9 @@ export function ShoppingPage() {
                     : 'border-gray-200 bg-white hover:border-gray-300 dark:border-gray-800 dark:bg-gray-900 dark:hover:border-gray-700'
                 }`}
               >
-                <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{list.name}</p>
+                <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                  {list.name}
+                </p>
                 <p className="mt-0.5 text-xs text-gray-400 dark:text-gray-500">
                   {new Date(list.createdAt).toLocaleDateString()} ·{' '}
                   {list.items?.length ?? 0} items
@@ -206,14 +284,30 @@ export function ShoppingPage() {
             onComplete={() => completeList.mutate(selectedList.id)}
             onDelete={() => deleteList.mutate(selectedList.id)}
             onAddItem={(name, quantity, preferredStoreId, productId, linkUrl) =>
-              void addItemWithLink(name, quantity, preferredStoreId, productId, linkUrl)
+              void addItemWithLink(
+                name,
+                quantity,
+                preferredStoreId,
+                productId,
+                linkUrl,
+              )
             }
             onToggleItem={(itemId, isPurchased) =>
-              toggleItem.mutate({ listId: selectedList.id, itemId, isPurchased })
+              toggleItem.mutate({
+                listId: selectedList.id,
+                itemId,
+                isPurchased,
+              })
             }
-            onDeleteItem={(itemId) => deleteItem.mutate({ listId: selectedList.id, itemId })}
+            onDeleteItem={(itemId) =>
+              deleteItem.mutate({ listId: selectedList.id, itemId })
+            }
             onSetActualStore={(itemId, actualStoreId) =>
-              setActualStore.mutate({ listId: selectedList.id, itemId, actualStoreId })
+              setActualStore.mutate({
+                listId: selectedList.id,
+                itemId,
+                actualStoreId,
+              })
             }
           />
         )}
@@ -230,14 +324,29 @@ export function ShoppingPage() {
       )}
 
       {showStores && (
-        <StoreManagerModal stores={stores} hid={hid} uid={uid} onClose={() => setShowStores(false)} />
+        <StoreManagerModal
+          stores={stores}
+          hid={hid}
+          uid={uid}
+          onClose={() => setShowStores(false)}
+        />
       )}
     </div>
   );
 }
 
 function ListDetail({
-  list, hid, stores, storeById, productById, onComplete, onDelete, onAddItem, onToggleItem, onDeleteItem, onSetActualStore,
+  list,
+  hid,
+  stores,
+  storeById,
+  productById,
+  onComplete,
+  onDelete,
+  onAddItem,
+  onToggleItem,
+  onDeleteItem,
+  onSetActualStore,
 }: {
   list: ShoppingList;
   hid: string;
@@ -246,7 +355,13 @@ function ListDetail({
   productById: Map<string, Product>;
   onComplete: () => void;
   onDelete: () => void;
-  onAddItem: (name: string, qty: number, preferredStoreId?: string, productId?: string, linkUrl?: string) => void;
+  onAddItem: (
+    name: string,
+    qty: number,
+    preferredStoreId?: string,
+    productId?: string,
+    linkUrl?: string,
+  ) => void;
   onToggleItem: (itemId: string, purchased: boolean) => void;
   onDeleteItem: (itemId: string) => void;
   onSetActualStore: (itemId: string, storeId: string) => void;
@@ -274,16 +389,23 @@ function ListDetail({
   const selectSuggestion = (product: Product) => {
     setNewItem(product.name);
     setSelectedProductId(product.id);
-    if (product.preferredStoreId && !newItemStoreId) setNewItemStoreId(product.preferredStoreId);
+    if (product.preferredStoreId && !newItemStoreId)
+      setNewItemStoreId(product.preferredStoreId);
     setSuggestOpen(false);
   };
 
+  const itemNameTooShort =
+    newItem.trim().length > 0 && newItem.trim().length < 3;
+
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newItem.trim()) return;
+    if (newItem.trim().length < 3) return;
     onAddItem(
-      newItem.trim(), parseInt(qty) || 1, newItemStoreId || undefined,
-      selectedProductId || undefined, linkUrl.trim() || undefined,
+      newItem.trim(),
+      parseInt(qty) || 1,
+      newItemStoreId || undefined,
+      selectedProductId || undefined,
+      linkUrl.trim() || undefined,
     );
     setNewItem('');
     setQty('1');
@@ -298,14 +420,22 @@ function ListDetail({
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">{list.name}</h2>
-          <p className="text-sm text-gray-400 dark:text-gray-500">{purchased}/{total} {t('shopping.purchased')}</p>
+          <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">
+            {list.name}
+          </h2>
+          <p className="text-sm text-gray-400 dark:text-gray-500">
+            {purchased}/{total} {t('shopping.purchased')}
+          </p>
         </div>
         <div className="flex gap-2">
           {list.status === 'active' && (
-            <Button size="sm" onClick={onComplete}>{t('shopping.complete')}</Button>
+            <Button size="sm" onClick={onComplete}>
+              {t('shopping.complete')}
+            </Button>
           )}
-          <Button size="sm" variant="danger" onClick={onDelete}>{t('common.delete')}</Button>
+          <Button size="sm" variant="danger" onClick={onDelete}>
+            {t('common.delete')}
+          </Button>
         </div>
       </div>
 
@@ -348,11 +478,12 @@ function ListDetail({
                       className="flex w-full items-center justify-between px-3 py-2 text-left text-sm text-gray-900 hover:bg-gray-50 dark:text-gray-100 dark:hover:bg-gray-700"
                     >
                       <span>{p.name}</span>
-                      {p.preferredStoreId && storeById.get(p.preferredStoreId) && (
-                        <span className="text-xs text-gray-400 dark:text-gray-500">
-                          {storeById.get(p.preferredStoreId)!.name}
-                        </span>
-                      )}
+                      {p.preferredStoreId &&
+                        storeById.get(p.preferredStoreId) && (
+                          <span className="text-xs text-gray-400 dark:text-gray-500">
+                            {storeById.get(p.preferredStoreId)!.name}
+                          </span>
+                        )}
                     </button>
                   </li>
                 ))}
@@ -360,7 +491,10 @@ function ListDetail({
             )}
           </div>
           <input
-            type="number" min="1" value={qty} onChange={(e) => setQty(e.target.value)}
+            type="number"
+            min="1"
+            value={qty}
+            onChange={(e) => setQty(e.target.value)}
             className="w-16 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
             title={t('shopping.quantity')}
           />
@@ -372,7 +506,9 @@ function ListDetail({
           >
             <option value="">{t('shopping.noStore')}</option>
             {stores.map((s) => (
-              <option key={s.id} value={s.id}>{s.name}</option>
+              <option key={s.id} value={s.id}>
+                {s.name}
+              </option>
             ))}
           </select>
           <input
@@ -382,22 +518,39 @@ function ListDetail({
             placeholder={t('shopping.itemLink')}
             className="w-32 rounded-lg border border-gray-300 bg-white px-2 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500"
           />
-          <Button type="submit" size="sm">{t('shopping.addItem')}</Button>
+          <Button type="submit" size="sm" disabled={newItem.trim().length < 3}>
+            {t('shopping.addItem')}
+          </Button>
         </form>
+      )}
+      {itemNameTooShort && (
+        <p className="-mt-2 text-xs text-red-500 dark:text-red-400">
+          {t('shopping.itemNameTooShort')}
+        </p>
       )}
 
       {/* Items */}
       <div className="divide-y divide-gray-100 rounded-xl border border-gray-200 bg-white dark:divide-gray-800 dark:border-gray-800 dark:bg-gray-900">
         {(list.items ?? []).length === 0 ? (
-          <p className="py-8 text-center text-sm text-gray-400 dark:text-gray-500">No items yet.</p>
+          <p className="py-8 text-center text-sm text-gray-400 dark:text-gray-500">
+            No items yet.
+          </p>
         ) : (
           (list.items ?? []).map((item) => (
             <ItemRow
               key={item.id}
               item={item}
               isActive={list.status === 'active'}
-              store={item.preferredStoreId ? storeById.get(item.preferredStoreId) ?? null : null}
-              product={item.productId ? productById.get(item.productId) ?? null : null}
+              store={
+                item.preferredStoreId
+                  ? (storeById.get(item.preferredStoreId) ?? null)
+                  : null
+              }
+              product={
+                item.productId
+                  ? (productById.get(item.productId) ?? null)
+                  : null
+              }
               stores={stores}
               onToggle={() => onToggleItem(item.id, !item.isPurchased)}
               onDelete={() => onDeleteItem(item.id)}
@@ -411,7 +564,14 @@ function ListDetail({
 }
 
 function ItemRow({
-  item, isActive, store, product, stores, onToggle, onDelete, onSetActualStore,
+  item,
+  isActive,
+  store,
+  product,
+  stores,
+  onToggle,
+  onDelete,
+  onSetActualStore,
 }: {
   item: ShoppingListItem;
   isActive: boolean;
@@ -433,14 +593,21 @@ function ItemRow({
           className="h-4 w-4 rounded border-gray-300 text-primary-600 dark:border-gray-600 dark:bg-gray-800"
         />
       )}
-      {product?.url && (
-        product.imageUrl ? (
-          <a href={product.url} target="_blank" rel="noopener noreferrer" title={product.previewTitle ?? product.url}>
+      {product?.url &&
+        (product.imageUrl ? (
+          <a
+            href={product.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            title={product.previewTitle ?? product.url}
+          >
             <img
               src={product.imageUrl}
               alt=""
               className="h-8 w-8 shrink-0 rounded object-cover"
-              onError={(e) => { e.currentTarget.style.display = 'none'; }}
+              onError={(e) => {
+                e.currentTarget.style.display = 'none';
+              }}
             />
           </a>
         ) : (
@@ -453,8 +620,7 @@ function ItemRow({
           >
             🔗
           </a>
-        )
-      )}
+        ))}
       <span
         className={`flex-1 text-sm ${
           item.isPurchased
@@ -463,7 +629,11 @@ function ItemRow({
         }`}
       >
         {item.name}
-        {item.quantity > 1 && <span className="ml-1 text-gray-400 dark:text-gray-500">×{item.quantity}</span>}
+        {item.quantity > 1 && (
+          <span className="ml-1 text-gray-400 dark:text-gray-500">
+            ×{item.quantity}
+          </span>
+        )}
         {store && (
           <span className="ml-2 rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500 dark:bg-gray-800 dark:text-gray-400">
             {store.name}
@@ -479,29 +649,61 @@ function ItemRow({
         >
           <option value="">{t('shopping.boughtAt')}</option>
           {stores.map((s) => (
-            <option key={s.id} value={s.id}>{s.name}</option>
+            <option key={s.id} value={s.id}>
+              {s.name}
+            </option>
           ))}
         </select>
       )}
       {isActive && (
-        <button onClick={onDelete} className="text-sm text-gray-300 hover:text-red-400 dark:text-gray-600 dark:hover:text-red-400">✕</button>
+        <button
+          onClick={onDelete}
+          className="text-sm text-gray-300 hover:text-red-400 dark:text-gray-600 dark:hover:text-red-400"
+        >
+          ✕
+        </button>
       )}
     </div>
   );
 }
 
-function CreateListModal({ onClose, onCreate }: { onClose: () => void; onCreate: (name: string) => void }) {
+function CreateListModal({
+  onClose,
+  onCreate,
+}: {
+  onClose: () => void;
+  onCreate: (name: string) => void;
+}) {
   const { t } = useTranslation();
   const [name, setName] = useState('');
   return (
     <Modal title={t('shopping.newListTitle')} onClose={onClose}>
-      <form onSubmit={(e) => { e.preventDefault(); if (name.trim()) onCreate(name.trim()); }}
-        className="space-y-4">
-        <Input label={t('shopping.listName')} value={name} onChange={(e) => setName(e.target.value)}
-          placeholder="e.g. Weekly groceries" autoFocus />
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (name.trim()) onCreate(name.trim());
+        }}
+        className="space-y-4"
+      >
+        <Input
+          label={t('shopping.listName')}
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="e.g. Weekly groceries"
+          autoFocus
+        />
         <div className="flex gap-2">
-          <Button type="button" variant="secondary" className="flex-1" onClick={onClose}>{t('common.cancel')}</Button>
-          <Button type="submit" className="flex-1" disabled={!name.trim()}>{t('common.create')}</Button>
+          <Button
+            type="button"
+            variant="secondary"
+            className="flex-1"
+            onClick={onClose}
+          >
+            {t('common.cancel')}
+          </Button>
+          <Button type="submit" className="flex-1" disabled={!name.trim()}>
+            {t('common.create')}
+          </Button>
         </div>
       </form>
     </Modal>
@@ -509,7 +711,10 @@ function CreateListModal({ onClose, onCreate }: { onClose: () => void; onCreate:
 }
 
 function StoreManagerModal({
-  stores, hid, uid, onClose,
+  stores,
+  hid,
+  uid,
+  onClose,
 }: {
   stores: Store[];
   hid: string;
@@ -520,10 +725,14 @@ function StoreManagerModal({
   const qc = useQueryClient();
   const [name, setName] = useState('');
   const [type, setType] = useState<StoreType>('other');
-  const [blocked, setBlocked] = useState<{ id: string; impact: StoreImpact } | null>(null);
+  const [blocked, setBlocked] = useState<{
+    id: string;
+    impact: StoreImpact;
+  } | null>(null);
 
   const createStore = useMutation({
-    mutationFn: (data: { name: string; type: StoreType }) => shoppingApi.createStore(hid, uid, data),
+    mutationFn: (data: { name: string; type: StoreType }) =>
+      shoppingApi.createStore(hid, uid, data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['stores', hid] });
       setName('');
@@ -538,7 +747,11 @@ function StoreManagerModal({
       setBlocked((b) => (b?.id === id ? null : b));
     },
     onError: (err: unknown, id) => {
-      if (err instanceof ApiError && err.status === 409 && err.data?.['impact']) {
+      if (
+        err instanceof ApiError &&
+        err.status === 409 &&
+        err.data?.['impact']
+      ) {
         setBlocked({ id, impact: err.data['impact'] as StoreImpact });
       }
     },
@@ -564,32 +777,51 @@ function StoreManagerModal({
           onChange={(e) => setType(e.target.value as StoreType)}
           className="rounded-lg border border-gray-300 bg-white px-2 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
         >
-          <option value="supermarket">{t('shopping.storeTypes.supermarket')}</option>
-          <option value="greengrocer">{t('shopping.storeTypes.greengrocer')}</option>
+          <option value="supermarket">
+            {t('shopping.storeTypes.supermarket')}
+          </option>
+          <option value="greengrocer">
+            {t('shopping.storeTypes.greengrocer')}
+          </option>
           <option value="pharmacy">{t('shopping.storeTypes.pharmacy')}</option>
           <option value="other">{t('shopping.storeTypes.other')}</option>
         </select>
-        <Button type="submit" size="sm" disabled={!name.trim() || createStore.isPending}>
+        <Button
+          type="submit"
+          size="sm"
+          disabled={!name.trim() || createStore.isPending}
+        >
           {t('shopping.newStore')}
         </Button>
       </form>
 
       {stores.length === 0 ? (
-        <p className="py-4 text-center text-sm text-gray-400 dark:text-gray-500">{t('shopping.noStores')}</p>
+        <p className="py-4 text-center text-sm text-gray-400 dark:text-gray-500">
+          {t('shopping.noStores')}
+        </p>
       ) : (
         <ul className="space-y-2">
           {stores.map((s) => (
-            <li key={s.id} className="rounded-lg border border-gray-200 p-3 dark:border-gray-800">
+            <li
+              key={s.id}
+              className="rounded-lg border border-gray-200 p-3 dark:border-gray-800"
+            >
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{s.name}</p>
-                  <p className="text-xs text-gray-400 dark:text-gray-500">{t(`shopping.storeTypes.${s.type}`)}</p>
+                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                    {s.name}
+                  </p>
+                  <p className="text-xs text-gray-400 dark:text-gray-500">
+                    {t(`shopping.storeTypes.${s.type}`)}
+                  </p>
                 </div>
                 <Button
                   size="sm"
                   variant="danger"
                   onClick={() => deleteStore.mutate(s.id)}
-                  disabled={deleteStore.isPending && deleteStore.variables === s.id}
+                  disabled={
+                    deleteStore.isPending && deleteStore.variables === s.id
+                  }
                 >
                   {t('common.delete')}
                 </Button>
@@ -612,5 +844,7 @@ function StoreManagerModal({
 }
 
 function Spinner() {
-  return <div className="h-6 w-6 animate-spin rounded-full border-4 border-primary-500 border-t-transparent" />;
+  return (
+    <div className="h-6 w-6 animate-spin rounded-full border-4 border-primary-500 border-t-transparent" />
+  );
 }

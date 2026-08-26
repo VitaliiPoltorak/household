@@ -255,7 +255,8 @@
       "greengrocer": "Овочева крамниця",
       "pharmacy": "Аптека",
       "other": "Інше"
-    }
+    },
+    "itemNameTooShort": "Назва товару має містити щонайменше 3 символи"
   },
   "household": {
     "title": "Дім",
