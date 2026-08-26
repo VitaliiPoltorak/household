@@ -211,7 +211,7 @@ describe('ShoppingPage', () => {
     ).toBeInTheDocument();
   });
 
-  it('creates a store from the store manager modal', async () => {
+  it('creates a store from the always-visible stores column (#272)', async () => {
     let stores: (typeof MOCK_STORE)[] = [];
     server.use(
       http.get('/api/v1/stores', () => HttpResponse.json(stores)),
@@ -224,16 +224,47 @@ describe('ShoppingPage', () => {
     );
 
     renderWithProviders(<ShoppingPage />);
-    await waitFor(() => screen.getByText('Manage stores'), { timeout: 3000 });
-    await userEvent.click(screen.getByText('Manage stores'));
+    await waitFor(
+      () => expect(screen.getByText('Stores')).toBeInTheDocument(),
+      {
+        timeout: 3000,
+      },
+    );
+    expect(screen.queryByText('Manage stores')).not.toBeInTheDocument();
 
-    expect(screen.getByText('Stores')).toBeInTheDocument();
     await userEvent.type(screen.getByPlaceholderText('Store name'), 'Novus');
     await userEvent.click(screen.getByRole('button', { name: '+ Add store' }));
 
     await waitFor(() => expect(screen.getByText('Novus')).toBeInTheDocument(), {
       timeout: 3000,
     });
+  });
+
+  it('groups stores by type with a subheader per type (#272)', async () => {
+    const pharmacy = {
+      ...MOCK_STORE,
+      id: 'store-2',
+      name: 'ANC Pharmacy',
+      type: 'pharmacy' as const,
+    };
+    server.use(
+      http.get('/api/v1/stores', () =>
+        HttpResponse.json([MOCK_STORE, pharmacy]),
+      ),
+    );
+
+    renderWithProviders(<ShoppingPage />);
+    await waitFor(() => expect(screen.getByText('Silpo')).toBeInTheDocument(), {
+      timeout: 3000,
+    });
+
+    expect(screen.getByText('ANC Pharmacy')).toBeInTheDocument();
+    // Scoped to <p> — the create-store form's type <select> has matching
+    // <option>Supermarket</option>/<option>Pharmacy</option> text too.
+    expect(
+      screen.getByText('Supermarket', { selector: 'p' }),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Pharmacy', { selector: 'p' })).toBeInTheDocument();
   });
 
   it('shows the impact message when deleting a referenced store is blocked', async () => {
@@ -251,9 +282,6 @@ describe('ShoppingPage', () => {
     );
 
     renderWithProviders(<ShoppingPage />);
-    await waitFor(() => screen.getByText('Manage stores'), { timeout: 3000 });
-    await userEvent.click(screen.getByText('Manage stores'));
-
     await waitFor(() => screen.getByText('Silpo'), { timeout: 3000 });
     await userEvent.click(screen.getByRole('button', { name: 'Delete' }));
 
@@ -802,10 +830,11 @@ describe('ShoppingPage', () => {
       await userEvent.click(screen.getByText('Weekly Groceries'));
       await waitFor(() => screen.getByText('Milk'), { timeout: 3000 });
 
-      // Scoped to <p> — each item row also has a preferred-store <select>
-      // (#270) whose <option>s and a read-only pill both render the same
-      // store names as plain text elsewhere in the row.
-      const headers = screen
+      // Scoped to the item-groups container specifically — each item row
+      // also has a preferred-store <select> (#270) whose <option>s and a
+      // read-only pill render the same store names, and the always-visible
+      // stores column (#272) renders each store's own name too.
+      const headers = within(screen.getByTestId('shopping-item-groups'))
         .getAllByText(/^(ATB|Silpo|No store)$/, { selector: 'p' })
         .map((el) => el.textContent);
       expect(headers).toEqual(['ATB', 'Silpo', 'No store']);

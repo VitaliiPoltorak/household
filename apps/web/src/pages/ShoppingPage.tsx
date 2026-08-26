@@ -32,7 +32,6 @@ export function ShoppingPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('active');
   const [selectedList, setSelectedList] = useState<ShoppingList | null>(null);
   const [showCreate, setShowCreate] = useState(false);
-  const [showStores, setShowStores] = useState(false);
   const [showRename, setShowRename] = useState(false);
 
   const { data: lists = [], isLoading } = useQuery({
@@ -272,25 +271,16 @@ export function ShoppingPage() {
   const statuses: StatusFilter[] = ['active', 'completed', 'archived'];
 
   return (
-    <div className="flex h-full gap-6">
+    <div className="flex h-full flex-col gap-6 lg:flex-row">
       {/* Lists panel */}
-      <div className="flex w-72 shrink-0 flex-col gap-4">
+      <div className="flex w-full shrink-0 flex-col gap-4 lg:w-72">
         <div className="flex items-center justify-between">
           <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">
             {t('shopping.title')}
           </h1>
-          <div className="flex gap-2">
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={() => setShowStores(true)}
-            >
-              {t('shopping.manageStores')}
-            </Button>
-            <Button size="sm" onClick={() => setShowCreate(true)}>
-              {t('shopping.newList')}
-            </Button>
-          </div>
+          <Button size="sm" onClick={() => setShowCreate(true)}>
+            {t('shopping.newList')}
+          </Button>
         </div>
 
         {/* Status tabs */}
@@ -346,7 +336,7 @@ export function ShoppingPage() {
       </div>
 
       {/* Detail panel */}
-      <div className="flex-1">
+      <div className="min-w-0 flex-1">
         {!selectedList ? (
           <div className="flex h-full items-center justify-center text-gray-400 dark:text-gray-500">
             <p>{t('shopping.selectListPrompt')}</p>
@@ -405,6 +395,13 @@ export function ShoppingPage() {
         )}
       </div>
 
+      {/* Stores panel (#272) — was a "Manage stores" modal, now always
+          visible since stores are used often enough (assigning to items,
+          #270; grouping, #271) to earn a permanent column. */}
+      <div className="w-full shrink-0 lg:w-64">
+        <StoresColumn stores={stores} hid={hid} uid={uid} />
+      </div>
+
       {showCreate && (
         <CreateListModal
           onClose={() => setShowCreate(false)}
@@ -412,15 +409,6 @@ export function ShoppingPage() {
             createList.mutate(name);
             setShowCreate(false);
           }}
-        />
-      )}
-
-      {showStores && (
-        <StoreManagerModal
-          stores={stores}
-          hid={hid}
-          uid={uid}
-          onClose={() => setShowStores(false)}
         />
       )}
 
@@ -730,7 +718,7 @@ function ListDetail({
           </p>
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-4" data-testid="shopping-item-groups">
           {itemGroups.map(({ store, items }) => (
             <div key={store?.id ?? 'no-store'}>
               {showGroupHeaders && (
@@ -1153,16 +1141,21 @@ function RenameListModal({
   );
 }
 
-function StoreManagerModal({
+const STORE_TYPE_ORDER: StoreType[] = [
+  'supermarket',
+  'greengrocer',
+  'pharmacy',
+  'other',
+];
+
+function StoresColumn({
   stores,
   hid,
   uid,
-  onClose,
 }: {
   stores: Store[];
   hid: string;
   uid: string;
-  onClose: () => void;
 }) {
   const { t } = useTranslation();
   const qc = useQueryClient();
@@ -1200,42 +1193,60 @@ function StoreManagerModal({
     },
   });
 
+  // Same "group + subheader per bucket" idea as #271, applied to the store
+  // list itself rather than shopping-list items. Fixed canonical order
+  // (matches the create-form <select>'s option order) rather than
+  // alphabetical-by-translated-label, since these are enum categories, not
+  // free-text names. Only types with at least one store get a group.
+  const groupedStores = STORE_TYPE_ORDER.map((t2) => ({
+    type: t2,
+    stores: stores.filter((s) => s.type === t2),
+  })).filter((g) => g.stores.length > 0);
+
   return (
-    <Modal title={t('shopping.storesTitle')} onClose={onClose}>
+    <div className="flex flex-col gap-4">
+      <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">
+        {t('shopping.storesTitle')}
+      </h2>
+
       <form
         onSubmit={(e) => {
           e.preventDefault();
           if (name.trim()) createStore.mutate({ name: name.trim(), type });
         }}
-        className="mb-4 flex gap-2"
+        className="flex flex-col gap-2"
       >
         <input
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder={t('shopping.storeName')}
-          className="flex-1 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500"
+          className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500"
         />
-        <select
-          value={type}
-          onChange={(e) => setType(e.target.value as StoreType)}
-          className="rounded-lg border border-gray-300 bg-white px-2 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
-        >
-          <option value="supermarket">
-            {t('shopping.storeTypes.supermarket')}
-          </option>
-          <option value="greengrocer">
-            {t('shopping.storeTypes.greengrocer')}
-          </option>
-          <option value="pharmacy">{t('shopping.storeTypes.pharmacy')}</option>
-          <option value="other">{t('shopping.storeTypes.other')}</option>
-        </select>
-        <Button
-          type="submit"
-          size="sm"
-          disabled={!name.trim() || createStore.isPending}
-        >
-          {t('shopping.newStore')}
-        </Button>
+        <div className="flex gap-2">
+          <select
+            value={type}
+            onChange={(e) => setType(e.target.value as StoreType)}
+            className="flex-1 rounded-lg border border-gray-300 bg-white px-2 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+          >
+            <option value="supermarket">
+              {t('shopping.storeTypes.supermarket')}
+            </option>
+            <option value="greengrocer">
+              {t('shopping.storeTypes.greengrocer')}
+            </option>
+            <option value="pharmacy">
+              {t('shopping.storeTypes.pharmacy')}
+            </option>
+            <option value="other">{t('shopping.storeTypes.other')}</option>
+          </select>
+          <Button
+            type="submit"
+            size="sm"
+            disabled={!name.trim() || createStore.isPending}
+          >
+            {t('shopping.newStore')}
+          </Button>
+        </div>
       </form>
 
       {stores.length === 0 ? (
@@ -1243,46 +1254,51 @@ function StoreManagerModal({
           {t('shopping.noStores')}
         </p>
       ) : (
-        <ul className="space-y-2">
-          {stores.map((s) => (
-            <li
-              key={s.id}
-              className="rounded-lg border border-gray-200 p-3 dark:border-gray-800"
-            >
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                    {s.name}
-                  </p>
-                  <p className="text-xs text-gray-400 dark:text-gray-500">
-                    {t(`shopping.storeTypes.${s.type}`)}
-                  </p>
-                </div>
-                <Button
-                  size="sm"
-                  variant="danger"
-                  onClick={() => deleteStore.mutate(s.id)}
-                  disabled={
-                    deleteStore.isPending && deleteStore.variables === s.id
-                  }
-                >
-                  {t('common.delete')}
-                </Button>
-              </div>
-              {blocked?.id === s.id && (
-                <p className="mt-2 text-xs text-red-600 dark:text-red-400">
-                  {t('shopping.cannotDeleteStore', {
-                    products: blocked.impact.products,
-                    lists: blocked.impact.lists,
-                    items: blocked.impact.items,
-                  })}
-                </p>
-              )}
-            </li>
+        <div className="space-y-4">
+          {groupedStores.map(({ type: groupType, stores: groupStores }) => (
+            <div key={groupType}>
+              <p className="mb-1 px-1 text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
+                {t(`shopping.storeTypes.${groupType}`)}
+              </p>
+              <ul className="space-y-2">
+                {groupStores.map((s) => (
+                  <li
+                    key={s.id}
+                    className="rounded-lg border border-gray-200 p-3 dark:border-gray-800"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="min-w-0 truncate text-sm font-medium text-gray-900 dark:text-gray-100">
+                        {s.name}
+                      </p>
+                      <Button
+                        size="sm"
+                        variant="danger"
+                        onClick={() => deleteStore.mutate(s.id)}
+                        disabled={
+                          deleteStore.isPending &&
+                          deleteStore.variables === s.id
+                        }
+                      >
+                        {t('common.delete')}
+                      </Button>
+                    </div>
+                    {blocked?.id === s.id && (
+                      <p className="mt-2 text-xs text-red-600 dark:text-red-400">
+                        {t('shopping.cannotDeleteStore', {
+                          products: blocked.impact.products,
+                          lists: blocked.impact.lists,
+                          items: blocked.impact.items,
+                        })}
+                      </p>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
           ))}
-        </ul>
+        </div>
       )}
-    </Modal>
+    </div>
   );
 }
 
