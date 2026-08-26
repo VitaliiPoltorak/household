@@ -498,6 +498,38 @@ function ListDetail({
   const purchased = list.items?.filter((i) => i.isPurchased).length ?? 0;
   const total = list.items?.length ?? 0;
 
+  // Group by preferred store so a list can be shopped store-by-store (#271).
+  // Keyed by the resolved Store's id (not the raw preferredStoreId) so an
+  // item with no store and an item whose store was since deleted both land
+  // in the same "no store" bucket instead of two separate empty-looking
+  // groups. Sorted alphabetically by store name, "no store" last; headers
+  // are only shown once there's actually something to distinguish (more
+  // than one group, or the single group has a real store) — otherwise this
+  // is a flat list exactly like before.
+  const itemGroups = (() => {
+    const groups = new Map<
+      string,
+      { store: Store | null; items: ShoppingListItem[] }
+    >();
+    for (const item of list.items ?? []) {
+      const itemStore = item.preferredStoreId
+        ? (storeById.get(item.preferredStoreId) ?? null)
+        : null;
+      const key = itemStore ? itemStore.id : '';
+      if (!groups.has(key)) groups.set(key, { store: itemStore, items: [] });
+      groups.get(key)!.items.push(item);
+    }
+    return Array.from(groups.values()).sort((a, b) => {
+      if (!a.store && !b.store) return 0;
+      if (!a.store) return 1;
+      if (!b.store) return -1;
+      return a.store.name.localeCompare(b.store.name);
+    });
+  })();
+  const showGroupHeaders =
+    itemGroups.length > 1 ||
+    (itemGroups.length === 1 && itemGroups[0].store !== null);
+
   // Debounced so typing a product name doesn't fire a search request per
   // keystroke (#196).
   const debouncedQuery = useDebouncedValue(newItem.trim(), 200);
@@ -691,39 +723,50 @@ function ListDetail({
       )}
 
       {/* Items */}
-      <div className="divide-y divide-gray-100 rounded-xl border border-gray-200 bg-white dark:divide-gray-800 dark:border-gray-800 dark:bg-gray-900">
-        {(list.items ?? []).length === 0 ? (
+      {(list.items ?? []).length === 0 ? (
+        <div className="rounded-xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
           <p className="py-8 text-center text-sm text-gray-400 dark:text-gray-500">
             {t('shopping.noItemsYet')}
           </p>
-        ) : (
-          (list.items ?? []).map((item) => (
-            <ItemRow
-              key={item.id}
-              item={item}
-              isActive={list.status === 'active'}
-              store={
-                item.preferredStoreId
-                  ? (storeById.get(item.preferredStoreId) ?? null)
-                  : null
-              }
-              product={
-                item.productId
-                  ? (productById.get(item.productId) ?? null)
-                  : null
-              }
-              stores={stores}
-              onToggle={() => onToggleItem(item.id, !item.isPurchased)}
-              onDelete={() => onDeleteItem(item.id)}
-              onSetActualStore={(storeId) => onSetActualStore(item.id, storeId)}
-              onSetPreferredStore={(storeId) =>
-                onSetPreferredStore(item.id, storeId)
-              }
-              onEditLink={() => setEditingLinkItem(item)}
-            />
-          ))
-        )}
-      </div>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {itemGroups.map(({ store, items }) => (
+            <div key={store?.id ?? 'no-store'}>
+              {showGroupHeaders && (
+                <p className="mb-1 px-1 text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
+                  {store?.name ?? t('shopping.noStore')}
+                </p>
+              )}
+              <div className="divide-y divide-gray-100 rounded-xl border border-gray-200 bg-white dark:divide-gray-800 dark:border-gray-800 dark:bg-gray-900">
+                {items.map((item) => (
+                  <ItemRow
+                    key={item.id}
+                    item={item}
+                    isActive={list.status === 'active'}
+                    store={store}
+                    product={
+                      item.productId
+                        ? (productById.get(item.productId) ?? null)
+                        : null
+                    }
+                    stores={stores}
+                    onToggle={() => onToggleItem(item.id, !item.isPurchased)}
+                    onDelete={() => onDeleteItem(item.id)}
+                    onSetActualStore={(storeId) =>
+                      onSetActualStore(item.id, storeId)
+                    }
+                    onSetPreferredStore={(storeId) =>
+                      onSetPreferredStore(item.id, storeId)
+                    }
+                    onEditLink={() => setEditingLinkItem(item)}
+                  />
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {editingLinkItem && (
         <EditLinkModal
