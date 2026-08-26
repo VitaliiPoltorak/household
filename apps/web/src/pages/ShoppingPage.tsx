@@ -17,6 +17,7 @@ import type {
 import { Modal } from '../components/ui/Modal';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
+import { PasteIcon } from '../components/brand/icons';
 
 type StatusFilter = 'active' | 'completed' | 'archived';
 
@@ -520,13 +521,15 @@ function ListDetail({
 
       {list.status === 'active' && (
         <div className="-mb-2 flex justify-end">
-          <button
+          <Button
             type="button"
+            size="sm"
+            variant={showBulkAdd ? 'primary' : 'secondary'}
             onClick={() => setShowBulkAdd((v) => !v)}
-            className="text-xs text-primary-600 hover:underline dark:text-primary-400"
           >
+            <PasteIcon className="h-4 w-4" />
             {showBulkAdd ? t('shopping.singleAdd') : t('shopping.bulkAdd')}
-          </button>
+          </Button>
         </div>
       )}
 

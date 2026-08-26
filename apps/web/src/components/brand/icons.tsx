@@ -148,6 +148,24 @@ export function RecurringIcon({ className }: IconProps) {
   );
 }
 
+/** Bulk-add-items toggle: a small clipboard with lines, i.e. "paste a list". */
+export function PasteIcon({ className }: IconProps) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className={className}
+      aria-hidden="true"
+      {...shared}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <rect x="6" y="4.5" width="12" height="16" rx="1.8" />
+      <path d="M9.5 3.5h5a.8.8 0 0 1 .8.8v1.2a.8.8 0 0 1-.8.8h-5a.8.8 0 0 1-.8-.8V4.3a.8.8 0 0 1 .8-.8z" />
+      <path d="M9 11h6M9 14.3h6M9 17.6h3.5" />
+    </svg>
+  );
+}
+
 /** Sidebar nav icon: pending invites (envelope). */
 export function InviteIcon({ className }: IconProps) {
   return (
