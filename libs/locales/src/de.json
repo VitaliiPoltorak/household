@@ -257,7 +257,12 @@
     },
     "itemNameTooShort": "Der Artikelname muss mindestens 3 Zeichen lang sein",
     "archive": "Archivieren",
-    "rename": "Umbenennen"
+    "rename": "Umbenennen",
+    "bulkAdd": "Mehrere Artikel einfügen",
+    "singleAdd": "Einzeln hinzufügen",
+    "bulkAddPlaceholder": "Milch, Eier, Brot\noder ein Artikel pro Zeile",
+    "addNItems": "{{count}} Artikel hinzufügen",
+    "addNItems_other": "{{count}} Artikel hinzufügen"
   },
   "household": {
     "title": "Haushalt",

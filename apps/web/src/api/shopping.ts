@@ -1,5 +1,11 @@
 import { api } from './client';
-import type { Store, StoreImpact, Product, ShoppingList, ShoppingListItem } from '../types/api';
+import type {
+  Store,
+  StoreImpact,
+  Product,
+  ShoppingList,
+  ShoppingListItem,
+} from '../types/api';
 
 const cfg = (hid: string) => ({ headers: { 'X-Household-Id': hid } });
 const ctx = (hid: string, uid: string) => ({
@@ -16,14 +22,18 @@ export const shoppingApi = {
   updateStore: (id: string, hid: string, data: object) =>
     api.patch<Store>(`/stores/${id}`, data, cfg(hid)),
 
-  deleteStore: (id: string, hid: string) => api.delete(`/stores/${id}`, cfg(hid)),
+  deleteStore: (id: string, hid: string) =>
+    api.delete(`/stores/${id}`, cfg(hid)),
 
   getStoreImpact: (id: string, hid: string) =>
     api.get<StoreImpact>(`/stores/${id}/impact`, cfg(hid)),
 
   // Products
   getProducts: (hid: string, search?: string, storeId?: string) =>
-    api.get<Product[]>('/products', { ...cfg(hid), params: { search, storeId } }),
+    api.get<Product[]>('/products', {
+      ...cfg(hid),
+      params: { search, storeId },
+    }),
 
   createProduct: (hid: string, uid: string, data: object) =>
     api.post<Product>('/products', data, ctx(hid, uid)),
@@ -31,11 +41,15 @@ export const shoppingApi = {
   updateProduct: (id: string, hid: string, data: object) =>
     api.patch<Product>(`/products/${id}`, data, cfg(hid)),
 
-  deleteProduct: (id: string, hid: string) => api.delete(`/products/${id}`, cfg(hid)),
+  deleteProduct: (id: string, hid: string) =>
+    api.delete(`/products/${id}`, cfg(hid)),
 
   // Shopping lists
   getLists: (hid: string, status?: string) =>
-    api.get<ShoppingList[]>('/shopping-lists', { ...cfg(hid), params: status ? { status } : undefined }),
+    api.get<ShoppingList[]>('/shopping-lists', {
+      ...cfg(hid),
+      params: status ? { status } : undefined,
+    }),
 
   getList: (id: string, hid: string) =>
     api.get<ShoppingList>(`/shopping-lists/${id}`, cfg(hid)),
@@ -54,10 +68,36 @@ export const shoppingApi = {
 
   // Items
   addItem: (listId: string, hid: string, uid: string, data: object) =>
-    api.post<ShoppingListItem>(`/shopping-lists/${listId}/items`, data, ctx(hid, uid)),
+    api.post<ShoppingListItem>(
+      `/shopping-lists/${listId}/items`,
+      data,
+      ctx(hid, uid),
+    ),
 
-  updateItem: (listId: string, itemId: string, hid: string, uid: string, data: object) =>
-    api.patch<ShoppingListItem>(`/shopping-lists/${listId}/items/${itemId}`, data, ctx(hid, uid)),
+  bulkAddItems: (
+    listId: string,
+    hid: string,
+    uid: string,
+    items: { name: string }[],
+  ) =>
+    api.post<ShoppingListItem[]>(
+      `/shopping-lists/${listId}/items/bulk`,
+      { items },
+      ctx(hid, uid),
+    ),
+
+  updateItem: (
+    listId: string,
+    itemId: string,
+    hid: string,
+    uid: string,
+    data: object,
+  ) =>
+    api.patch<ShoppingListItem>(
+      `/shopping-lists/${listId}/items/${itemId}`,
+      data,
+      ctx(hid, uid),
+    ),
 
   deleteItem: (listId: string, itemId: string, hid: string) =>
     api.delete(`/shopping-lists/${listId}/items/${itemId}`, cfg(hid)),

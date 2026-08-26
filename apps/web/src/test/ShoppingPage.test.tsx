@@ -264,6 +264,161 @@ describe('ShoppingPage', () => {
     expect(screen.getByText('Silpo')).toBeInTheDocument();
   });
 
+  describe('bulk-add items (#195)', () => {
+    it('toggles between the single-item form and the bulk textarea', async () => {
+      server.use(
+        http.get('/api/v1/shopping-lists', () =>
+          HttpResponse.json([MOCK_LIST]),
+        ),
+        http.get('/api/v1/shopping-lists/:id', () =>
+          HttpResponse.json(MOCK_LIST),
+        ),
+      );
+
+      renderWithProviders(<ShoppingPage />);
+      await waitFor(() => screen.getByText('Weekly Groceries'), {
+        timeout: 3000,
+      });
+      await userEvent.click(screen.getByText('Weekly Groceries'));
+      await waitFor(() => screen.getByText('Milk'), { timeout: 3000 });
+
+      expect(screen.getByPlaceholderText('Item name')).toBeInTheDocument();
+      await userEvent.click(screen.getByText('Paste multiple items'));
+      expect(
+        screen.queryByPlaceholderText('Item name'),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.getByPlaceholderText('milk, eggs, bread or one item per line'),
+      ).toBeInTheDocument();
+
+      await userEvent.click(screen.getByText('Add one at a time'));
+      expect(screen.getByPlaceholderText('Item name')).toBeInTheDocument();
+    });
+
+    it('parses comma- and newline-separated names, dropping short/empty/duplicate tokens', async () => {
+      server.use(
+        http.get('/api/v1/shopping-lists', () =>
+          HttpResponse.json([MOCK_LIST]),
+        ),
+        http.get('/api/v1/shopping-lists/:id', () =>
+          HttpResponse.json(MOCK_LIST),
+        ),
+      );
+
+      renderWithProviders(<ShoppingPage />);
+      await waitFor(() => screen.getByText('Weekly Groceries'), {
+        timeout: 3000,
+      });
+      await userEvent.click(screen.getByText('Weekly Groceries'));
+      await waitFor(() => screen.getByText('Milk'), { timeout: 3000 });
+      await userEvent.click(screen.getByText('Paste multiple items'));
+
+      const textarea = screen.getByPlaceholderText(
+        'milk, eggs, bread or one item per line',
+      );
+      await userEvent.type(textarea, 'Bread, ab, Bread,{enter}Cheese,  ,milk');
+
+      expect(screen.getByText('Bread')).toBeInTheDocument();
+      expect(screen.getByText('Cheese')).toBeInTheDocument();
+      expect(screen.queryByText('ab')).not.toBeInTheDocument();
+      // Repeated "Bread" and case-insensitive dupe of the existing "Milk" item both collapse away.
+      expect(screen.getAllByText('Bread')).toHaveLength(1);
+      expect(screen.queryByText('milk')).not.toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: 'Add 2 items' }),
+      ).toBeInTheDocument();
+    });
+
+    it('removes a chip from the preview before submitting', async () => {
+      server.use(
+        http.get('/api/v1/shopping-lists', () =>
+          HttpResponse.json([MOCK_LIST]),
+        ),
+        http.get('/api/v1/shopping-lists/:id', () =>
+          HttpResponse.json(MOCK_LIST),
+        ),
+      );
+
+      renderWithProviders(<ShoppingPage />);
+      await waitFor(() => screen.getByText('Weekly Groceries'), {
+        timeout: 3000,
+      });
+      await userEvent.click(screen.getByText('Weekly Groceries'));
+      await waitFor(() => screen.getByText('Milk'), { timeout: 3000 });
+      await userEvent.click(screen.getByText('Paste multiple items'));
+
+      const textarea = screen.getByPlaceholderText(
+        'milk, eggs, bread or one item per line',
+      );
+      await userEvent.type(textarea, 'Bread, Cheese');
+      expect(
+        screen.getByRole('button', { name: 'Add 2 items' }),
+      ).toBeInTheDocument();
+
+      await userEvent.click(
+        screen.getByRole('button', { name: 'Delete Cheese' }),
+      );
+
+      expect(screen.queryByText('Cheese')).not.toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: 'Add 1 item' }),
+      ).toBeInTheDocument();
+    });
+
+    it('submits the parsed names via the bulk endpoint and closes the panel', async () => {
+      let lastBody: Record<string, unknown> | undefined;
+      server.use(
+        http.get('/api/v1/shopping-lists', () =>
+          HttpResponse.json([MOCK_LIST]),
+        ),
+        http.get('/api/v1/shopping-lists/:id', () =>
+          HttpResponse.json(MOCK_LIST),
+        ),
+        http.post(
+          '/api/v1/shopping-lists/:listId/items/bulk',
+          async ({ request }) => {
+            lastBody = (await request.json()) as Record<string, unknown>;
+            return HttpResponse.json([], { status: 201 });
+          },
+        ),
+      );
+
+      renderWithProviders(<ShoppingPage />);
+      await waitFor(() => screen.getByText('Weekly Groceries'), {
+        timeout: 3000,
+      });
+      await userEvent.click(screen.getByText('Weekly Groceries'));
+      await waitFor(() => screen.getByText('Milk'), { timeout: 3000 });
+      await userEvent.click(screen.getByText('Paste multiple items'));
+
+      const textarea = screen.getByPlaceholderText(
+        'milk, eggs, bread or one item per line',
+      );
+      await userEvent.type(textarea, 'Bread, Cheese');
+      await userEvent.click(
+        screen.getByRole('button', { name: 'Add 2 items' }),
+      );
+
+      await waitFor(
+        () =>
+          expect(lastBody?.['items']).toEqual([
+            { name: 'Bread' },
+            { name: 'Cheese' },
+          ]),
+        { timeout: 3000 },
+      );
+      await waitFor(
+        () =>
+          expect(
+            screen.queryByPlaceholderText(
+              'milk, eggs, bread or one item per line',
+            ),
+          ).not.toBeInTheDocument(),
+        { timeout: 3000 },
+      );
+    });
+  });
+
   describe('rename shopping list (#202)', () => {
     it('renames a list via the edit affordance', async () => {
       let lastBody: Record<string, unknown> | undefined;

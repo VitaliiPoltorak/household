@@ -172,6 +172,94 @@ describe('Shopping Lists (integration)', () => {
     });
   });
 
+  describe('POST /shopping-lists/:id/items/bulk (#195)', () => {
+    it('creates all items in one request', async () => {
+      const list = await createList();
+
+      const res = await auth(app)
+        .post(`/shopping-lists/${list.id}/items/bulk`)
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
+        .send({
+          items: [{ name: 'Milk' }, { name: 'Bread' }, { name: 'Eggs' }],
+        })
+        .expect(201);
+
+      expect(res.body).toHaveLength(3);
+      expect(res.body.map((i: { name: string }) => i.name)).toEqual([
+        'Milk',
+        'Bread',
+        'Eggs',
+      ]);
+
+      const listRes = await auth(app)
+        .get(`/shopping-lists/${list.id}`)
+        .set('X-Household-Id', H);
+      expect(listRes.body.items).toHaveLength(3);
+    });
+
+    it('rejects the whole batch (no partial rows) when one item name is too short', async () => {
+      const list = await createList();
+
+      await auth(app)
+        .post(`/shopping-lists/${list.id}/items/bulk`)
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
+        .send({ items: [{ name: 'Milk' }, { name: 'ab' }] })
+        .expect(400);
+
+      const listRes = await auth(app)
+        .get(`/shopping-lists/${list.id}`)
+        .set('X-Household-Id', H);
+      expect(listRes.body.items).toHaveLength(0);
+    });
+
+    it('rejects the whole batch when one item references a foreign store', async () => {
+      const list = await createList();
+      const foreignStore = await auth(app)
+        .post('/stores')
+        .set('X-Household-Id', 'other')
+        .send({ name: 'Foreign' });
+
+      await auth(app)
+        .post(`/shopping-lists/${list.id}/items/bulk`)
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
+        .send({
+          items: [
+            { name: 'Milk' },
+            { name: 'Bread', preferredStoreId: foreignStore.body.id },
+          ],
+        })
+        .expect(404);
+
+      const listRes = await auth(app)
+        .get(`/shopping-lists/${list.id}`)
+        .set('X-Household-Id', H);
+      expect(listRes.body.items).toHaveLength(0);
+    });
+
+    it('rejects an empty items array (400)', async () => {
+      const list = await createList();
+
+      await auth(app)
+        .post(`/shopping-lists/${list.id}/items/bulk`)
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
+        .send({ items: [] })
+        .expect(400);
+    });
+
+    it('rejects without X-Household-Id (401)', async () => {
+      const list = await createList();
+      await auth(app)
+        .post(`/shopping-lists/${list.id}/items/bulk`)
+        .set('X-User-Id', U)
+        .send({ items: [{ name: 'Milk' }] })
+        .expect(401);
+    });
+  });
+
   describe('POST /shopping-lists/:id/complete', () => {
     it('completes an active list and emits Kafka event', async () => {
       const list = await createList();

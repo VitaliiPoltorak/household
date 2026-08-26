@@ -41,13 +41,20 @@ export class ShoppingListItemsService {
     },
   ): Promise<void> {
     const checks: Promise<unknown>[] = [];
-    if (refs.productId) checks.push(this.products.findOne(refs.productId, householdId));
-    if (refs.preferredStoreId) checks.push(this.stores.findOne(refs.preferredStoreId, householdId));
-    if (refs.actualStoreId) checks.push(this.stores.findOne(refs.actualStoreId, householdId));
+    if (refs.productId)
+      checks.push(this.products.findOne(refs.productId, householdId));
+    if (refs.preferredStoreId)
+      checks.push(this.stores.findOne(refs.preferredStoreId, householdId));
+    if (refs.actualStoreId)
+      checks.push(this.stores.findOne(refs.actualStoreId, householdId));
     await Promise.all(checks);
   }
 
-  async addItem(listId: string, householdId: string, dto: CreateItemDto): Promise<ShoppingListItem> {
+  async addItem(
+    listId: string,
+    householdId: string,
+    dto: CreateItemDto,
+  ): Promise<ShoppingListItem> {
     await this.lists.findOne(listId, householdId);
     await this.assertReferencesBelongToHousehold(householdId, {
       productId: dto.productId,
@@ -66,6 +73,44 @@ export class ShoppingListItemsService {
         price: null,
       }),
     );
+  }
+
+  // Validates all referenced products/stores up front, then inserts every
+  // item inside one DB transaction — a foreign reference on item N rolls
+  // back items 1..N-1 too, so a bulk-add either fully succeeds or leaves no
+  // partial rows behind (#195).
+  async bulkAddItems(
+    listId: string,
+    householdId: string,
+    dtos: CreateItemDto[],
+  ): Promise<ShoppingListItem[]> {
+    await this.lists.findOne(listId, householdId);
+    await Promise.all(
+      dtos.map((dto) =>
+        this.assertReferencesBelongToHousehold(householdId, {
+          productId: dto.productId,
+          preferredStoreId: dto.preferredStoreId,
+        }),
+      ),
+    );
+    return this.itemRepo.manager.transaction(async (manager) => {
+      const repo = manager.getRepository(ShoppingListItem);
+      return repo.save(
+        dtos.map((dto) =>
+          repo.create({
+            listId,
+            name: dto.name,
+            productId: dto.productId ?? null,
+            quantity: dto.quantity ?? 1,
+            unit: dto.unit ?? null,
+            preferredStoreId: dto.preferredStoreId ?? null,
+            actualStoreId: null,
+            isPurchased: false,
+            price: null,
+          }),
+        ),
+      );
+    });
   }
 
   async updateItem(
@@ -91,7 +136,13 @@ export class ShoppingListItemsService {
     if (!wasPurchased && dto.isPurchased) {
       await this.events.emit(
         'shopping.item.purchased',
-        { listId, itemId, householdId, name: item.name, price: dto.price ?? null },
+        {
+          listId,
+          itemId,
+          householdId,
+          name: item.name,
+          price: dto.price ?? null,
+        },
         { userId, householdId },
       );
     }
@@ -99,7 +150,11 @@ export class ShoppingListItemsService {
     return this.itemRepo.findOneOrFail({ where: { id: itemId } });
   }
 
-  async removeItem(listId: string, itemId: string, householdId: string): Promise<void> {
+  async removeItem(
+    listId: string,
+    itemId: string,
+    householdId: string,
+  ): Promise<void> {
     await this.lists.findOne(listId, householdId);
     const item = await this.itemRepo.findOne({ where: { id: itemId, listId } });
     if (!item) throw new NotFoundException('Item not found');
