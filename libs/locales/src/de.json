@@ -262,7 +262,11 @@
     "singleAdd": "Einzeln hinzufügen",
     "bulkAddPlaceholder": "Milch, Eier, Brot\noder ein Artikel pro Zeile",
     "addNItems": "{{count}} Artikel hinzufügen",
-    "addNItems_other": "{{count}} Artikel hinzufügen"
+    "addNItems_other": "{{count}} Artikel hinzufügen",
+    "itemCount": "{{count}} Artikel",
+    "itemCount_other": "{{count}} Artikel",
+    "selectListPrompt": "Wähle eine Liste aus, um die Artikel anzuzeigen",
+    "noItemsYet": "Noch keine Artikel."
   },
   "household": {
     "title": "Haushalt",

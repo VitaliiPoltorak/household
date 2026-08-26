@@ -262,7 +262,11 @@
     "singleAdd": "Añadir uno por uno",
     "bulkAddPlaceholder": "leche, huevos, pan\no un artículo por línea",
     "addNItems": "Añadir {{count}} artículo",
-    "addNItems_other": "Añadir {{count}} artículos"
+    "addNItems_other": "Añadir {{count}} artículos",
+    "itemCount": "{{count}} artículo",
+    "itemCount_other": "{{count}} artículos",
+    "selectListPrompt": "Selecciona una lista para ver los artículos",
+    "noItemsYet": "Aún no hay artículos."
   },
   "household": {
     "title": "Hogar",

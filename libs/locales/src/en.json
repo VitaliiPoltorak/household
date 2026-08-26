@@ -262,7 +262,11 @@
     "singleAdd": "Add one at a time",
     "bulkAddPlaceholder": "milk, eggs, bread\nor one item per line",
     "addNItems": "Add {{count}} item",
-    "addNItems_other": "Add {{count}} items"
+    "addNItems_other": "Add {{count}} items",
+    "itemCount": "{{count}} item",
+    "itemCount_other": "{{count}} items",
+    "selectListPrompt": "Select a list to view items",
+    "noItemsYet": "No items yet."
   },
   "household": {
     "title": "Household",
