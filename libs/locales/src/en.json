@@ -254,7 +254,8 @@
       "greengrocer": "Greengrocer",
       "pharmacy": "Pharmacy",
       "other": "Other"
-    }
+    },
+    "itemNameTooShort": "Item name must be at least 3 characters"
   },
   "household": {
     "title": "Household",
