@@ -13,8 +13,10 @@ import {
 } from '@household/contracts';
 import { Account } from './entities/account.entity';
 import { CreateAccountDto, UpdateAccountDto } from './dto/account.dto';
+import { CurrenciesService } from '../currencies/currencies.service';
 
 const UNIQUE_VIOLATION = '23505';
+const DEFAULT_CURRENCY = 'UAH';
 
 @Injectable()
 export class AccountsService {
@@ -22,6 +24,7 @@ export class AccountsService {
     @InjectRepository(Account)
     private readonly repo: Repository<Account>,
     @Inject(EVENT_PUBLISHER) private readonly events: IEventPublisher,
+    private readonly currencies: CurrenciesService,
   ) {}
 
   async create(
@@ -29,8 +32,11 @@ export class AccountsService {
     userId: string,
     dto: CreateAccountDto,
   ): Promise<Account> {
+    const currency = dto.currency ?? DEFAULT_CURRENCY;
+    await this.currencies.assertEnabled(householdId, currency);
     const account = this.repo.create({
       ...dto,
+      currency,
       householdId,
       nameNormalized: normalizeAccountName(dto.name),
     });
@@ -63,6 +69,9 @@ export class AccountsService {
     dto: UpdateAccountDto,
   ): Promise<Account> {
     const account = await this.findOne(id, householdId);
+    if (dto.currency !== undefined) {
+      await this.currencies.assertEnabled(householdId, dto.currency);
+    }
     Object.assign(account, dto);
     if (dto.name !== undefined) {
       account.nameNormalized = normalizeAccountName(dto.name);
