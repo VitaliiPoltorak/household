@@ -818,6 +818,165 @@
       ]
     },
     {
+      "name": "Finance — Account Types",
+      "item": [
+        {
+          "name": "List account type catalog",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const r = pm.response.json();",
+                  "pm.test('Includes the 5 system types', () => {",
+                  "  const codes = r.map(t => t.code);",
+                  "  pm.expect(codes).to.include.members(['cash', 'bank', 'crypto', 'investment', 'deposit']);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/account-types"
+          }
+        },
+        {
+          "name": "List enabled account types (household)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const r = pm.response.json();",
+                  "pm.test('Default set is pre-enabled', () => {",
+                  "  const codes = r.map(t => t.typeCode);",
+                  "  pm.expect(codes).to.include.members(['cash', 'bank', 'crypto', 'investment', 'deposit']);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Household-Id",
+                "value": "{{householdId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/account-types/enabled"
+          }
+        },
+        {
+          "name": "Create and enable a custom account type",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "pm.test('Code matches', () => pm.expect(pm.response.json().typeCode).to.equal('paypal'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Household-Id",
+                "value": "{{householdId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/account-types/enabled",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"paypal\",\n  \"label\": \"PayPal\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Reject creating a new type without a label",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Household-Id",
+                "value": "{{householdId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/account-types/enabled",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"some-brand-new-code\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Reject disabling a type in use",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 409', () => pm.response.to.have.status(409));",
+                  "pm.test('Impact body present', () => pm.expect(pm.response.json().impact).to.have.property('accounts'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "X-Household-Id",
+                "value": "{{householdId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/account-types/enabled/bank"
+          },
+          "description": "\"bank\" backs the account created earlier in Finance — Accounts, so disabling it must be blocked with a 409 + impact body."
+        }
+      ]
+    },
+    {
       "name": "Finance — Categories",
       "item": [
         {

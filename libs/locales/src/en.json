@@ -150,6 +150,13 @@
       "investment": "Investment",
       "deposit": "Deposit"
     },
+    "addType": "+ Add a type…",
+    "addTypeTitle": "Add account type",
+    "typeCode": "Code",
+    "typeCodePlaceholder": "e.g. paypal",
+    "typeCodeHint": "Lowercase letters, digits, \"_\" or \"-\" only.",
+    "typeLabel": "Display name",
+    "typeLabelPlaceholder": "e.g. PayPal",
     "editTitle": "Edit account",
     "displayIn": "Display in",
     "estimatedTotal": "Estimated total",

@@ -9,12 +9,13 @@ import { Category } from '../categories/entities/category.entity';
 import { IncomeSource } from '../income-sources/entities/income-source.entity';
 import { RecurringPayment } from '../recurring-payments/entities/recurring-payment.entity';
 import { CurrenciesService } from '../currencies/currencies.service';
+import { AccountTypesService } from '../account-types/account-types.service';
 
 /**
  * Bridges household-service lifecycle events into finance-schema side effects.
  *
- * `household.created` (#226) seeds the default enabled-currency set —
- * idempotent, so at-least-once redelivery is safe.
+ * `household.created` (#226, #227) seeds the default enabled-currency and
+ * enabled-account-type sets — idempotent, so at-least-once redelivery is safe.
  *
  * `household.deleted` (#83.4) cleans up finance-schema rows. Delivery is
  * at-least-once, so the transaction re-runs safely: a second delete of an
@@ -33,6 +34,7 @@ export class HouseholdEventsConsumer implements OnModuleInit {
     private readonly consumer: KafkaConsumerService,
     @InjectDataSource() private readonly ds: DataSource,
     private readonly currencies: CurrenciesService,
+    private readonly accountTypes: AccountTypesService,
   ) {}
 
   async onModuleInit() {
@@ -47,7 +49,10 @@ export class HouseholdEventsConsumer implements OnModuleInit {
           );
           return;
         }
-        await this.currencies.seedDefaults(householdId);
+        await Promise.all([
+          this.currencies.seedDefaults(householdId),
+          this.accountTypes.seedDefaults(householdId),
+        ]);
       },
     );
 

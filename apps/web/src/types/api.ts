@@ -103,7 +103,11 @@ export interface HouseholdInviteWithHousehold extends HouseholdInvite {
 }
 
 // Finance
-export type AccountType = 'cash' | 'bank' | 'crypto' | 'investment' | 'deposit';
+// Open-ended (#227) — validated against the household's enabled account
+// types server-side, not a fixed union. The 5 system defaults still exist
+// as string literals ('cash' | 'bank' | ...) but households can enable/coin
+// their own (e.g. 'paypal').
+export type AccountType = string;
 
 export interface Account {
   id: string;
@@ -113,6 +117,25 @@ export interface Account {
   currency: string;
   balance: number;
   isArchived: boolean;
+}
+
+// GET /account-types — household-agnostic catalog entry (#227).
+export interface AccountTypeCatalogEntry {
+  code: string;
+  label: string;
+  icon: string | null;
+  isSystem: boolean;
+  createdAt: string;
+}
+
+// GET /account-types/enabled — household's enabled join row, with the
+// catalog entry preloaded.
+export interface EnabledAccountType {
+  id: string;
+  householdId: string;
+  typeCode: string;
+  enabledAt: string;
+  accountType: AccountTypeCatalogEntry;
 }
 
 export interface AccountSummary {

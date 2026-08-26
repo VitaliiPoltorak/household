@@ -150,6 +150,13 @@
       "investment": "Investition",
       "deposit": "Einlage"
     },
+    "addType": "+ Typ hinzufügen…",
+    "addTypeTitle": "Kontotyp hinzufügen",
+    "typeCode": "Code",
+    "typeCodePlaceholder": "z. B. paypal",
+    "typeCodeHint": "Nur Kleinbuchstaben, Ziffern, \"_\" oder \"-\".",
+    "typeLabel": "Anzeigename",
+    "typeLabelPlaceholder": "z. B. PayPal",
     "editTitle": "Konto bearbeiten",
     "displayIn": "Anzeigen in",
     "estimatedTotal": "Geschätzter Gesamtbetrag",

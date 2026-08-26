@@ -1,14 +1,6 @@
 import { Entity, Column, Index } from 'typeorm';
 import { BaseEntity } from '@household/database';
 
-export enum AccountType {
-  CASH = 'cash',
-  BANK = 'bank',
-  CRYPTO = 'crypto',
-  INVESTMENT = 'investment',
-  DEPOSIT = 'deposit',
-}
-
 // Case-insensitive uniqueness (#191): name keeps the user's chosen casing for
 // display, nameNormalized is the lowercased comparison key. Partial index —
 // only non-archived accounts occupy the name, so a user can archive "Cash"
@@ -39,8 +31,12 @@ export class Account extends BaseEntity {
   @Column({ name: 'name_normalized', type: 'varchar', nullable: true })
   nameNormalized: string | null;
 
-  @Column({ type: 'enum', enum: AccountType })
-  type: AccountType;
+  // Was a native Postgres enum; switched to a validated string (#227) —
+  // AccountTypesService.assertEnabled is now the authority, matching how
+  // #226 handles `currency`. Households can enable/create their own types,
+  // which a fixed DB-level enum can't express.
+  @Column({ length: 40 })
+  type: string;
 
   // Widened from 3→10 (#226) to allow crypto tickers beyond ISO-4217's 3
   // letters; validity is now enforced by CurrenciesService.assertEnabled,
