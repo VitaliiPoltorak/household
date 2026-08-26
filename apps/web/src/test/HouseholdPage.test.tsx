@@ -51,22 +51,33 @@ describe('HouseholdPage — member display names (#166)', () => {
   });
 
   it('shows a 1-letter role badge with the full role name as tooltip', async () => {
+    // Caller is a 'viewer' here (not the owner/admin under test) — #280
+    // replaces the badge with a role-picker <select> for any row the caller
+    // can manage, so this stays a pure badge-rendering test only if neither
+    // displayed row is manageable by whoever's logged in.
     server.use(
       http.get('/api/v1/households/:id/members', () =>
         HttpResponse.json([
           {
-            id: 'm-1',
+            id: 'm-caller',
             householdId: 'hh-1',
             userId: OWNER_ID,
-            role: 'owner',
+            role: 'viewer',
             createdAt: '2026-01-01T00:00:00Z',
           },
           {
-            id: 'm-2',
+            id: 'm-owner',
+            householdId: 'hh-1',
+            userId: 'bbbbbbbb-cccc-4ddd-8eee-ffffffffffff',
+            role: 'owner',
+            createdAt: '2026-01-02T00:00:00Z',
+          },
+          {
+            id: 'm-admin',
             householdId: 'hh-1',
             userId: OTHER_ID,
             role: 'admin',
-            createdAt: '2026-01-02T00:00:00Z',
+            createdAt: '2026-01-03T00:00:00Z',
           },
         ]),
       ),
@@ -113,6 +124,123 @@ describe('HouseholdPage — member display names (#166)', () => {
         ).toBeGreaterThan(0),
       { timeout: 3000 },
     );
+  });
+});
+
+describe("HouseholdPage — change a member's role (#280)", () => {
+  const CALLER_ID = 'user-1'; // matches MOCK_USER.id from handlers
+  const TARGET_ID = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
+
+  function membersWith(callerRole: string, targetRole: string) {
+    return [
+      {
+        id: 'm-caller',
+        householdId: 'hh-1',
+        userId: CALLER_ID,
+        role: callerRole,
+        createdAt: '2026-01-01T00:00:00Z',
+      },
+      {
+        id: 'm-target',
+        householdId: 'hh-1',
+        userId: TARGET_ID,
+        role: targetRole,
+        createdAt: '2026-01-02T00:00:00Z',
+      },
+    ];
+  }
+
+  it('shows a role picker for a manageable row and PATCHes the new role on change', async () => {
+    let patchBody: Record<string, unknown> | undefined;
+    server.use(
+      http.get('/api/v1/households/:id/members', () =>
+        HttpResponse.json(membersWith('owner', 'member')),
+      ),
+      http.patch(
+        '/api/v1/households/:id/members/:memberId',
+        async ({ request }) => {
+          patchBody = (await request.json()) as Record<string, unknown>;
+          return HttpResponse.json({
+            id: 'm-target',
+            householdId: 'hh-1',
+            userId: TARGET_ID,
+            role: patchBody['role'],
+            createdAt: '2026-01-02T00:00:00Z',
+          });
+        },
+      ),
+    );
+
+    renderWithProviders(<HouseholdPage />);
+    const picker = await screen.findByRole('combobox');
+    await userEvent.selectOptions(picker, 'admin');
+
+    await waitFor(() => expect(patchBody?.['role']).toBe('admin'), {
+      timeout: 3000,
+    });
+  });
+
+  it("does not show a picker for the owner's own row", async () => {
+    server.use(
+      http.get('/api/v1/households/:id/members', () =>
+        HttpResponse.json(membersWith('owner', 'member')),
+      ),
+    );
+
+    renderWithProviders(<HouseholdPage />);
+    await waitFor(
+      () => expect(screen.getAllByRole('img').length).toBeGreaterThan(0),
+      { timeout: 3000 },
+    );
+
+    // Only the target's row gets a picker — the caller's own owner row
+    // stays a badge (matches the backend's strict-inequality canManage
+    // rule: an owner can't touch another owner, including themselves).
+    expect(screen.getByRole('img', { name: 'Owner' })).toBeInTheDocument();
+    expect(screen.getAllByRole('combobox')).toHaveLength(1);
+  });
+
+  it('does not show a picker for a peer row the caller (admin) cannot manage', async () => {
+    server.use(
+      http.get('/api/v1/households/:id/members', () =>
+        HttpResponse.json(membersWith('admin', 'admin')),
+      ),
+    );
+
+    renderWithProviders(<HouseholdPage />);
+    await waitFor(
+      () => expect(screen.getAllByRole('img').length).toBeGreaterThan(0),
+      { timeout: 3000 },
+    );
+
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+  });
+
+  it('shows an inline error instead of silently failing on a 403', async () => {
+    server.use(
+      http.get('/api/v1/households/:id/members', () =>
+        HttpResponse.json(membersWith('admin', 'member')),
+      ),
+      http.patch('/api/v1/households/:id/members/:memberId', () =>
+        HttpResponse.json(
+          {
+            statusCode: 403,
+            message: 'Cannot grant a role equal to or above your own',
+          },
+          { status: 403 },
+        ),
+      ),
+    );
+
+    renderWithProviders(<HouseholdPage />);
+    const picker = await screen.findByRole('combobox');
+    await userEvent.selectOptions(picker, 'admin');
+
+    expect(
+      await screen.findByText(
+        "You don't have permission to change this member's role.",
+      ),
+    ).toBeInTheDocument();
   });
 });
 
