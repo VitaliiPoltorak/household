@@ -754,6 +754,88 @@ describe('ShoppingPage', () => {
     });
   });
 
+  describe('group items by preferred store (#271)', () => {
+    const STORE_B = {
+      id: 'store-2',
+      householdId: 'hh-1',
+      name: 'ATB',
+      type: 'supermarket' as const,
+      address: null,
+    };
+
+    it('renders a subheader per store, alphabetically, with "No store" last', async () => {
+      const list = {
+        ...MOCK_LIST,
+        items: [
+          {
+            ...MOCK_LIST.items[0],
+            id: 'item-1',
+            name: 'Milk',
+            preferredStoreId: STORE_B.id,
+          },
+          {
+            ...MOCK_LIST.items[0],
+            id: 'item-2',
+            name: 'Bread',
+            preferredStoreId: MOCK_STORE.id,
+          },
+          {
+            ...MOCK_LIST.items[0],
+            id: 'item-3',
+            name: 'Batteries',
+            preferredStoreId: null,
+          },
+        ],
+      };
+      server.use(
+        http.get('/api/v1/stores', () =>
+          HttpResponse.json([MOCK_STORE, STORE_B]),
+        ),
+        http.get('/api/v1/shopping-lists', () => HttpResponse.json([list])),
+        http.get('/api/v1/shopping-lists/:id', () => HttpResponse.json(list)),
+      );
+
+      renderWithProviders(<ShoppingPage />);
+      await waitFor(() => screen.getByText('Weekly Groceries'), {
+        timeout: 3000,
+      });
+      await userEvent.click(screen.getByText('Weekly Groceries'));
+      await waitFor(() => screen.getByText('Milk'), { timeout: 3000 });
+
+      // Scoped to <p> — each item row also has a preferred-store <select>
+      // (#270) whose <option>s and a read-only pill both render the same
+      // store names as plain text elsewhere in the row.
+      const headers = screen
+        .getAllByText(/^(ATB|Silpo|No store)$/, { selector: 'p' })
+        .map((el) => el.textContent);
+      expect(headers).toEqual(['ATB', 'Silpo', 'No store']);
+    });
+
+    it('shows a flat list with no subheaders when no item has a preferred store', async () => {
+      server.use(
+        http.get('/api/v1/shopping-lists', () =>
+          HttpResponse.json([MOCK_LIST]),
+        ),
+        http.get('/api/v1/shopping-lists/:id', () =>
+          HttpResponse.json(MOCK_LIST),
+        ),
+      );
+
+      renderWithProviders(<ShoppingPage />);
+      await waitFor(() => screen.getByText('Weekly Groceries'), {
+        timeout: 3000,
+      });
+      await userEvent.click(screen.getByText('Weekly Groceries'));
+      await waitFor(() => screen.getByText('Milk'), { timeout: 3000 });
+
+      // Scoped to <p> — "No store" is also the placeholder <option> text in
+      // the (unrelated) store <select>s, which are present either way.
+      expect(
+        screen.queryByText('No store', { selector: 'p' }),
+      ).not.toBeInTheDocument();
+    });
+  });
+
   describe("edit an existing item's preferred store (#270)", () => {
     it('sets a preferred store on an unpurchased item', async () => {
       let patchBody: Record<string, unknown> | undefined;
