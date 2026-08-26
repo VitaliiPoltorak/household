@@ -204,7 +204,11 @@ describe('ShoppingPage', () => {
       timeout: 3000,
     });
     const itemRow = screen.getByText('Milk').closest('div')!;
-    expect(within(itemRow).getByText('Silpo')).toBeInTheDocument();
+    // Scoped to <span> — the row also has a #270 preferred-store <select>
+    // whose <option>Silpo</option> would otherwise match too.
+    expect(
+      within(itemRow).getByText('Silpo', { selector: 'span' }),
+    ).toBeInTheDocument();
   });
 
   it('creates a store from the store manager modal', async () => {
@@ -747,6 +751,122 @@ describe('ShoppingPage', () => {
         () => expect(lastBody?.['productId']).toBe(MOCK_PRODUCT.id),
         { timeout: 3000 },
       );
+    });
+  });
+
+  describe("edit an existing item's preferred store (#270)", () => {
+    it('sets a preferred store on an unpurchased item', async () => {
+      let patchBody: Record<string, unknown> | undefined;
+      server.use(
+        http.get('/api/v1/stores', () => HttpResponse.json([MOCK_STORE])),
+        http.get('/api/v1/shopping-lists', () =>
+          HttpResponse.json([MOCK_LIST]),
+        ),
+        http.get('/api/v1/shopping-lists/:id', () =>
+          HttpResponse.json(MOCK_LIST),
+        ),
+        http.patch(
+          '/api/v1/shopping-lists/:listId/items/:itemId',
+          async ({ request }) => {
+            patchBody = (await request.json()) as Record<string, unknown>;
+            return HttpResponse.json({
+              ...MOCK_LIST.items[0],
+              preferredStoreId: patchBody['preferredStoreId'],
+            });
+          },
+        ),
+      );
+
+      renderWithProviders(<ShoppingPage />);
+      await waitFor(() => screen.getByText('Weekly Groceries'), {
+        timeout: 3000,
+      });
+      await userEvent.click(screen.getByText('Weekly Groceries'));
+      await waitFor(() => screen.getByText('Milk'), { timeout: 3000 });
+
+      const itemRow = screen.getByText('Milk').closest('div')!;
+      await userEvent.selectOptions(
+        within(itemRow).getByTitle('Preferred store'),
+        'store-1',
+      );
+
+      await waitFor(
+        () => expect(patchBody?.['preferredStoreId']).toBe('store-1'),
+        { timeout: 3000 },
+      );
+    });
+
+    it('clears the preferred store when "No store" is selected', async () => {
+      const listWithStore = {
+        ...MOCK_LIST,
+        items: [{ ...MOCK_LIST.items[0], preferredStoreId: MOCK_STORE.id }],
+      };
+      let patchBody: Record<string, unknown> | undefined;
+      server.use(
+        http.get('/api/v1/stores', () => HttpResponse.json([MOCK_STORE])),
+        http.get('/api/v1/shopping-lists', () =>
+          HttpResponse.json([listWithStore]),
+        ),
+        http.get('/api/v1/shopping-lists/:id', () =>
+          HttpResponse.json(listWithStore),
+        ),
+        http.patch(
+          '/api/v1/shopping-lists/:listId/items/:itemId',
+          async ({ request }) => {
+            patchBody = (await request.json()) as Record<string, unknown>;
+            return HttpResponse.json({
+              ...listWithStore.items[0],
+              preferredStoreId: patchBody['preferredStoreId'],
+            });
+          },
+        ),
+      );
+
+      renderWithProviders(<ShoppingPage />);
+      await waitFor(() => screen.getByText('Weekly Groceries'), {
+        timeout: 3000,
+      });
+      await userEvent.click(screen.getByText('Weekly Groceries'));
+      await waitFor(() => screen.getByText('Milk'), { timeout: 3000 });
+
+      const itemRow = screen.getByText('Milk').closest('div')!;
+      await userEvent.selectOptions(
+        within(itemRow).getByTitle('Preferred store'),
+        '',
+      );
+
+      await waitFor(() => expect(patchBody?.['preferredStoreId']).toBeNull(), {
+        timeout: 3000,
+      });
+    });
+
+    it('shows the "bought at" store picker instead, once the item is purchased', async () => {
+      const purchasedItem = {
+        ...MOCK_LIST,
+        items: [{ ...MOCK_LIST.items[0], isPurchased: true }],
+      };
+      server.use(
+        http.get('/api/v1/stores', () => HttpResponse.json([MOCK_STORE])),
+        http.get('/api/v1/shopping-lists', () =>
+          HttpResponse.json([purchasedItem]),
+        ),
+        http.get('/api/v1/shopping-lists/:id', () =>
+          HttpResponse.json(purchasedItem),
+        ),
+      );
+
+      renderWithProviders(<ShoppingPage />);
+      await waitFor(() => screen.getByText('Weekly Groceries'), {
+        timeout: 3000,
+      });
+      await userEvent.click(screen.getByText('Weekly Groceries'));
+      await waitFor(() => screen.getByText('Milk'), { timeout: 3000 });
+
+      const itemRow = screen.getByText('Milk').closest('div')!;
+      expect(
+        within(itemRow).queryByTitle('Preferred store'),
+      ).not.toBeInTheDocument();
+      expect(within(itemRow).getByTitle('Bought at')).toBeInTheDocument();
     });
   });
 
