@@ -60,25 +60,38 @@ export class ShoppingListItemsService {
       productId: dto.productId,
       preferredStoreId: dto.preferredStoreId,
     });
-    return this.itemRepo.save(
-      this.itemRepo.create({
-        listId,
-        name: dto.name,
-        productId: dto.productId ?? null,
-        quantity: dto.quantity ?? 1,
-        unit: dto.unit ?? null,
-        preferredStoreId: dto.preferredStoreId ?? null,
-        actualStoreId: null,
-        isPurchased: false,
-        price: null,
-      }),
-    );
+    return this.itemRepo.manager.transaction(async (manager) => {
+      // No productId given — auto-link to (or create) a household product
+      // by name so this item shows up in future autocomplete (#273). Runs
+      // inside the same transaction as the item insert so a failure below
+      // never leaves an orphan product behind.
+      const productId =
+        dto.productId ??
+        (await this.products.findOrCreateByName(householdId, dto.name, manager))
+          .id;
+      const repo = manager.getRepository(ShoppingListItem);
+      return repo.save(
+        repo.create({
+          listId,
+          name: dto.name,
+          productId,
+          quantity: dto.quantity ?? 1,
+          unit: dto.unit ?? null,
+          preferredStoreId: dto.preferredStoreId ?? null,
+          actualStoreId: null,
+          isPurchased: false,
+          price: null,
+        }),
+      );
+    });
   }
 
   // Validates all referenced products/stores up front, then inserts every
   // item inside one DB transaction — a foreign reference on item N rolls
   // back items 1..N-1 too, so a bulk-add either fully succeeds or leaves no
-  // partial rows behind (#195).
+  // partial rows behind (#195). Product resolution runs sequentially inside
+  // the loop (not Promise.all) so two same-named items in one batch reuse
+  // the same product instead of racing to create two duplicates (#273).
   async bulkAddItems(
     listId: string,
     householdId: string,
@@ -94,22 +107,35 @@ export class ShoppingListItemsService {
       ),
     );
     return this.itemRepo.manager.transaction(async (manager) => {
-      const repo = manager.getRepository(ShoppingListItem);
-      return repo.save(
-        dtos.map((dto) =>
-          repo.create({
-            listId,
-            name: dto.name,
-            productId: dto.productId ?? null,
-            quantity: dto.quantity ?? 1,
-            unit: dto.unit ?? null,
-            preferredStoreId: dto.preferredStoreId ?? null,
-            actualStoreId: null,
-            isPurchased: false,
-            price: null,
-          }),
-        ),
-      );
+      const itemRepo = manager.getRepository(ShoppingListItem);
+      const created: ShoppingListItem[] = [];
+      for (const dto of dtos) {
+        const productId =
+          dto.productId ??
+          (
+            await this.products.findOrCreateByName(
+              householdId,
+              dto.name,
+              manager,
+            )
+          ).id;
+        created.push(
+          await itemRepo.save(
+            itemRepo.create({
+              listId,
+              name: dto.name,
+              productId,
+              quantity: dto.quantity ?? 1,
+              unit: dto.unit ?? null,
+              preferredStoreId: dto.preferredStoreId ?? null,
+              actualStoreId: null,
+              isPurchased: false,
+              price: null,
+            }),
+          ),
+        );
+      }
+      return created;
     });
   }
 

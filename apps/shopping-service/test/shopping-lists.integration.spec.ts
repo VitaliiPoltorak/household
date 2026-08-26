@@ -172,6 +172,74 @@ describe('Shopping Lists (integration)', () => {
     });
   });
 
+  describe('Auto-link plain adds to a product for autocomplete (#273)', () => {
+    it('creates a product and links a plain (no productId) item to it', async () => {
+      const list = await createList();
+      const item = await addItem(list.id, 'Oat Milk');
+
+      expect(item.productId).toBeTruthy();
+      const products = await auth(app)
+        .get('/products?search=Oat')
+        .set('X-Household-Id', H);
+      expect(products.body).toHaveLength(1);
+      expect(products.body[0].id).toBe(item.productId);
+      expect(products.body[0].name).toBe('Oat Milk');
+    });
+
+    it('reuses an existing product (case-insensitive) instead of creating a duplicate', async () => {
+      const list = await createList();
+      const first = await addItem(list.id, 'Bread');
+      const second = await addItem(list.id, 'bread');
+
+      expect(second.productId).toBe(first.productId);
+      const products = await auth(app)
+        .get('/products?search=bread')
+        .set('X-Household-Id', H);
+      expect(products.body).toHaveLength(1);
+    });
+
+    it('does not create a product when the item already has a productId', async () => {
+      const existing = await auth(app)
+        .post('/products')
+        .set('X-Household-Id', H)
+        .send({ name: 'Linked Milk' });
+      const list = await createList();
+
+      await auth(app)
+        .post(`/shopping-lists/${list.id}/items`)
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
+        .send({ name: 'Linked Milk', productId: existing.body.id })
+        .expect(201);
+
+      const products = await auth(app)
+        .get('/products?search=Linked')
+        .set('X-Household-Id', H);
+      expect(products.body).toHaveLength(1);
+    });
+
+    it('bulk-add also auto-links each item, reusing a product shared by two items in the same batch', async () => {
+      const list = await createList();
+
+      const res = await auth(app)
+        .post(`/shopping-lists/${list.id}/items/bulk`)
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
+        .send({
+          items: [{ name: 'Cheese' }, { name: 'cheese' }, { name: 'Yogurt' }],
+        })
+        .expect(201);
+
+      expect(res.body[0].productId).toBe(res.body[1].productId);
+      expect(res.body[0].productId).not.toBe(res.body[2].productId);
+
+      const products = await auth(app)
+        .get('/products')
+        .set('X-Household-Id', H);
+      expect(products.body).toHaveLength(2);
+    });
+  });
+
   describe('POST /shopping-lists/:id/items/bulk (#195)', () => {
     it('creates all items in one request', async () => {
       const list = await createList();
