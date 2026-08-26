@@ -30,7 +30,8 @@
     "transactions": "Transacciones",
     "shopping": "Compras",
     "household": "Hogar",
-    "settings": "Configuración"
+    "settings": "Configuración",
+    "invites": "Invitaciones"
   },
   "auth": {
     "title": "Household",
@@ -301,7 +302,10 @@
         "conflict": "Esta invitación ya se ha usado, o ya eres miembro de este household.",
         "generic": "Algo salió mal al aceptar la invitación. Inténtalo de nuevo."
       }
-    }
+    },
+    "expiresOn": "caduca el {{date}}",
+    "copyLink": "Copiar enlace",
+    "linkCopied": "¡Enlace copiado!"
   },
   "settings": {
     "title": "Configuración",
@@ -373,5 +377,11 @@
       },
       "reassignSoonHint": "Reasignar / fusionar estará disponible en una próxima versión."
     }
+  },
+  "invites": {
+    "title": "Invitaciones",
+    "empty": "No hay invitaciones pendientes.",
+    "accept": "Aceptar",
+    "decline": "Rechazar"
   }
 }

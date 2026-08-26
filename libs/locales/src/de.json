@@ -30,7 +30,8 @@
     "transactions": "Transaktionen",
     "shopping": "Einkaufen",
     "household": "Haushalt",
-    "settings": "Einstellungen"
+    "settings": "Einstellungen",
+    "invites": "Einladungen"
   },
   "auth": {
     "title": "Household",
@@ -301,7 +302,10 @@
         "conflict": "Diese Einladung wurde bereits verwendet, oder du bist bereits Mitglied dieses Households.",
         "generic": "Beim Annehmen der Einladung ist ein Fehler aufgetreten. Bitte versuche es erneut."
       }
-    }
+    },
+    "expiresOn": "läuft ab am {{date}}",
+    "copyLink": "Link kopieren",
+    "linkCopied": "Link kopiert!"
   },
   "settings": {
     "title": "Einstellungen",
@@ -373,5 +377,11 @@
       },
       "reassignSoonHint": "Neuzuweisen / Zusammenführen kommt in einer späteren Version."
     }
+  },
+  "invites": {
+    "title": "Einladungen",
+    "empty": "Keine ausstehenden Einladungen.",
+    "accept": "Annehmen",
+    "decline": "Ablehnen"
   }
 }

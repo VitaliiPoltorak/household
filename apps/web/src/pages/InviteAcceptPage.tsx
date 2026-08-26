@@ -7,10 +7,9 @@ import {
   useSearchParams,
 } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { useHousehold } from '../contexts/HouseholdContext';
-import { householdsApi } from '../api/households';
 import { ApiError } from '../api/client';
 import { setReturnTo } from '../lib/auth-redirect';
+import { useAcceptInvite } from '../hooks/useAcceptInvite';
 
 type Status =
   | 'checking-auth'
@@ -31,7 +30,7 @@ const REDIRECT_DELAY_MS = 1500;
 export function InviteAcceptPage() {
   const { t } = useTranslation();
   const { user, isLoading: authLoading } = useAuth();
-  const { refetch: refetchHouseholds, setActiveHousehold } = useHousehold();
+  const acceptInvite = useAcceptInvite();
   const [params] = useSearchParams();
   const token = params.get('token');
   const location = useLocation();
@@ -60,12 +59,8 @@ export function InviteAcceptPage() {
     attemptedRef.current = true;
     setStatus('accepting');
 
-    householdsApi
-      .acceptInvite(token)
-      .then(async (member) => {
-        const result = await refetchHouseholds();
-        const joined = result.data?.find((h) => h.id === member.householdId);
-        if (joined) setActiveHousehold(joined);
+    acceptInvite(token)
+      .then(() => {
         setStatus('success');
         setTimeout(
           () => navigate('/household', { replace: true }),
@@ -79,7 +74,7 @@ export function InviteAcceptPage() {
     // location.pathname/search are read once to build the return-to path and
     // don't need to re-trigger this effect on their own.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authLoading, user, token]);
+  }, [authLoading, user, token, acceptInvite]);
 
   const errorMessage = () => {
     switch (errorStatus) {

@@ -10,7 +10,11 @@ import { Repository, MoreThan } from 'typeorm';
 import { randomUUID } from 'crypto';
 import Redis from 'ioredis';
 import { InjectRedis } from '../redis/redis.module';
-import { EVENT_PUBLISHER, IEventPublisher, LIST_HARD_LIMIT } from '@household/contracts';
+import {
+  EVENT_PUBLISHER,
+  IEventPublisher,
+  LIST_HARD_LIMIT,
+} from '@household/contracts';
 import { HouseholdInvite } from './entities/household-invite.entity';
 import { HouseholdMember } from './entities/household-member.entity';
 import { MemberRole, canGrant } from './entities/member-role.enum';
@@ -40,7 +44,10 @@ export class InvitesService {
     actorId: string,
     dto: CreateInviteDto,
   ): Promise<HouseholdInvite> {
-    const actor = await this.members.requireRole(householdId, actorId, [MemberRole.OWNER, MemberRole.ADMIN]);
+    const actor = await this.members.requireRole(householdId, actorId, [
+      MemberRole.OWNER,
+      MemberRole.ADMIN,
+    ]);
 
     const token = randomUUID();
     const expiresAt = new Date(Date.now() + INVITE_TTL_DAYS * 86400 * 1000);
@@ -49,7 +56,9 @@ export class InvitesService {
     // Prevent peer-level elevation: an ADMIN must not be able to invite
     // another ADMIN (or an OWNER). Only OWNER can grant ADMIN.
     if (!canGrant(actor.role, role)) {
-      throw new ForbiddenException('Cannot grant a role equal to or above your own');
+      throw new ForbiddenException(
+        'Cannot grant a role equal to or above your own',
+      );
     }
 
     // Reject a second live invite for the same email/household so admins can't
@@ -64,11 +73,20 @@ export class InvitesService {
       .andWhere('i.expiresAt > :now', { now: new Date() })
       .getOne();
     if (existing) {
-      throw new ConflictException('An active invite for this email already exists');
+      throw new ConflictException(
+        'An active invite for this email already exists',
+      );
     }
 
     const invite = await this.inviteRepo.save(
-      this.inviteRepo.create({ householdId, email: dto.email, token, role, expiresAt, acceptedAt: null }),
+      this.inviteRepo.create({
+        householdId,
+        email: dto.email,
+        token,
+        role,
+        expiresAt,
+        acceptedAt: null,
+      }),
     );
 
     await this.redis.set(
@@ -88,22 +106,68 @@ export class InvitesService {
   }
 
   async list(householdId: string, actorId: string): Promise<HouseholdInvite[]> {
-    await this.members.requireRole(householdId, actorId, [MemberRole.OWNER, MemberRole.ADMIN]);
+    await this.members.requireRole(householdId, actorId, [
+      MemberRole.OWNER,
+      MemberRole.ADMIN,
+    ]);
     return this.inviteRepo.find({
-      where: { householdId, acceptedAt: undefined, expiresAt: MoreThan(new Date()) },
+      where: {
+        householdId,
+        acceptedAt: undefined,
+        expiresAt: MoreThan(new Date()),
+      },
       take: LIST_HARD_LIMIT,
     });
   }
 
-  async delete(householdId: string, actorId: string, inviteId: string): Promise<void> {
-    await this.members.requireRole(householdId, actorId, [MemberRole.OWNER, MemberRole.ADMIN]);
-    const invite = await this.inviteRepo.findOne({ where: { id: inviteId, householdId } });
+  async delete(
+    householdId: string,
+    actorId: string,
+    inviteId: string,
+  ): Promise<void> {
+    await this.members.requireRole(householdId, actorId, [
+      MemberRole.OWNER,
+      MemberRole.ADMIN,
+    ]);
+    const invite = await this.inviteRepo.findOne({
+      where: { id: inviteId, householdId },
+    });
     if (!invite) throw new NotFoundException('Invite not found');
     await this.inviteRepo.delete(inviteId);
     await this.redis.del(`invite:${invite.token}`);
   }
 
-  async accept(token: string, userId: string, userEmail: string): Promise<HouseholdMember> {
+  // Active invites addressed to this email, newest first, with the target
+  // household preloaded so the /invites page can show its name without a
+  // second round trip per invite.
+  async listForUser(userEmail: string): Promise<HouseholdInvite[]> {
+    const email = userEmail.trim().toLowerCase();
+    return this.inviteRepo
+      .createQueryBuilder('i')
+      .leftJoinAndSelect('i.household', 'household')
+      .where('LOWER(i.email) = :email', { email })
+      .andWhere('i.acceptedAt IS NULL')
+      .andWhere('i.expiresAt > :now', { now: new Date() })
+      .orderBy('i.createdAt', 'DESC')
+      .take(LIST_HARD_LIMIT)
+      .getMany();
+  }
+
+  async decline(token: string, userEmail: string): Promise<void> {
+    const invite = await this.inviteRepo.findOne({ where: { token } });
+    if (!invite) throw new NotFoundException('Invite not found');
+    if (invite.email.trim().toLowerCase() !== userEmail.trim().toLowerCase()) {
+      throw new ForbiddenException('Invite email does not match your account');
+    }
+    await this.inviteRepo.delete(invite.id);
+    await this.redis.del(`invite:${token}`);
+  }
+
+  async accept(
+    token: string,
+    userId: string,
+    userEmail: string,
+  ): Promise<HouseholdMember> {
     const invite = await this.inviteRepo.findOne({ where: { token } });
     if (!invite) throw new NotFoundException('Invite not found');
     if (invite.acceptedAt) throw new ConflictException('Invite already used');
@@ -114,10 +178,17 @@ export class InvitesService {
       throw new ForbiddenException('Invite email does not match your account');
     }
 
-    const existing = await this.members.findMembership(invite.householdId, userId);
+    const existing = await this.members.findMembership(
+      invite.householdId,
+      userId,
+    );
     if (existing) throw new ConflictException('Already a member');
 
-    const member = await this.members.add(invite.householdId, userId, invite.role);
+    const member = await this.members.add(
+      invite.householdId,
+      userId,
+      invite.role,
+    );
 
     await this.inviteRepo.update(invite.id, { acceptedAt: new Date() });
     await this.redis.del(`invite:${token}`);

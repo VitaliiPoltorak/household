@@ -95,6 +95,13 @@ export interface HouseholdInvite {
   acceptedAt: string | null;
 }
 
+// GET /invites (listing invites addressed to the current user) preloads the
+// target household so the /invites page can show its name without a second
+// round trip per invite (#267).
+export interface HouseholdInviteWithHousehold extends HouseholdInvite {
+  household: Household;
+}
+
 // Finance
 export type AccountType = 'cash' | 'bank' | 'crypto' | 'investment' | 'deposit';
 
