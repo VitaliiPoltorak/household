@@ -264,6 +264,69 @@ describe('ShoppingPage', () => {
     expect(screen.getByText('Silpo')).toBeInTheDocument();
   });
 
+  describe('archive list action (#199)', () => {
+    it('archives an active list and clears the selection', async () => {
+      let lastBody: Record<string, unknown> | undefined;
+      server.use(
+        http.get('/api/v1/shopping-lists', () =>
+          HttpResponse.json([MOCK_LIST]),
+        ),
+        http.get('/api/v1/shopping-lists/:id', () =>
+          HttpResponse.json(MOCK_LIST),
+        ),
+        http.patch('/api/v1/shopping-lists/:id', async ({ request }) => {
+          lastBody = (await request.json()) as Record<string, unknown>;
+          return HttpResponse.json({ ...MOCK_LIST, status: 'archived' });
+        }),
+      );
+
+      renderWithProviders(<ShoppingPage />);
+      await waitFor(() => screen.getByText('Weekly Groceries'), {
+        timeout: 3000,
+      });
+      await userEvent.click(screen.getByText('Weekly Groceries'));
+      await waitFor(() => screen.getByText('Milk'), { timeout: 3000 });
+
+      await userEvent.click(screen.getByRole('button', { name: 'Archive' }));
+
+      await waitFor(() => expect(lastBody?.['status']).toBe('archived'), {
+        timeout: 3000,
+      });
+      await waitFor(
+        () =>
+          expect(
+            screen.getByText('Select a list to view items'),
+          ).toBeInTheDocument(),
+        { timeout: 3000 },
+      );
+    });
+
+    it('does not show an Archive button for an already-archived list', async () => {
+      const archivedList = { ...MOCK_LIST, status: 'archived' as const };
+      server.use(
+        http.get('/api/v1/shopping-lists', () =>
+          HttpResponse.json([archivedList]),
+        ),
+        http.get('/api/v1/shopping-lists/:id', () =>
+          HttpResponse.json(archivedList),
+        ),
+      );
+
+      renderWithProviders(<ShoppingPage />);
+      await waitFor(() => screen.getByText('Archived'), { timeout: 3000 });
+      await userEvent.click(screen.getByText('Archived'));
+      await waitFor(() => screen.getByText('Weekly Groceries'), {
+        timeout: 3000,
+      });
+      await userEvent.click(screen.getByText('Weekly Groceries'));
+      await waitFor(() => screen.getByText('Milk'), { timeout: 3000 });
+
+      expect(
+        screen.queryByRole('button', { name: 'Archive' }),
+      ).not.toBeInTheDocument();
+    });
+  });
+
   describe('minimum item name length (#200)', () => {
     it('disables the add-item button and shows an inline error for less than 3 characters', async () => {
       server.use(
