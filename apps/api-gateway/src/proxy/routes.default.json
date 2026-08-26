@@ -60,6 +60,12 @@
     "rewrites": { "^": "/rates" }
   },
   {
+    "prefix": "/api/v1/currencies",
+    "envKey": "FINANCE_SERVICE_URL",
+    "defaultUrl": "http://localhost:3003",
+    "rewrites": { "^": "/currencies" }
+  },
+  {
     "prefix": "/api/v1/stores",
     "envKey": "SHOPPING_SERVICE_URL",
     "defaultUrl": "http://localhost:3004",

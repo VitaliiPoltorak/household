@@ -695,6 +695,129 @@
       ]
     },
     {
+      "name": "Finance — Currencies",
+      "item": [
+        {
+          "name": "List currency catalog",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const r = pm.response.json();",
+                  "pm.test('Is array', () => pm.expect(r).to.be.an('array'));",
+                  "pm.test('Includes UAH/USD/EUR', () => {",
+                  "  const codes = r.map(c => c.code);",
+                  "  pm.expect(codes).to.include.members(['UAH', 'USD', 'EUR']);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/currencies"
+          }
+        },
+        {
+          "name": "List enabled currencies (household)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const r = pm.response.json();",
+                  "pm.test('Default set is pre-enabled', () => {",
+                  "  const codes = r.map(c => c.currencyCode);",
+                  "  pm.expect(codes).to.include.members(['UAH', 'USD', 'EUR']);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Household-Id",
+                "value": "{{householdId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/currencies/enabled"
+          }
+        },
+        {
+          "name": "Enable a currency for the household",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "pm.test('Code is uppercased', () => pm.expect(pm.response.json().currencyCode).to.equal('USD'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Household-Id",
+                "value": "{{householdId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/currencies/enabled",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"usd\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Reject disabling a currency in use",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 409', () => pm.response.to.have.status(409));",
+                  "pm.test('Impact body present', () => pm.expect(pm.response.json().impact).to.have.property('accounts'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "X-Household-Id",
+                "value": "{{householdId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/currencies/enabled/UAH"
+          },
+          "description": "UAH backs the accounts created earlier in Finance — Accounts, so disabling it must be blocked with a 409 + impact body (same pattern as the shopping stores impact check)."
+        }
+      ]
+    },
+    {
       "name": "Finance — Categories",
       "item": [
         {

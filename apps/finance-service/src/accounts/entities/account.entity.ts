@@ -42,7 +42,10 @@ export class Account extends BaseEntity {
   @Column({ type: 'enum', enum: AccountType })
   type: AccountType;
 
-  @Column({ length: 3, default: 'UAH' })
+  // Widened from 3→10 (#226) to allow crypto tickers beyond ISO-4217's 3
+  // letters; validity is now enforced by CurrenciesService.assertEnabled,
+  // not the column length.
+  @Column({ length: 10, default: 'UAH' })
   currency: string;
 
   @Column({ type: 'decimal', precision: 15, scale: 2, default: 0 })

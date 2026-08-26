@@ -397,6 +397,13 @@ recurring_payments
 exchange_rates                # NOT scoped to a household — shared reference data
   id, effective_date, source ('privatbank'), ccy, base_ccy, buy, sale, created_at
   UNIQUE (effective_date, source, ccy, base_ccy)
+
+currencies                    # NOT scoped to a household — global catalog (#226)
+  code (PK), name, symbol?, is_crypto, decimals, created_at
+
+household_currencies          # per-household enablement join over `currencies`
+  id, household_id, currency_code, enabled_at
+  UNIQUE (household_id, currency_code)
 ```
 
 ### Shopping
@@ -621,6 +628,20 @@ Finance Service → Kafka: finance.transaction.created
 | GET | `/rates/history?ccy&from&to` | History for a currency — reserved for future dynamics charts |
 
 > finance-service pulls PrivatBank via `RatesScheduler` (@Cron 08:00 Europe/Kyiv + warm-up if the table is empty) and stores rows in `exchange_rates` (unique on `effective_date+source+ccy+base_ccy`, upsert). The client hits our endpoint — CORS is a non-issue and the DB grows history for future dynamics reports.
+
+---
+
+### Finance — Currencies `/currencies`
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/currencies` | Household-agnostic global catalog (code, name, symbol, isCrypto, decimals) |
+| GET | `/currencies/enabled` | Currencies enabled for the caller's household — lazily seeded to the default set (UAH/USD/EUR) on first access |
+| POST | `/currencies/enabled` | Enable a catalog currency for the household (`{ code }`, case-insensitive) |
+| GET | `/currencies/enabled/:code/impact` | Accounts currently using this currency — same impact-preview shape as `/stores/:id/impact` |
+| DELETE | `/currencies/enabled/:code` | Disable — 409 with an impact body if any active account still uses it |
+
+> #226: a household-agnostic `currencies` catalog plus a per-household `household_currencies` enablement join, mirroring the store/product catalog pattern already used in shopping-service. `Account.currency` is validated against a household's enabled set at the service layer (`CurrenciesService.assertEnabled`) rather than a DB-level foreign key — kept deliberately scoped to `Account` only for this pass; `Transaction`/`RecurringPayment`/`ExchangeRate` still store currency as a free string. New households get the default set via a `household.created` Kafka consumer; the same check also lazily seeds a household's first access as a self-healing fallback for delivery races. External rate/catalog API integration (Frankfurter/CoinGecko) is deliberately out of scope — this ships the reference table only.
 
 ---
 
