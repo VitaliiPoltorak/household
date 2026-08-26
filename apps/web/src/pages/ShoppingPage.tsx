@@ -291,7 +291,7 @@ export function ShoppingPage() {
                 </p>
                 <p className="mt-0.5 text-xs text-gray-400 dark:text-gray-500">
                   {new Date(list.createdAt).toLocaleDateString()} ·{' '}
-                  {list.items?.length ?? 0} items
+                  {t('shopping.itemCount', { count: list.items?.length ?? 0 })}
                 </p>
               </button>
             ))}
@@ -303,7 +303,7 @@ export function ShoppingPage() {
       <div className="flex-1">
         {!selectedList ? (
           <div className="flex h-full items-center justify-center text-gray-400 dark:text-gray-500">
-            <p>Select a list to view items</p>
+            <p>{t('shopping.selectListPrompt')}</p>
           </div>
         ) : (
           <ListDetail
@@ -625,7 +625,7 @@ function ListDetail({
       <div className="divide-y divide-gray-100 rounded-xl border border-gray-200 bg-white dark:divide-gray-800 dark:border-gray-800 dark:bg-gray-900">
         {(list.items ?? []).length === 0 ? (
           <p className="py-8 text-center text-sm text-gray-400 dark:text-gray-500">
-            No items yet.
+            {t('shopping.noItemsYet')}
           </p>
         ) : (
           (list.items ?? []).map((item) => (

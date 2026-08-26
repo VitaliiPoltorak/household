@@ -264,7 +264,12 @@
     "bulkAddPlaceholder": "молоко, яйця, хліб\nабо по одному товару на рядок",
     "addNItems": "Додати {{count}} товар",
     "addNItems_few": "Додати {{count}} товари",
-    "addNItems_many": "Додати {{count}} товарів"
+    "addNItems_many": "Додати {{count}} товарів",
+    "itemCount": "{{count}} товар",
+    "itemCount_few": "{{count}} товари",
+    "itemCount_many": "{{count}} товарів",
+    "selectListPrompt": "Виберіть список, щоб переглянути товари",
+    "noItemsYet": "Поки немає товарів."
   },
   "household": {
     "title": "Дім",

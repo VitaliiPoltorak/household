@@ -4,6 +4,7 @@ import { http, HttpResponse } from 'msw';
 import { renderWithProviders } from './wrapper';
 import { ShoppingPage } from '../pages/ShoppingPage';
 import { server } from './setup';
+import i18n from '../i18n';
 
 const MOCK_LIST = {
   id: 'list-1',
@@ -479,6 +480,53 @@ describe('ShoppingPage', () => {
       const input = screen.getByLabelText('List name');
       await userEvent.clear(input);
       expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+    });
+  });
+
+  describe('localized item-count/empty-state strings (#274)', () => {
+    afterEach(async () => {
+      await i18n.changeLanguage('en');
+    });
+
+    it('renders the list item count, empty-detail prompt, and empty-item-list message in Ukrainian', async () => {
+      const emptyList = { ...MOCK_LIST, items: [] };
+      server.use(
+        // AuthContext's applyLocale(user.locale) drives the active language
+        // on mount — a plain i18n.changeLanguage() call would just get
+        // overwritten once /auth/me resolves.
+        http.get('/api/v1/auth/me', () =>
+          HttpResponse.json({
+            id: 'user-1',
+            email: 'test@example.com',
+            displayName: 'Test User',
+            avatarUrl: null,
+            locale: 'uk',
+            createdAt: '2026-01-01T00:00:00Z',
+          }),
+        ),
+        http.get('/api/v1/shopping-lists', () =>
+          HttpResponse.json([emptyList]),
+        ),
+        http.get('/api/v1/shopping-lists/:id', () =>
+          HttpResponse.json(emptyList),
+        ),
+      );
+
+      renderWithProviders(<ShoppingPage />);
+      await waitFor(() => screen.getByText('Weekly Groceries'), {
+        timeout: 3000,
+      });
+
+      expect(await screen.findByText(/0 товарів/)).toBeInTheDocument();
+      expect(
+        await screen.findByText('Виберіть список, щоб переглянути товари'),
+      ).toBeInTheDocument();
+
+      await userEvent.click(screen.getByText('Weekly Groceries'));
+
+      expect(
+        await screen.findByText('Поки немає товарів.'),
+      ).toBeInTheDocument();
     });
   });
 
