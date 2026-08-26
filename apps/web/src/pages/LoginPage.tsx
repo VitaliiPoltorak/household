@@ -11,11 +11,7 @@ import { loginSchema, type LoginFormValues } from '../lib/auth-schemas';
 import { mapAuthError } from '../lib/auth-errors';
 import { td } from '../lib/i18n-dynamic';
 import { Logo } from '../components/brand/Logo';
-
-// Session-storage key the MigrationBanner writes to before redirecting a
-// legacy user through the OAuth flow. Consumed here to send them back to
-// the page they were originally trying to reach.
-const RETURN_TO_KEY = 'auth:return_to';
+import { consumeReturnTo } from '../lib/auth-redirect';
 
 export function LoginPage() {
   const { t } = useTranslation();
@@ -34,13 +30,7 @@ export function LoginPage() {
   }, [user, navigate]);
 
   const redirectAfterLogin = () => {
-    const returnTo = sessionStorage.getItem(RETURN_TO_KEY);
-    sessionStorage.removeItem(RETURN_TO_KEY);
-    // Only accept in-app paths (starting with '/') — prevents open-redirect
-    // if the value is somehow tampered.
-    const target =
-      returnTo && returnTo.startsWith('/') ? returnTo : '/dashboard';
-    navigate(target, { replace: true });
+    navigate(consumeReturnTo(), { replace: true });
   };
 
   const onSubmit = form.handleSubmit(async (values) => {

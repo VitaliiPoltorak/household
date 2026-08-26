@@ -285,7 +285,19 @@
     "settings": "Einstellungen",
     "rename": "Umbenennen",
     "danger": "Gefahrenzone",
-    "deleteHome": "Haushalt löschen"
+    "deleteHome": "Haushalt löschen",
+    "acceptInvite": {
+      "title": "Household-Einladung",
+      "checking": "Einladung wird geprüft…",
+      "needsAuth": "Melde dich an oder erstelle ein Konto, um diese Einladung anzunehmen.",
+      "success": "Du bist dem Household beigetreten! Weiterleitung…",
+      "error": {
+        "emailMismatch": "Diese Einladung wurde an eine andere E-Mail-Adresse gesendet als die, mit der du angemeldet bist.",
+        "invalid": "Dieser Einladungslink ist ungültig oder abgelaufen.",
+        "conflict": "Diese Einladung wurde bereits verwendet, oder du bist bereits Mitglied dieses Households.",
+        "generic": "Beim Annehmen der Einladung ist ein Fehler aufgetreten. Bitte versuche es erneut."
+      }
+    }
   },
   "settings": {
     "title": "Einstellungen",
