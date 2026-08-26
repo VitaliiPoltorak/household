@@ -148,6 +148,23 @@ export function RecurringIcon({ className }: IconProps) {
   );
 }
 
+/** Sidebar nav icon: pending invites (envelope). */
+export function InviteIcon({ className }: IconProps) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className={className}
+      aria-hidden="true"
+      {...shared}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <rect x="3.5" y="5.5" width="17" height="13" rx="2" />
+      <path d="M4 6.5l8 6.5 8-6.5" />
+    </svg>
+  );
+}
+
 /** Sidebar nav icon: settings (gear built from the icon set's geometry, replaces the ⚙️ emoji). */
 export function SettingsIcon({ className }: IconProps) {
   return (

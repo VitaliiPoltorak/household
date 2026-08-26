@@ -465,6 +465,41 @@
           }
         },
         {
+          "name": "List my invites (as invitee)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Has our invite with household preloaded', () => {",
+                  "  const invites = pm.response.json();",
+                  "  const mine = invites.find(i => i.token === pm.environment.get('inviteToken'));",
+                  "  pm.expect(mine).to.not.be.undefined;",
+                  "  pm.expect(mine.household.id).to.equal(pm.environment.get('householdId'));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessTokenInvitee}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": "{{baseUrl}}/invites"
+          },
+          "description": "Per-request bearer override: uses {{accessTokenInvitee}} so this lists invites addressed to the invitee's own email, not the owner's."
+        },
+        {
           "name": "Accept invite (as invitee)",
           "event": [
             {

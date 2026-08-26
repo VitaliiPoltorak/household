@@ -30,7 +30,8 @@
     "transactions": "Transactions",
     "shopping": "Shopping",
     "household": "Household",
-    "settings": "Settings"
+    "settings": "Settings",
+    "invites": "Invites"
   },
   "auth": {
     "title": "Household",
@@ -301,7 +302,10 @@
         "conflict": "This invite has already been used, or you're already a member of this household.",
         "generic": "Something went wrong accepting this invite. Please try again."
       }
-    }
+    },
+    "expiresOn": "expires {{date}}",
+    "copyLink": "Copy link",
+    "linkCopied": "Link copied!"
   },
   "settings": {
     "title": "Settings",
@@ -373,5 +377,11 @@
       },
       "reassignSoonHint": "Reassign / merge is coming in a future release."
     }
+  },
+  "invites": {
+    "title": "Invites",
+    "empty": "No pending invites.",
+    "accept": "Accept",
+    "decline": "Decline"
   }
 }

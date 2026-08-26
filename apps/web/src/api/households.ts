@@ -1,7 +1,15 @@
 import { api } from './client';
-import type { Household, HouseholdMember, HouseholdInvite, MemberRole } from '../types/api';
+import type {
+  Household,
+  HouseholdMember,
+  HouseholdInvite,
+  HouseholdInviteWithHousehold,
+  MemberRole,
+} from '../types/api';
 
-const h = (householdId: string) => ({ headers: { 'X-Household-Id': householdId } });
+const h = (householdId: string) => ({
+  headers: { 'X-Household-Id': householdId },
+});
 
 export const householdsApi = {
   list: () => api.get<Household[]>('/households'),
@@ -21,15 +29,33 @@ export const householdsApi = {
   getMembers: (id: string, householdId: string) =>
     api.get<HouseholdMember[]>(`/households/${id}/members`, h(householdId)),
 
-  updateMemberRole: (id: string, memberId: string, role: MemberRole, householdId: string) =>
-    api.patch<HouseholdMember>(`/households/${id}/members/${memberId}`, { role }, h(householdId)),
+  updateMemberRole: (
+    id: string,
+    memberId: string,
+    role: MemberRole,
+    householdId: string,
+  ) =>
+    api.patch<HouseholdMember>(
+      `/households/${id}/members/${memberId}`,
+      { role },
+      h(householdId),
+    ),
 
   removeMember: (id: string, memberId: string, householdId: string) =>
     api.delete(`/households/${id}/members/${memberId}`, h(householdId)),
 
   // Invites
-  createInvite: (id: string, email: string, role: MemberRole, householdId: string) =>
-    api.post<HouseholdInvite>(`/households/${id}/invites`, { email, role }, h(householdId)),
+  createInvite: (
+    id: string,
+    email: string,
+    role: MemberRole,
+    householdId: string,
+  ) =>
+    api.post<HouseholdInvite>(
+      `/households/${id}/invites`,
+      { email, role },
+      h(householdId),
+    ),
 
   getInvites: (id: string, householdId: string) =>
     api.get<HouseholdInvite[]>(`/households/${id}/invites`, h(householdId)),
@@ -39,4 +65,8 @@ export const householdsApi = {
 
   acceptInvite: (token: string) =>
     api.post<HouseholdMember>(`/invites/${token}/accept`),
+
+  listMyInvites: () => api.get<HouseholdInviteWithHousehold[]>('/invites'),
+
+  declineInvite: (token: string) => api.post(`/invites/${token}/decline`),
 };

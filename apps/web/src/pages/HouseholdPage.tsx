@@ -21,6 +21,7 @@ export function HouseholdPage() {
 
   const [showInvite, setShowInvite] = useState(false);
   const [showRename, setShowRename] = useState(false);
+  const [copiedInviteId, setCopiedInviteId] = useState<string | null>(null);
 
   const { data: members = [] } = useQuery({
     queryKey: ['members', hid],
@@ -80,6 +81,20 @@ export function HouseholdPage() {
         Select a household first.
       </p>
     );
+
+  // Copying is only offered at creation time in InviteModal today — if that
+  // one-shot copy is missed, the previous flow left no way back short of
+  // revoking and re-inviting. The token from GET .../invites is the same
+  // one InviteModal builds its link from, so this just re-exposes it (#267).
+  const copyInviteLink = async (inviteId: string, token: string) => {
+    const link = `${window.location.origin}/invite?token=${token}`;
+    await navigator.clipboard.writeText(link).catch(() => null);
+    setCopiedInviteId(inviteId);
+    setTimeout(
+      () => setCopiedInviteId((id) => (id === inviteId ? null : id)),
+      1500,
+    );
+  };
 
   const activeInvites = invites.filter(
     (i) => !i.acceptedAt && new Date(i.expiresAt) > new Date(),
@@ -153,21 +168,36 @@ export function HouseholdPage() {
                 key={inv.id}
                 className="flex items-center justify-between px-4 py-3"
               >
-                <div>
+                <div className="min-w-0">
                   <p className="text-sm text-gray-900 dark:text-gray-100">
                     {inv.email}
                   </p>
                   <p className="text-xs capitalize text-gray-400 dark:text-gray-500">
-                    {t(`household.roles.${inv.role}`)} · expires{' '}
-                    {new Date(inv.expiresAt).toLocaleDateString()}
+                    {t(`household.roles.${inv.role}`)} ·{' '}
+                    {t('household.expiresOn', {
+                      date: new Date(inv.expiresAt).toLocaleDateString(),
+                    })}
                   </p>
+                  {copiedInviteId === inv.id && (
+                    <p className="text-xs text-green-600 dark:text-green-400">
+                      {t('household.linkCopied')}
+                    </p>
+                  )}
                 </div>
-                <button
-                  onClick={() => revokeInvite.mutate(inv.id)}
-                  className="text-xs text-red-400 hover:text-red-600 dark:text-red-400 dark:hover:text-red-300"
-                >
-                  {t('household.revokeInvite')}
-                </button>
+                <div className="flex shrink-0 items-center gap-3">
+                  <button
+                    onClick={() => void copyInviteLink(inv.id, inv.token)}
+                    className="text-xs text-primary-600 hover:underline dark:text-primary-400"
+                  >
+                    {t('household.copyLink')}
+                  </button>
+                  <button
+                    onClick={() => revokeInvite.mutate(inv.id)}
+                    className="text-xs text-red-400 hover:text-red-600 dark:text-red-400 dark:hover:text-red-300"
+                  >
+                    {t('household.revokeInvite')}
+                  </button>
+                </div>
               </div>
             ))}
           </div>

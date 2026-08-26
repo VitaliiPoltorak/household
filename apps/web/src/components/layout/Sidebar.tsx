@@ -9,6 +9,7 @@ import {
   TxIcon,
   ListIcon,
   MembersIcon,
+  InviteIcon,
   SettingsIcon,
 } from '../brand/icons';
 
@@ -25,6 +26,7 @@ export function Sidebar() {
   ];
 
   const BOTTOM_NAV = [
+    { to: '/invites', label: t('nav.invites'), Icon: InviteIcon },
     { to: '/settings', label: t('nav.settings'), Icon: SettingsIcon },
   ];
 

@@ -10,6 +10,7 @@ import { AccountsPage } from './pages/AccountsPage';
 import { TransactionsPage } from './pages/TransactionsPage';
 import { ShoppingPage } from './pages/ShoppingPage';
 import { HouseholdPage } from './pages/HouseholdPage';
+import { InvitesPage } from './pages/InvitesPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { CategoriesPage } from './pages/CategoriesPage';
 
@@ -30,6 +31,7 @@ export const router = createBrowserRouter([
       { path: '/transactions', element: <TransactionsPage /> },
       { path: '/shopping', element: <ShoppingPage /> },
       { path: '/household', element: <HouseholdPage /> },
+      { path: '/invites', element: <InvitesPage /> },
       { path: '/settings', element: <SettingsPage /> },
       { path: '/settings/categories', element: <CategoriesPage /> },
     ],
