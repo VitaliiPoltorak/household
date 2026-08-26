@@ -404,6 +404,13 @@ currencies                    # NOT scoped to a household — global catalog (#2
 household_currencies          # per-household enablement join over `currencies`
   id, household_id, currency_code, enabled_at
   UNIQUE (household_id, currency_code)
+
+account_types                 # NOT scoped to a household — global catalog (#227)
+  code (PK), label, icon?, is_system, created_at
+
+household_account_types       # per-household enablement join over `account_types`
+  id, household_id, type_code, enabled_at
+  UNIQUE (household_id, type_code)
 ```
 
 ### Shopping
@@ -642,6 +649,20 @@ Finance Service → Kafka: finance.transaction.created
 | DELETE | `/currencies/enabled/:code` | Disable — 409 with an impact body if any active account still uses it |
 
 > #226: a household-agnostic `currencies` catalog plus a per-household `household_currencies` enablement join, mirroring the store/product catalog pattern already used in shopping-service. `Account.currency` is validated against a household's enabled set at the service layer (`CurrenciesService.assertEnabled`) rather than a DB-level foreign key — kept deliberately scoped to `Account` only for this pass; `Transaction`/`RecurringPayment`/`ExchangeRate` still store currency as a free string. New households get the default set via a `household.created` Kafka consumer; the same check also lazily seeds a household's first access as a self-healing fallback for delivery races. External rate/catalog API integration (Frankfurter/CoinGecko) is deliberately out of scope — this ships the reference table only.
+
+---
+
+### Finance — Account Types `/account-types`
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/account-types` | Global catalog (code, label, icon, isSystem) |
+| GET | `/account-types/enabled` | Types enabled for the caller's household — lazily seeded to the 5 system defaults (cash/bank/crypto/investment/deposit) on first access |
+| POST | `/account-types/enabled` | Enable an existing catalog code, or coin a brand-new one — `label` is required only when `code` isn't already in the catalog |
+| GET | `/account-types/enabled/:code/impact` | Accounts currently using this type |
+| DELETE | `/account-types/enabled/:code` | Disable — 409 with an impact body if any active account still uses it |
+
+> #227: same shape as #226 (currencies) — `account_types` global catalog + `household_account_types` enablement join, seeded by the same `household.created` consumer. Unlike currencies, households can coin genuinely new codes (`is_system=false`) — a second household enabling the same code reuses the existing catalog entry rather than creating a duplicate. `Account.type` moved from a native Postgres enum to a validated string column (`AccountTypesService.assertEnabled`), consistent with `Account.currency`. `apps/web/src/pages/AccountsPage.tsx`'s type `<select>` now fetches the household's enabled types instead of a hardcoded list, with an inline "+ Add a type…" option that opens a small form to coin one. `Modal` was changed to render via a React portal (`createPortal` to `document.body`) as part of this — a modal-launched-from-inside-a-modal's `<form>` (the add-type flow, opened from the account create/edit form) is otherwise an HTML-invalid nested `<form>`.
 
 ---
 

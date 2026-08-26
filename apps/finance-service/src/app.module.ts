@@ -14,6 +14,7 @@ import { ReportsModule } from './reports/reports.module';
 import { EventsModule } from './events/events.module';
 import { RatesModule } from './rates/rates.module';
 import { CurrenciesModule } from './currencies/currencies.module';
+import { AccountTypesModule } from './account-types/account-types.module';
 import { Account } from './accounts/entities/account.entity';
 import { Transaction } from './transactions/entities/transaction.entity';
 import { Category } from './categories/entities/category.entity';
@@ -22,6 +23,8 @@ import { RecurringPayment } from './recurring-payments/entities/recurring-paymen
 import { ExchangeRate } from './rates/entities/exchange-rate.entity';
 import { Currency } from './currencies/entities/currency.entity';
 import { HouseholdCurrency } from './currencies/entities/household-currency.entity';
+import { AccountTypeCatalog } from './account-types/entities/account-type-catalog.entity';
+import { HouseholdAccountType } from './account-types/entities/household-account-type.entity';
 
 @Module({
   imports: [
@@ -48,6 +51,8 @@ import { HouseholdCurrency } from './currencies/entities/household-currency.enti
             ExchangeRate,
             Currency,
             HouseholdCurrency,
+            AccountTypeCatalog,
+            HouseholdAccountType,
             AuditLog,
           ],
           synchronize: config.get('NODE_ENV') === 'development',
@@ -65,6 +70,7 @@ import { HouseholdCurrency } from './currencies/entities/household-currency.enti
     ReportsModule,
     RatesModule,
     CurrenciesModule,
+    AccountTypesModule,
     EventsModule,
   ],
 })

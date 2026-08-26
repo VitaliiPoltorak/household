@@ -151,6 +151,13 @@
       "investment": "Інвестиції",
       "deposit": "Депозит"
     },
+    "addType": "+ Додати тип…",
+    "addTypeTitle": "Додати тип рахунку",
+    "typeCode": "Код",
+    "typeCodePlaceholder": "напр. paypal",
+    "typeCodeHint": "Лише малі латинські літери, цифри, \"_\" або \"-\".",
+    "typeLabel": "Назва",
+    "typeLabelPlaceholder": "напр. PayPal",
     "editTitle": "Редагувати рахунок",
     "displayIn": "Показати в",
     "estimatedTotal": "Приблизний підсумок",

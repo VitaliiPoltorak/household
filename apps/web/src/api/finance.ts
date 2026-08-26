@@ -1,7 +1,15 @@
 import { api } from './client';
 import type {
-  Account, AccountSummary, Transaction, Category, CategoryImpact, RecurringPayment,
-  MonthlyReport, NetWorthReport,
+  Account,
+  AccountSummary,
+  Transaction,
+  Category,
+  CategoryImpact,
+  RecurringPayment,
+  MonthlyReport,
+  NetWorthReport,
+  AccountTypeCatalogEntry,
+  EnabledAccountType,
 } from '../types/api';
 
 const cfg = (hid: string) => ({ headers: { 'X-Household-Id': hid } });
@@ -10,10 +18,13 @@ export const financeApi = {
   // Accounts
   getAccounts: (hid: string) => api.get<Account[]>('/accounts', cfg(hid)),
 
-  getSummary: (hid: string) => api.get<AccountSummary>('/accounts/summary', cfg(hid)),
+  getSummary: (hid: string) =>
+    api.get<AccountSummary>('/accounts/summary', cfg(hid)),
 
-  createAccount: (hid: string, data: { name: string; type: string; currency?: string }) =>
-    api.post<Account>('/accounts', data, cfg(hid)),
+  createAccount: (
+    hid: string,
+    data: { name: string; type: string; currency?: string },
+  ) => api.post<Account>('/accounts', data, cfg(hid)),
 
   updateAccount: (id: string, hid: string, data: object) =>
     api.patch<Account>(`/accounts/${id}`, data, cfg(hid)),
@@ -28,14 +39,20 @@ export const financeApi = {
   ) => api.post<Transaction>(`/accounts/${id}/adjust-balance`, data, cfg(hid)),
 
   // Transactions
-  getTransactions: (hid: string, params?: { type?: string; accountId?: string; from?: string; to?: string }) =>
-    api.get<Transaction[]>('/transactions', { ...cfg(hid), params }),
+  getTransactions: (
+    hid: string,
+    params?: { type?: string; accountId?: string; from?: string; to?: string },
+  ) => api.get<Transaction[]>('/transactions', { ...cfg(hid), params }),
 
   createTransaction: (hid: string, data: object) =>
     api.post<Transaction>('/transactions', data, cfg(hid)),
 
   createTransfer: (hid: string, data: CreateTransferPayload) =>
-    api.post<[Transaction, Transaction]>('/transactions/transfer', data, cfg(hid)),
+    api.post<[Transaction, Transaction]>(
+      '/transactions/transfer',
+      data,
+      cfg(hid),
+    ),
 
   updateTransaction: (id: string, hid: string, data: object) =>
     api.patch<Transaction>(`/transactions/${id}`, data, cfg(hid)),
@@ -44,7 +61,11 @@ export const financeApi = {
     api.delete(`/transactions/${id}`, cfg(hid)),
 
   // Categories
-  getCategories: (hid: string, type?: 'income' | 'expense', includeArchived = false) =>
+  getCategories: (
+    hid: string,
+    type?: 'income' | 'expense',
+    includeArchived = false,
+  ) =>
     api.get<Category[]>('/categories', {
       ...cfg(hid),
       params: {
@@ -90,10 +111,26 @@ export const financeApi = {
 
   // Reports
   getMonthlyReport: (hid: string, year: number, month: number) =>
-    api.get<MonthlyReport>('/reports/monthly', { ...cfg(hid), params: { year, month } }),
+    api.get<MonthlyReport>('/reports/monthly', {
+      ...cfg(hid),
+      params: { year, month },
+    }),
 
   getNetWorth: (hid: string) =>
     api.get<NetWorthReport>('/reports/net-worth', cfg(hid)),
+
+  // Account types (#227)
+  getAccountTypes: () => api.get<AccountTypeCatalogEntry[]>('/account-types'),
+
+  getEnabledAccountTypes: (hid: string) =>
+    api.get<EnabledAccountType[]>('/account-types/enabled', cfg(hid)),
+
+  // `code` reuses an existing catalog entry; pass `label` (+ optional `icon`)
+  // to coin a brand-new one when `code` doesn't already exist.
+  enableAccountType: (
+    hid: string,
+    data: { code: string; label?: string; icon?: string },
+  ) => api.post<EnabledAccountType>('/account-types/enabled', data, cfg(hid)),
 
   // Exchange rates (household-agnostic — no cfg needed but header is harmless)
   getLatestRates: () => api.get<ExchangeRate[]>('/rates/latest'),

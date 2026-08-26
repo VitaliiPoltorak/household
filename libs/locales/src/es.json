@@ -150,6 +150,13 @@
       "investment": "Inversión",
       "deposit": "Depósito"
     },
+    "addType": "+ Añadir un tipo…",
+    "addTypeTitle": "Añadir tipo de cuenta",
+    "typeCode": "Código",
+    "typeCodePlaceholder": "ej. paypal",
+    "typeCodeHint": "Solo minúsculas, dígitos, \"_\" o \"-\".",
+    "typeLabel": "Nombre visible",
+    "typeLabelPlaceholder": "ej. PayPal",
     "editTitle": "Editar cuenta",
     "displayIn": "Mostrar en",
     "estimatedTotal": "Total estimado",

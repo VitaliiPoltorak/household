@@ -14,6 +14,7 @@ import {
 import { Account } from './entities/account.entity';
 import { CreateAccountDto, UpdateAccountDto } from './dto/account.dto';
 import { CurrenciesService } from '../currencies/currencies.service';
+import { AccountTypesService } from '../account-types/account-types.service';
 
 const UNIQUE_VIOLATION = '23505';
 const DEFAULT_CURRENCY = 'UAH';
@@ -25,6 +26,7 @@ export class AccountsService {
     private readonly repo: Repository<Account>,
     @Inject(EVENT_PUBLISHER) private readonly events: IEventPublisher,
     private readonly currencies: CurrenciesService,
+    private readonly accountTypes: AccountTypesService,
   ) {}
 
   async create(
@@ -34,6 +36,7 @@ export class AccountsService {
   ): Promise<Account> {
     const currency = dto.currency ?? DEFAULT_CURRENCY;
     await this.currencies.assertEnabled(householdId, currency);
+    await this.accountTypes.assertEnabled(householdId, dto.type);
     const account = this.repo.create({
       ...dto,
       currency,
@@ -71,6 +74,9 @@ export class AccountsService {
     const account = await this.findOne(id, householdId);
     if (dto.currency !== undefined) {
       await this.currencies.assertEnabled(householdId, dto.currency);
+    }
+    if (dto.type !== undefined) {
+      await this.accountTypes.assertEnabled(householdId, dto.type);
     }
     Object.assign(account, dto);
     if (dto.name !== undefined) {

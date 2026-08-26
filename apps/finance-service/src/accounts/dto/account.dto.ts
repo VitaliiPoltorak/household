@@ -1,6 +1,5 @@
 import {
   IsDateString,
-  IsEnum,
   IsNotEmpty,
   IsNumber,
   IsOptional,
@@ -9,7 +8,6 @@ import {
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { AccountType } from '../entities/account.entity';
 
 export class CreateAccountDto {
   @ApiProperty({ example: 'Mono Card' })
@@ -17,9 +15,17 @@ export class CreateAccountDto {
   @IsNotEmpty()
   name: string;
 
-  @ApiProperty({ enum: AccountType })
-  @IsEnum(AccountType)
-  type: AccountType;
+  // Validated against the household's enabled account types at the service
+  // layer (AccountTypesService.assertEnabled) rather than a fixed enum —
+  // households can enable/create their own types (#227).
+  @ApiProperty({ example: 'bank' })
+  @IsString()
+  @IsNotEmpty()
+  @Length(1, 40)
+  @Transform(({ value }) =>
+    typeof value === 'string' ? value.trim().toLowerCase() : value,
+  )
+  type: string;
 
   @ApiPropertyOptional({ example: 'UAH', default: 'UAH' })
   @IsString()

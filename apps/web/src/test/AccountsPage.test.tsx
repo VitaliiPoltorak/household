@@ -1,10 +1,10 @@
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { renderWithProviders } from './wrapper';
 import { AccountsPage } from '../pages/AccountsPage';
 import { server } from './setup';
-import { MOCK_ACCOUNT } from './handlers';
+import { MOCK_ACCOUNT, MOCK_ENABLED_ACCOUNT_TYPES } from './handlers';
 
 describe('AccountsPage', () => {
   beforeEach(() => {
@@ -15,19 +15,27 @@ describe('AccountsPage', () => {
 
   it('renders list of accounts from API', async () => {
     renderWithProviders(<AccountsPage />);
-    await waitFor(() => expect(screen.getByText('Mono Card')).toBeInTheDocument(), { timeout: 3000 });
+    await waitFor(
+      () => expect(screen.getByText('Mono Card')).toBeInTheDocument(),
+      { timeout: 3000 },
+    );
     expect(screen.getByText('bank')).toBeInTheDocument();
   });
 
   it('shows total section in header', async () => {
     renderWithProviders(<AccountsPage />);
-    await waitFor(() => expect(screen.getByText(/Total/)).toBeInTheDocument(), { timeout: 3000 });
+    await waitFor(() => expect(screen.getByText(/Total/)).toBeInTheDocument(), {
+      timeout: 3000,
+    });
   });
 
   it('shows empty state when no accounts', async () => {
     server.use(http.get('/api/v1/accounts', () => HttpResponse.json([])));
     renderWithProviders(<AccountsPage />);
-    await waitFor(() => expect(screen.getByText('No accounts yet.')).toBeInTheDocument(), { timeout: 3000 });
+    await waitFor(
+      () => expect(screen.getByText('No accounts yet.')).toBeInTheDocument(),
+      { timeout: 3000 },
+    );
     expect(screen.getByText('Add first account')).toBeInTheDocument();
   });
 
@@ -45,8 +53,14 @@ describe('AccountsPage', () => {
     server.use(
       http.get('/api/v1/accounts', () => HttpResponse.json(accountList)),
       http.post('/api/v1/accounts', async ({ request }) => {
-        const body = await request.json() as { name: string; type: string };
-        const newAcc = { ...MOCK_ACCOUNT, id: 'acc-new', name: body.name, type: body.type, balance: 0 };
+        const body = (await request.json()) as { name: string; type: string };
+        const newAcc = {
+          ...MOCK_ACCOUNT,
+          id: 'acc-new',
+          name: body.name,
+          type: body.type,
+          balance: 0,
+        };
         accountList = [...accountList, newAcc];
         return HttpResponse.json(newAcc, { status: 201 });
       }),
@@ -58,13 +72,18 @@ describe('AccountsPage', () => {
     await userEvent.type(screen.getByLabelText('Name'), 'Cash Wallet');
     await userEvent.click(screen.getByRole('button', { name: 'Create' }));
 
-    await waitFor(() => expect(screen.getByText('Cash Wallet')).toBeInTheDocument(), { timeout: 3000 });
+    await waitFor(
+      () => expect(screen.getByText('Cash Wallet')).toBeInTheDocument(),
+      { timeout: 3000 },
+    );
   });
 
   it('archives account on archive button click', async () => {
     let archived = false;
     server.use(
-      http.get('/api/v1/accounts', () => HttpResponse.json(archived ? [] : [MOCK_ACCOUNT])),
+      http.get('/api/v1/accounts', () =>
+        HttpResponse.json(archived ? [] : [MOCK_ACCOUNT]),
+      ),
       http.delete('/api/v1/accounts/:id', () => {
         archived = true;
         return new HttpResponse(null, { status: 204 });
@@ -75,12 +94,27 @@ describe('AccountsPage', () => {
     await waitFor(() => screen.getByText('Mono Card'), { timeout: 3000 });
     await userEvent.click(screen.getByText('🗑'));
 
-    await waitFor(() => expect(screen.queryByText('Mono Card')).not.toBeInTheDocument(), { timeout: 3000 });
+    await waitFor(
+      () => expect(screen.queryByText('Mono Card')).not.toBeInTheDocument(),
+      { timeout: 3000 },
+    );
   });
 
   describe('Multi-currency estimated total (#80)', () => {
-    const UAH_ACCOUNT = { ...MOCK_ACCOUNT, id: 'acc-uah', name: 'UAH Bank', currency: 'UAH', balance: 5000 };
-    const USD_ACCOUNT = { ...MOCK_ACCOUNT, id: 'acc-usd', name: 'USD Savings', currency: 'USD', balance: 100 };
+    const UAH_ACCOUNT = {
+      ...MOCK_ACCOUNT,
+      id: 'acc-uah',
+      name: 'UAH Bank',
+      currency: 'UAH',
+      balance: 5000,
+    };
+    const USD_ACCOUNT = {
+      ...MOCK_ACCOUNT,
+      id: 'acc-usd',
+      name: 'USD Savings',
+      currency: 'USD',
+      balance: 100,
+    };
 
     beforeEach(() => {
       // Clean slate — the cache key is a shared side-channel we control.
@@ -90,29 +124,44 @@ describe('AccountsPage', () => {
 
     it('shows the estimated total using live PrivatBank rates', async () => {
       server.use(
-        http.get('/api/v1/accounts', () => HttpResponse.json([UAH_ACCOUNT, USD_ACCOUNT])),
+        http.get('/api/v1/accounts', () =>
+          HttpResponse.json([UAH_ACCOUNT, USD_ACCOUNT]),
+        ),
         http.get('/api/v1/rates/latest', () =>
-          HttpResponse.json([{ ccy: 'USD', base_ccy: 'UAH', buy: '41.50', sale: '42.00' }]),
+          HttpResponse.json([
+            { ccy: 'USD', base_ccy: 'UAH', buy: '41.50', sale: '42.00' },
+          ]),
         ),
       );
 
       renderWithProviders(<AccountsPage />);
       // Live total: 5000 + (100 * 41.50) = 9150 UAH
-      await waitFor(() => expect(screen.getByText(/9,150\.00/)).toBeInTheDocument(), { timeout: 3000 });
-      expect(screen.queryByText(/Exchange rates unavailable/)).not.toBeInTheDocument();
+      await waitFor(
+        () => expect(screen.getByText(/9,150\.00/)).toBeInTheDocument(),
+        { timeout: 3000 },
+      );
+      expect(
+        screen.queryByText(/Exchange rates unavailable/),
+      ).not.toBeInTheDocument();
     });
 
     it('shows unavailable banner when PrivatBank fails and no cache exists', async () => {
       server.use(
-        http.get('/api/v1/accounts', () => HttpResponse.json([UAH_ACCOUNT, USD_ACCOUNT])),
-        http.get('/api/v1/rates/latest', () =>
-          new HttpResponse(null, { status: 503 }),
+        http.get('/api/v1/accounts', () =>
+          HttpResponse.json([UAH_ACCOUNT, USD_ACCOUNT]),
+        ),
+        http.get(
+          '/api/v1/rates/latest',
+          () => new HttpResponse(null, { status: 503 }),
         ),
       );
 
       renderWithProviders(<AccountsPage />);
       await waitFor(
-        () => expect(screen.getByText('Exchange rates unavailable')).toBeInTheDocument(),
+        () =>
+          expect(
+            screen.getByText('Exchange rates unavailable'),
+          ).toBeInTheDocument(),
         { timeout: 3000 },
       );
       // Critically: the aggregate is NOT rendered as ₴100 (silent 1:1 fallback).
@@ -129,15 +178,21 @@ describe('AccountsPage', () => {
       );
 
       server.use(
-        http.get('/api/v1/accounts', () => HttpResponse.json([UAH_ACCOUNT, USD_ACCOUNT])),
-        http.get('/api/v1/rates/latest', () =>
-          new HttpResponse(null, { status: 503 }),
+        http.get('/api/v1/accounts', () =>
+          HttpResponse.json([UAH_ACCOUNT, USD_ACCOUNT]),
+        ),
+        http.get(
+          '/api/v1/rates/latest',
+          () => new HttpResponse(null, { status: 503 }),
         ),
       );
 
       renderWithProviders(<AccountsPage />);
       // Cached total: 5000 + (100 * 40) = 9000 UAH, tagged "cached"
-      await waitFor(() => expect(screen.getByText(/9,000\.00/)).toBeInTheDocument(), { timeout: 3000 });
+      await waitFor(
+        () => expect(screen.getByText(/9,000\.00/)).toBeInTheDocument(),
+        { timeout: 3000 },
+      );
       expect(screen.getByText(/cached/)).toBeInTheDocument();
     });
 
@@ -149,15 +204,21 @@ describe('AccountsPage', () => {
       );
 
       server.use(
-        http.get('/api/v1/accounts', () => HttpResponse.json([UAH_ACCOUNT, USD_ACCOUNT])),
-        http.get('/api/v1/rates/latest', () =>
-          new HttpResponse(null, { status: 503 }),
+        http.get('/api/v1/accounts', () =>
+          HttpResponse.json([UAH_ACCOUNT, USD_ACCOUNT]),
+        ),
+        http.get(
+          '/api/v1/rates/latest',
+          () => new HttpResponse(null, { status: 503 }),
         ),
       );
 
       renderWithProviders(<AccountsPage />);
       await waitFor(
-        () => expect(screen.getByText('Exchange rates unavailable')).toBeInTheDocument(),
+        () =>
+          expect(
+            screen.getByText('Exchange rates unavailable'),
+          ).toBeInTheDocument(),
         { timeout: 3000 },
       );
     });
@@ -175,7 +236,9 @@ describe('AccountsPage', () => {
       renderWithProviders(<AccountsPage />);
       await waitFor(() => screen.getByText('UAH Bank'), { timeout: 3000 });
       // Simple total renders, no banner, no rates request
-      expect(screen.queryByText(/Exchange rates unavailable/)).not.toBeInTheDocument();
+      expect(
+        screen.queryByText(/Exchange rates unavailable/),
+      ).not.toBeInTheDocument();
       expect(pbCalls).toBe(0);
     });
   });
@@ -189,7 +252,9 @@ describe('AccountsPage', () => {
     ];
 
     it('renders in grid view by default (no <ul role="list">)', async () => {
-      server.use(http.get('/api/v1/accounts', () => HttpResponse.json(TWO_ACCOUNTS)));
+      server.use(
+        http.get('/api/v1/accounts', () => HttpResponse.json(TWO_ACCOUNTS)),
+      );
 
       renderWithProviders(<AccountsPage />);
       await waitFor(() => screen.getByText('Alpha Bank'), { timeout: 3000 });
@@ -200,7 +265,9 @@ describe('AccountsPage', () => {
     });
 
     it('switches to list view and persists the choice to localStorage', async () => {
-      server.use(http.get('/api/v1/accounts', () => HttpResponse.json(TWO_ACCOUNTS)));
+      server.use(
+        http.get('/api/v1/accounts', () => HttpResponse.json(TWO_ACCOUNTS)),
+      );
 
       renderWithProviders(<AccountsPage />);
       await waitFor(() => screen.getByText('Alpha Bank'), { timeout: 3000 });
@@ -215,13 +282,21 @@ describe('AccountsPage', () => {
       expect(localStorage.getItem('accounts:view')).toBe('list');
 
       // aria-pressed reflects active state so the toggle is a11y-correct.
-      expect(screen.getByRole('button', { name: 'List view' })).toHaveAttribute('aria-pressed', 'true');
-      expect(screen.getByRole('button', { name: 'Grid view' })).toHaveAttribute('aria-pressed', 'false');
+      expect(screen.getByRole('button', { name: 'List view' })).toHaveAttribute(
+        'aria-pressed',
+        'true',
+      );
+      expect(screen.getByRole('button', { name: 'Grid view' })).toHaveAttribute(
+        'aria-pressed',
+        'false',
+      );
     });
 
     it('restores list view from localStorage on next mount', async () => {
       localStorage.setItem('accounts:view', 'list');
-      server.use(http.get('/api/v1/accounts', () => HttpResponse.json(TWO_ACCOUNTS)));
+      server.use(
+        http.get('/api/v1/accounts', () => HttpResponse.json(TWO_ACCOUNTS)),
+      );
 
       renderWithProviders(<AccountsPage />);
       await waitFor(() => screen.getByText('Alpha Bank'), { timeout: 3000 });
@@ -235,7 +310,9 @@ describe('AccountsPage', () => {
       let archived = false;
       localStorage.setItem('accounts:view', 'list');
       server.use(
-        http.get('/api/v1/accounts', () => HttpResponse.json(archived ? [TWO_ACCOUNTS[1]] : TWO_ACCOUNTS)),
+        http.get('/api/v1/accounts', () =>
+          HttpResponse.json(archived ? [TWO_ACCOUNTS[1]] : TWO_ACCOUNTS),
+        ),
         http.delete('/api/v1/accounts/:id', () => {
           archived = true;
           return new HttpResponse(null, { status: 204 });
@@ -248,8 +325,59 @@ describe('AccountsPage', () => {
       // Two rows → two 🗑 buttons. Click the first (Alpha Bank's row).
       await userEvent.click(screen.getAllByText('🗑')[0]);
 
-      await waitFor(() => expect(screen.queryByText('Alpha Bank')).not.toBeInTheDocument(), { timeout: 3000 });
+      await waitFor(
+        () => expect(screen.queryByText('Alpha Bank')).not.toBeInTheDocument(),
+        { timeout: 3000 },
+      );
       expect(screen.getByText('Beta Cash')).toBeInTheDocument();
+    });
+  });
+
+  describe('account type selection (#227)', () => {
+    it('lists the household enabled account types in the create form', async () => {
+      renderWithProviders(<AccountsPage />);
+      await waitFor(() => screen.getByText('+ New account'), { timeout: 3000 });
+      await userEvent.click(screen.getByText('+ New account'));
+
+      const select = screen.getByLabelText('Type') as HTMLSelectElement;
+      const optionValues = within(select)
+        .getAllByRole('option')
+        .map((o) => (o as HTMLOptionElement).value);
+
+      expect(optionValues).toEqual([
+        ...MOCK_ENABLED_ACCOUNT_TYPES.map((et) => et.typeCode),
+        '__add_new_type__',
+      ]);
+    });
+
+    it('creates and selects a brand-new custom type via the "+ Add a type" affordance', async () => {
+      renderWithProviders(<AccountsPage />);
+      await waitFor(() => screen.getByText('+ New account'), { timeout: 3000 });
+      await userEvent.click(screen.getByText('+ New account'));
+
+      const select = screen.getByLabelText('Type') as HTMLSelectElement;
+      await userEvent.selectOptions(select, '+ Add a type…');
+
+      const addModal = screen
+        .getByText('Add account type')
+        .closest('.fixed') as HTMLElement;
+      expect(addModal).toBeInTheDocument();
+      await userEvent.type(within(addModal).getByLabelText('Code'), 'paypal');
+      await userEvent.type(
+        within(addModal).getByLabelText('Display name'),
+        'PayPal',
+      );
+      // Two "Create" buttons are on screen at once — the add-type modal's and
+      // the still-mounted create-account modal's underneath it — so scope
+      // the click to the add-type modal specifically.
+      await userEvent.click(
+        within(addModal).getByRole('button', { name: 'Create' }),
+      );
+
+      await waitFor(() =>
+        expect(screen.queryByText('Add account type')).not.toBeInTheDocument(),
+      );
+      expect(select.value).toBe('paypal');
     });
   });
 });

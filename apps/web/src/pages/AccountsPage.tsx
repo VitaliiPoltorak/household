@@ -3,12 +3,18 @@ import { useTranslation } from 'react-i18next';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useHousehold } from '../contexts/HouseholdContext';
 import { financeApi } from '../api/finance';
-import type { Account, AccountType, Category } from '../types/api';
+import type {
+  Account,
+  AccountType,
+  Category,
+  EnabledAccountType,
+} from '../types/api';
 import { Modal } from '../components/ui/Modal';
 import { Button } from '../components/ui/Button';
 import { Input, Select } from '../components/ui/Input';
 import { Badge } from '../components/ui/Badge';
 import { formatMoney } from '../lib/money';
+import { td } from '../lib/i18n-dynamic';
 import { useRatesState, convert, BASE_CURRENCY_KEY } from '../hooks/useRates';
 import {
   useAccountActions,
@@ -23,14 +29,23 @@ type ViewMode = 'grid' | 'list';
 const isViewMode = (v: string | null): v is ViewMode =>
   v === 'grid' || v === 'list';
 
-const ACCOUNT_TYPES: readonly AccountType[] = [
-  'cash',
-  'bank',
-  'crypto',
-  'investment',
-  'deposit',
-];
 const CURRENCIES = ['UAH', 'USD', 'EUR'];
+
+// Sentinel <option> value that opens AddAccountTypeModal instead of being a
+// real selection (#227).
+const ADD_TYPE_VALUE = '__add_new_type__';
+
+// System types (the old fixed enum, now catalog rows with isSystem=true)
+// keep their existing i18n keys; a household-coined custom type has no
+// translation, so its own catalog label is the fallback.
+function typeLabel(
+  et: EnabledAccountType,
+  t: ReturnType<typeof useTranslation>['t'],
+): string {
+  return td(t, `accounts.types.${et.typeCode}`, {
+    defaultValue: et.accountType.label,
+  });
+}
 
 // ──────────────────────────────────────────────
 // Formatting
@@ -80,6 +95,12 @@ export function AccountsPage() {
   const { data: categories = [] } = useQuery({
     queryKey: ['categories', hid],
     queryFn: () => financeApi.getCategories(hid),
+    enabled: !!hid,
+  });
+
+  const { data: enabledTypes = [] } = useQuery({
+    queryKey: ['account-types-enabled', hid],
+    queryFn: () => financeApi.getEnabledAccountTypes(hid),
     enabled: !!hid,
   });
 
@@ -282,6 +303,10 @@ export function AccountsPage() {
       {showCreate && (
         <CreateAccountModal
           hid={hid}
+          enabledTypes={enabledTypes}
+          onTypeAdded={() =>
+            qc.invalidateQueries({ queryKey: ['account-types-enabled', hid] })
+          }
           onClose={() => setShowCreate(false)}
           onCreated={() => {
             qc.invalidateQueries({ queryKey: ['accounts', hid] });
@@ -294,6 +319,10 @@ export function AccountsPage() {
         <EditAccountModal
           account={actions.modals.editAccount}
           hid={hid}
+          enabledTypes={enabledTypes}
+          onTypeAdded={() =>
+            qc.invalidateQueries({ queryKey: ['account-types-enabled', hid] })
+          }
           onClose={actions.closeEdit}
           onSaved={() => {
             qc.invalidateQueries({ queryKey: ['accounts', hid] });
@@ -590,14 +619,167 @@ function QuickTxDropdown({
 }
 
 // ──────────────────────────────────────────────
+// Account type <select> + "add a type" affordance (#227)
+// ──────────────────────────────────────────────
+function AccountTypeField({
+  hid,
+  value,
+  onChange,
+  enabledTypes,
+  onTypeAdded,
+}: {
+  hid: string;
+  value: string;
+  onChange: (v: string) => void;
+  enabledTypes: EnabledAccountType[];
+  onTypeAdded: () => void;
+}) {
+  const { t } = useTranslation();
+  const [showAdd, setShowAdd] = useState(false);
+
+  // Defensive: the current value may not be in the enabled list yet (e.g.
+  // the query hasn't resolved, or — in principle only, since disable() 409s
+  // while any account still uses it — the type was somehow disabled).
+  // Without this, <select> would show blank instead of the real value.
+  const options = enabledTypes.some((et) => et.typeCode === value)
+    ? enabledTypes
+    : [
+        ...(value
+          ? [
+              {
+                typeCode: value,
+                accountType: { label: value },
+              } as EnabledAccountType,
+            ]
+          : []),
+        ...enabledTypes,
+      ];
+
+  return (
+    <>
+      <Select
+        label={t('accounts.type')}
+        value={value}
+        onChange={(e) => {
+          if (e.target.value === ADD_TYPE_VALUE) {
+            setShowAdd(true);
+            return;
+          }
+          onChange(e.target.value);
+        }}
+      >
+        {options.map((et) => (
+          <option key={et.typeCode} value={et.typeCode}>
+            {typeLabel(et, t)}
+          </option>
+        ))}
+        <option value={ADD_TYPE_VALUE}>{t('accounts.addType')}</option>
+      </Select>
+      {showAdd && (
+        <AddAccountTypeModal
+          hid={hid}
+          onClose={() => setShowAdd(false)}
+          onAdded={(code) => {
+            onTypeAdded();
+            onChange(code);
+            setShowAdd(false);
+          }}
+        />
+      )}
+    </>
+  );
+}
+
+function AddAccountTypeModal({
+  hid,
+  onClose,
+  onAdded,
+}: {
+  hid: string;
+  onClose: () => void;
+  onAdded: (code: string) => void;
+}) {
+  const { t } = useTranslation();
+  const [code, setCode] = useState('');
+  const [label, setLabel] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!code.trim() || !label.trim()) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const enabled = await financeApi.enableAccountType(hid, {
+        code: code.trim(),
+        label: label.trim(),
+      });
+      onAdded(enabled.typeCode);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal title={t('accounts.addTypeTitle')} onClose={onClose}>
+      <form onSubmit={submit} className="space-y-4">
+        <Input
+          label={t('accounts.typeCode')}
+          value={code}
+          onChange={(e) => setCode(e.target.value)}
+          placeholder={t('accounts.typeCodePlaceholder')}
+          required
+          autoFocus
+        />
+        <p className="-mt-2 text-xs text-gray-400 dark:text-gray-500">
+          {t('accounts.typeCodeHint')}
+        </p>
+        <Input
+          label={t('accounts.typeLabel')}
+          value={label}
+          onChange={(e) => setLabel(e.target.value)}
+          placeholder={t('accounts.typeLabelPlaceholder')}
+          required
+        />
+        {error && (
+          <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600 dark:bg-red-900/30 dark:text-red-300">
+            {error}
+          </p>
+        )}
+        <div className="flex gap-2 pt-2">
+          <Button
+            type="button"
+            variant="secondary"
+            className="flex-1"
+            onClick={onClose}
+          >
+            {t('common.cancel')}
+          </Button>
+          <Button type="submit" className="flex-1" disabled={saving}>
+            {saving ? t('common.saving') : t('common.create')}
+          </Button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+// ──────────────────────────────────────────────
 // Create modal
 // ──────────────────────────────────────────────
 function CreateAccountModal({
   hid,
+  enabledTypes,
+  onTypeAdded,
   onClose,
   onCreated,
 }: {
   hid: string;
+  enabledTypes: EnabledAccountType[];
+  onTypeAdded: () => void;
   onClose: () => void;
   onCreated: () => void;
 }) {
@@ -638,17 +820,13 @@ function CreateAccountModal({
           required
           autoFocus
         />
-        <Select
-          label={t('accounts.type')}
+        <AccountTypeField
+          hid={hid}
           value={type}
-          onChange={(e) => setType(e.target.value as AccountType)}
-        >
-          {ACCOUNT_TYPES.map((tp) => (
-            <option key={tp} value={tp}>
-              {t(`accounts.types.${tp}` as never)}
-            </option>
-          ))}
-        </Select>
+          onChange={setType}
+          enabledTypes={enabledTypes}
+          onTypeAdded={onTypeAdded}
+        />
         <Select
           label={t('accounts.currency')}
           value={currency}
@@ -689,11 +867,15 @@ function CreateAccountModal({
 function EditAccountModal({
   account,
   hid,
+  enabledTypes,
+  onTypeAdded,
   onClose,
   onSaved,
 }: {
   account: Account;
   hid: string;
+  enabledTypes: EnabledAccountType[];
+  onTypeAdded: () => void;
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -732,17 +914,13 @@ function EditAccountModal({
           required
           autoFocus
         />
-        <Select
-          label={t('accounts.type')}
+        <AccountTypeField
+          hid={hid}
           value={type}
-          onChange={(e) => setType(e.target.value as AccountType)}
-        >
-          {ACCOUNT_TYPES.map((tp) => (
-            <option key={tp} value={tp}>
-              {t(`accounts.types.${tp}` as never)}
-            </option>
-          ))}
-        </Select>
+          onChange={setType}
+          enabledTypes={enabledTypes}
+          onTypeAdded={onTypeAdded}
+        />
         <Select
           label={t('accounts.currency')}
           value={currency}

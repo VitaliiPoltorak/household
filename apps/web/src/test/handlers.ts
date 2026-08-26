@@ -39,6 +39,76 @@ export const MOCK_ACCOUNT = {
   isArchived: false,
 };
 
+// Default-enabled account types (#227) — mirrors finance-service's
+// AccountTypesService system-seeded defaults.
+export const MOCK_ENABLED_ACCOUNT_TYPES = [
+  {
+    id: 'hat-cash',
+    householdId: 'hh-1',
+    typeCode: 'cash',
+    enabledAt: '2026-01-01T00:00:00Z',
+    accountType: {
+      code: 'cash',
+      label: 'Cash',
+      icon: null,
+      isSystem: true,
+      createdAt: '2026-01-01T00:00:00Z',
+    },
+  },
+  {
+    id: 'hat-bank',
+    householdId: 'hh-1',
+    typeCode: 'bank',
+    enabledAt: '2026-01-01T00:00:00Z',
+    accountType: {
+      code: 'bank',
+      label: 'Bank',
+      icon: null,
+      isSystem: true,
+      createdAt: '2026-01-01T00:00:00Z',
+    },
+  },
+  {
+    id: 'hat-crypto',
+    householdId: 'hh-1',
+    typeCode: 'crypto',
+    enabledAt: '2026-01-01T00:00:00Z',
+    accountType: {
+      code: 'crypto',
+      label: 'Crypto',
+      icon: null,
+      isSystem: true,
+      createdAt: '2026-01-01T00:00:00Z',
+    },
+  },
+  {
+    id: 'hat-investment',
+    householdId: 'hh-1',
+    typeCode: 'investment',
+    enabledAt: '2026-01-01T00:00:00Z',
+    accountType: {
+      code: 'investment',
+      label: 'Investment',
+      icon: null,
+      isSystem: true,
+      createdAt: '2026-01-01T00:00:00Z',
+    },
+  },
+  {
+    id: 'hat-deposit',
+    householdId: 'hh-1',
+    typeCode: 'deposit',
+    enabledAt: '2026-01-01T00:00:00Z',
+    accountType: {
+      code: 'deposit',
+      label: 'Deposit',
+      icon: null,
+      isSystem: true,
+      createdAt: '2026-01-01T00:00:00Z',
+    },
+  },
+];
+
 export const MOCK_TRANSACTION = {
   id: 'tx-1',
   householdId: 'hh-1',
@@ -63,10 +133,20 @@ export const MOCK_TRANSACTION = {
 // --- Handlers ---
 export const handlers = [
   // Auth — OAuth + session lifecycle
-  http.post(`${BASE}/auth/google`, () => HttpResponse.json(MOCK_LOGIN_RESPONSE)),
-  http.post(`${BASE}/auth/refresh`, () => HttpResponse.json(MOCK_LOGIN_RESPONSE)),
-  http.post(`${BASE}/auth/logout`, () => new HttpResponse(null, { status: 204 })),
-  http.post(`${BASE}/auth/logout-all`, () => new HttpResponse(null, { status: 204 })),
+  http.post(`${BASE}/auth/google`, () =>
+    HttpResponse.json(MOCK_LOGIN_RESPONSE),
+  ),
+  http.post(`${BASE}/auth/refresh`, () =>
+    HttpResponse.json(MOCK_LOGIN_RESPONSE),
+  ),
+  http.post(
+    `${BASE}/auth/logout`,
+    () => new HttpResponse(null, { status: 204 }),
+  ),
+  http.post(
+    `${BASE}/auth/logout-all`,
+    () => new HttpResponse(null, { status: 204 }),
+  ),
   http.get(`${BASE}/auth/me`, () => HttpResponse.json(MOCK_USER)),
   http.patch(`${BASE}/auth/me`, () => HttpResponse.json(MOCK_USER)),
 
@@ -74,15 +154,25 @@ export const handlers = [
   // individual tests override via server.use(...) for error cases.
   http.post(`${BASE}/auth/register`, async ({ request }) => {
     const body = (await request.json()) as { email: string };
-    return HttpResponse.json({ userId: 'user-new', email: body.email }, { status: 202 });
+    return HttpResponse.json(
+      { userId: 'user-new', email: body.email },
+      { status: 202 },
+    );
   }),
-  http.post(`${BASE}/auth/verify-email`, () => HttpResponse.json(MOCK_LOGIN_RESPONSE)),
+  http.post(`${BASE}/auth/verify-email`, () =>
+    HttpResponse.json(MOCK_LOGIN_RESPONSE),
+  ),
   http.post(`${BASE}/auth/verify-email/resend`, () =>
     HttpResponse.json({ ok: true }, { status: 202 }),
   ),
   http.post(`${BASE}/auth/login`, () => HttpResponse.json(MOCK_LOGIN_RESPONSE)),
-  http.post(`${BASE}/auth/unlock`, () => new HttpResponse(null, { status: 204 })),
-  http.post(`${BASE}/auth/password/change`, () => HttpResponse.json(MOCK_LOGIN_RESPONSE)),
+  http.post(
+    `${BASE}/auth/unlock`,
+    () => new HttpResponse(null, { status: 204 }),
+  ),
+  http.post(`${BASE}/auth/password/change`, () =>
+    HttpResponse.json(MOCK_LOGIN_RESPONSE),
+  ),
 
   // Bulk public profile lookup for member lists (#166). Filters MOCK_USER-only
   // by default; individual tests can override with server.use(...) for
@@ -90,8 +180,16 @@ export const handlers = [
   http.get(`${BASE}/auth/users`, ({ request }) => {
     const url = new URL(request.url);
     const ids = (url.searchParams.get('ids') ?? '').split(',').filter(Boolean);
-    const known: Array<{ id: string; displayName: string; avatarUrl: string | null }> = [
-      { id: MOCK_USER.id, displayName: MOCK_USER.displayName, avatarUrl: MOCK_USER.avatarUrl },
+    const known: Array<{
+      id: string;
+      displayName: string;
+      avatarUrl: string | null;
+    }> = [
+      {
+        id: MOCK_USER.id,
+        displayName: MOCK_USER.displayName,
+        avatarUrl: MOCK_USER.avatarUrl,
+      },
     ];
     return HttpResponse.json(known.filter((u) => ids.includes(u.id)));
   }),
@@ -99,19 +197,41 @@ export const handlers = [
   // Households
   http.get(`${BASE}/households`, () => HttpResponse.json([MOCK_HOUSEHOLD])),
   http.post(`${BASE}/households`, async ({ request }) => {
-    const body = await request.json() as { name: string };
-    return HttpResponse.json({ ...MOCK_HOUSEHOLD, id: 'hh-new', name: body.name }, { status: 201 });
+    const body = (await request.json()) as { name: string };
+    return HttpResponse.json(
+      { ...MOCK_HOUSEHOLD, id: 'hh-new', name: body.name },
+      { status: 201 },
+    );
   }),
   http.patch(`${BASE}/households/:id`, async ({ request }) => {
-    const body = await request.json() as { name: string };
+    const body = (await request.json()) as { name: string };
     return HttpResponse.json({ ...MOCK_HOUSEHOLD, name: body.name });
   }),
   http.get(`${BASE}/households/:id/members`, () =>
-    HttpResponse.json([{ id: 'm-1', householdId: 'hh-1', userId: 'user-1', role: 'owner', createdAt: '2026-01-01T00:00:00Z' }]),
+    HttpResponse.json([
+      {
+        id: 'm-1',
+        householdId: 'hh-1',
+        userId: 'user-1',
+        role: 'owner',
+        createdAt: '2026-01-01T00:00:00Z',
+      },
+    ]),
   ),
   http.get(`${BASE}/households/:id/invites`, () => HttpResponse.json([])),
   http.post(`${BASE}/households/:id/invites`, () =>
-    HttpResponse.json({ id: 'inv-1', householdId: 'hh-1', email: 'guest@test.com', token: 'abc123', role: 'member', expiresAt: '2026-08-01T00:00:00Z', acceptedAt: null }, { status: 201 }),
+    HttpResponse.json(
+      {
+        id: 'inv-1',
+        householdId: 'hh-1',
+        email: 'guest@test.com',
+        token: 'abc123',
+        role: 'member',
+        expiresAt: '2026-08-01T00:00:00Z',
+        acceptedAt: null,
+      },
+      { status: 201 },
+    ),
   ),
 
   // Accounts
@@ -120,24 +240,87 @@ export const handlers = [
     HttpResponse.json({ totalBalance: 5000, accounts: [MOCK_ACCOUNT] }),
   ),
   http.post(`${BASE}/accounts`, async ({ request }) => {
-    const body = await request.json() as { name: string; type: string; currency?: string };
-    return HttpResponse.json({ ...MOCK_ACCOUNT, id: 'acc-new', name: body.name, type: body.type, balance: 0 }, { status: 201 });
+    const body = (await request.json()) as {
+      name: string;
+      type: string;
+      currency?: string;
+    };
+    return HttpResponse.json(
+      {
+        ...MOCK_ACCOUNT,
+        id: 'acc-new',
+        name: body.name,
+        type: body.type,
+        balance: 0,
+      },
+      { status: 201 },
+    );
   }),
-  http.delete(`${BASE}/accounts/:id`, () => new HttpResponse(null, { status: 204 })),
+  http.delete(
+    `${BASE}/accounts/:id`,
+    () => new HttpResponse(null, { status: 204 }),
+  ),
+
+  // Account types (#227)
+  http.get(`${BASE}/account-types`, () =>
+    HttpResponse.json(MOCK_ENABLED_ACCOUNT_TYPES.map((et) => et.accountType)),
+  ),
+  http.get(`${BASE}/account-types/enabled`, () =>
+    HttpResponse.json(MOCK_ENABLED_ACCOUNT_TYPES),
+  ),
+  http.post(`${BASE}/account-types/enabled`, async ({ request }) => {
+    const body = (await request.json()) as { code: string; label?: string };
+    return HttpResponse.json(
+      {
+        id: `hat-${body.code}`,
+        householdId: 'hh-1',
+        typeCode: body.code,
+        enabledAt: '2026-01-01T00:00:00Z',
+        accountType: {
+          code: body.code,
+          label: body.label ?? body.code,
+          icon: null,
+          isSystem: false,
+          createdAt: '2026-01-01T00:00:00Z',
+        },
+      },
+      { status: 201 },
+    );
+  }),
 
   // Transactions
   http.get(`${BASE}/transactions`, () => HttpResponse.json([MOCK_TRANSACTION])),
   http.post(`${BASE}/transactions`, async ({ request }) => {
-    const body = await request.json() as object;
-    return HttpResponse.json({ ...MOCK_TRANSACTION, id: 'tx-new', ...body }, { status: 201 });
+    const body = (await request.json()) as object;
+    return HttpResponse.json(
+      { ...MOCK_TRANSACTION, id: 'tx-new', ...body },
+      { status: 201 },
+    );
   }),
   http.post(`${BASE}/transactions/transfer`, () =>
-    HttpResponse.json([
-      { ...MOCK_TRANSACTION, id: 'tx-debit', type: 'transfer', transferPairId: 'pair-1' },
-      { ...MOCK_TRANSACTION, id: 'tx-credit', type: 'transfer', transferPairId: 'pair-1', accountId: 'acc-2' },
-    ], { status: 201 }),
+    HttpResponse.json(
+      [
+        {
+          ...MOCK_TRANSACTION,
+          id: 'tx-debit',
+          type: 'transfer',
+          transferPairId: 'pair-1',
+        },
+        {
+          ...MOCK_TRANSACTION,
+          id: 'tx-credit',
+          type: 'transfer',
+          transferPairId: 'pair-1',
+          accountId: 'acc-2',
+        },
+      ],
+      { status: 201 },
+    ),
   ),
-  http.delete(`${BASE}/transactions/:id`, () => new HttpResponse(null, { status: 204 })),
+  http.delete(
+    `${BASE}/transactions/:id`,
+    () => new HttpResponse(null, { status: 204 }),
+  ),
 
   // Categories
   http.get(`${BASE}/categories`, () => HttpResponse.json([])),
@@ -151,11 +334,17 @@ export const handlers = [
     HttpResponse.json({
       period: '2026-07',
       byCurrency: { UAH: { income: 5000, expense: 0, net: 5000 } },
-      byDay: [{ date: '2026-07-01', currency: 'UAH', income: 5000, expense: 0 }],
+      byDay: [
+        { date: '2026-07-01', currency: 'UAH', income: 5000, expense: 0 },
+      ],
     }),
   ),
   http.get(`${BASE}/reports/net-worth`, () =>
-    HttpResponse.json({ totalBalance: 5000, byCurrency: { UAH: 5000 }, accounts: [MOCK_ACCOUNT] }),
+    HttpResponse.json({
+      totalBalance: 5000,
+      byCurrency: { UAH: 5000 },
+      accounts: [MOCK_ACCOUNT],
+    }),
   ),
 
   // Shopping
@@ -163,7 +352,19 @@ export const handlers = [
   http.get(`${BASE}/products`, () => HttpResponse.json([])),
   http.get(`${BASE}/shopping-lists`, () => HttpResponse.json([])),
   http.post(`${BASE}/shopping-lists`, async ({ request }) => {
-    const body = await request.json() as { name: string };
-    return HttpResponse.json({ id: 'list-1', householdId: 'hh-1', name: body.name, status: 'active', storeId: null, createdBy: 'user-1', createdAt: '2026-07-01T00:00:00Z', items: [] }, { status: 201 });
+    const body = (await request.json()) as { name: string };
+    return HttpResponse.json(
+      {
+        id: 'list-1',
+        householdId: 'hh-1',
+        name: body.name,
+        status: 'active',
+        storeId: null,
+        createdBy: 'user-1',
+        createdAt: '2026-07-01T00:00:00Z',
+        items: [],
+      },
+      { status: 201 },
+    );
   }),
 ];
