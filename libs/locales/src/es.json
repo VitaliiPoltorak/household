@@ -255,7 +255,8 @@
       "pharmacy": "Farmacia",
       "other": "Otro"
     },
-    "itemNameTooShort": "El nombre del artículo debe tener al menos 3 caracteres"
+    "itemNameTooShort": "El nombre del artículo debe tener al menos 3 caracteres",
+    "archive": "Archivar"
   },
   "household": {
     "title": "Hogar",

@@ -255,7 +255,8 @@
       "pharmacy": "Apotheke",
       "other": "Sonstiges"
     },
-    "itemNameTooShort": "Der Artikelname muss mindestens 3 Zeichen lang sein"
+    "itemNameTooShort": "Der Artikelname muss mindestens 3 Zeichen lang sein",
+    "archive": "Archivieren"
   },
   "household": {
     "title": "Haushalt",

@@ -84,6 +84,15 @@ export function ShoppingPage() {
     },
   });
 
+  const archiveList = useMutation({
+    mutationFn: (id: string) =>
+      shoppingApi.updateList(id, hid, { status: 'archived' }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['shopping-lists', hid] });
+      setSelectedList(null);
+    },
+  });
+
   const deleteList = useMutation({
     mutationFn: (id: string) => shoppingApi.deleteList(id, hid),
     onSuccess: () => {
@@ -282,6 +291,7 @@ export function ShoppingPage() {
             storeById={storeById}
             productById={productById}
             onComplete={() => completeList.mutate(selectedList.id)}
+            onArchive={() => archiveList.mutate(selectedList.id)}
             onDelete={() => deleteList.mutate(selectedList.id)}
             onAddItem={(name, quantity, preferredStoreId, productId, linkUrl) =>
               void addItemWithLink(
@@ -342,6 +352,7 @@ function ListDetail({
   storeById,
   productById,
   onComplete,
+  onArchive,
   onDelete,
   onAddItem,
   onToggleItem,
@@ -354,6 +365,7 @@ function ListDetail({
   storeById: Map<string, Store>;
   productById: Map<string, Product>;
   onComplete: () => void;
+  onArchive: () => void;
   onDelete: () => void;
   onAddItem: (
     name: string,
@@ -431,6 +443,11 @@ function ListDetail({
           {list.status === 'active' && (
             <Button size="sm" onClick={onComplete}>
               {t('shopping.complete')}
+            </Button>
+          )}
+          {list.status !== 'archived' && (
+            <Button size="sm" variant="secondary" onClick={onArchive}>
+              {t('shopping.archive')}
             </Button>
           )}
           <Button size="sm" variant="danger" onClick={onDelete}>
