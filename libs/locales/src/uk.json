@@ -270,7 +270,10 @@
     "itemCount_few": "{{count}} товари",
     "itemCount_many": "{{count}} товарів",
     "selectListPrompt": "Виберіть список, щоб переглянути товари",
-    "noItemsYet": "Поки немає товарів."
+    "noItemsYet": "Поки немає товарів.",
+    "editLink": "Редагувати посилання",
+    "editLinkTitle": "Посилання на товар",
+    "linkUrl": "Посилання"
   },
   "household": {
     "title": "Дім",

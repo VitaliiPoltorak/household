@@ -182,6 +182,36 @@ export function ShoppingPage() {
     });
   };
 
+  // Same "product owns the link, not the item" orchestration as
+  // addItemWithLink, but for an item that's already on the list (#269):
+  // update the linked product's url if one exists, otherwise create one and
+  // link the item to it (covers items added before #273 started
+  // auto-linking every plain add to a product).
+  const editItemLink = async (
+    itemId: string,
+    productId: string | null,
+    itemName: string,
+    url: string,
+  ) => {
+    let finalProductId = productId;
+    if (productId) {
+      await shoppingApi.updateProduct(productId, hid, { url });
+    } else {
+      const created = await shoppingApi.createProduct(hid, uid, {
+        name: itemName,
+        url,
+      });
+      finalProductId = created.id;
+    }
+    if (finalProductId !== productId) {
+      await shoppingApi.updateItem(selectedList!.id, itemId, hid, uid, {
+        productId: finalProductId,
+      });
+    }
+    qc.invalidateQueries({ queryKey: ['products', hid] });
+    qc.invalidateQueries({ queryKey: ['shopping-list', selectedList?.id] });
+  };
+
   const toggleItem = useMutation({
     mutationFn: ({
       listId,
@@ -346,6 +376,9 @@ export function ShoppingPage() {
                 actualStoreId,
               })
             }
+            onEditItemLink={(itemId, productId, itemName, url) =>
+              void editItemLink(itemId, productId, itemName, url)
+            }
           />
         )}
       </div>
@@ -398,6 +431,7 @@ function ListDetail({
   onToggleItem,
   onDeleteItem,
   onSetActualStore,
+  onEditItemLink,
 }: {
   list: ShoppingList;
   hid: string;
@@ -419,6 +453,12 @@ function ListDetail({
   onToggleItem: (itemId: string, purchased: boolean) => void;
   onDeleteItem: (itemId: string) => void;
   onSetActualStore: (itemId: string, storeId: string) => void;
+  onEditItemLink: (
+    itemId: string,
+    productId: string | null,
+    itemName: string,
+    url: string,
+  ) => void;
 }) {
   const { t } = useTranslation();
   const [newItem, setNewItem] = useState('');
@@ -428,6 +468,8 @@ function ListDetail({
   const [linkUrl, setLinkUrl] = useState('');
   const [suggestOpen, setSuggestOpen] = useState(false);
   const [showBulkAdd, setShowBulkAdd] = useState(false);
+  const [editingLinkItem, setEditingLinkItem] =
+    useState<ShoppingListItem | null>(null);
 
   const purchased = list.items?.filter((i) => i.isPurchased).length ?? 0;
   const total = list.items?.length ?? 0;
@@ -650,11 +692,82 @@ function ListDetail({
               onToggle={() => onToggleItem(item.id, !item.isPurchased)}
               onDelete={() => onDeleteItem(item.id)}
               onSetActualStore={(storeId) => onSetActualStore(item.id, storeId)}
+              onEditLink={() => setEditingLinkItem(item)}
             />
           ))
         )}
       </div>
+
+      {editingLinkItem && (
+        <EditLinkModal
+          currentUrl={
+            (editingLinkItem.productId &&
+              productById.get(editingLinkItem.productId)?.url) ||
+            ''
+          }
+          onClose={() => setEditingLinkItem(null)}
+          onSave={(url) => {
+            onEditItemLink(
+              editingLinkItem.id,
+              editingLinkItem.productId,
+              editingLinkItem.name,
+              url,
+            );
+            setEditingLinkItem(null);
+          }}
+        />
+      )}
     </div>
+  );
+}
+
+function EditLinkModal({
+  currentUrl,
+  onClose,
+  onSave,
+}: {
+  currentUrl: string;
+  onClose: () => void;
+  onSave: (url: string) => void;
+}) {
+  const { t } = useTranslation();
+  const [url, setUrl] = useState(currentUrl);
+  return (
+    <Modal title={t('shopping.editLinkTitle')} onClose={onClose}>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (url.trim() && url.trim() !== currentUrl) onSave(url.trim());
+        }}
+        className="space-y-4"
+      >
+        <Input
+          label={t('shopping.linkUrl')}
+          type="url"
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          placeholder="https://store.example/product"
+          autoFocus
+        />
+        <div className="flex gap-2">
+          <Button
+            type="button"
+            variant="secondary"
+            className="flex-1"
+            onClick={onClose}
+          >
+            {t('common.cancel')}
+          </Button>
+          <Button
+            type="submit"
+            className="flex-1"
+            disabled={!url.trim() || url.trim() === currentUrl}
+          >
+            {t('common.save')}
+          </Button>
+        </div>
+      </form>
+    </Modal>
   );
 }
 
@@ -754,6 +867,7 @@ function ItemRow({
   onToggle,
   onDelete,
   onSetActualStore,
+  onEditLink,
 }: {
   item: ShoppingListItem;
   isActive: boolean;
@@ -763,6 +877,7 @@ function ItemRow({
   onToggle: () => void;
   onDelete: () => void;
   onSetActualStore: (storeId: string) => void;
+  onEditLink: () => void;
 }) {
   const { t } = useTranslation();
   return (
@@ -803,6 +918,17 @@ function ItemRow({
             🔗
           </a>
         ))}
+      {isActive && (
+        <button
+          type="button"
+          onClick={onEditLink}
+          title={t('shopping.editLink')}
+          aria-label={t('shopping.editLink')}
+          className="shrink-0 text-gray-300 hover:text-primary-500 dark:text-gray-600 dark:hover:text-primary-400"
+        >
+          ✏️
+        </button>
+      )}
       <span
         className={`flex-1 text-sm ${
           item.isPurchased

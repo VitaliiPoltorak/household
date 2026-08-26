@@ -750,6 +750,141 @@ describe('ShoppingPage', () => {
     });
   });
 
+  describe("edit an existing item's link (#269)", () => {
+    it('creates a product and links it when the item has no productId yet', async () => {
+      let productBody: Record<string, unknown> | undefined;
+      let itemBody: Record<string, unknown> | undefined;
+      server.use(
+        http.get('/api/v1/shopping-lists', () =>
+          HttpResponse.json([MOCK_LIST]),
+        ),
+        http.get('/api/v1/shopping-lists/:id', () =>
+          HttpResponse.json(MOCK_LIST),
+        ),
+        http.post('/api/v1/products', async ({ request }) => {
+          productBody = (await request.json()) as Record<string, unknown>;
+          return HttpResponse.json(
+            {
+              ...MOCK_PRODUCT,
+              id: 'product-new',
+              name: productBody['name'],
+              url: productBody['url'],
+            },
+            { status: 201 },
+          );
+        }),
+        http.patch(
+          '/api/v1/shopping-lists/:listId/items/:itemId',
+          async ({ request }) => {
+            itemBody = (await request.json()) as Record<string, unknown>;
+            return HttpResponse.json({
+              ...MOCK_LIST.items[0],
+              productId: itemBody['productId'],
+            });
+          },
+        ),
+      );
+
+      renderWithProviders(<ShoppingPage />);
+      await waitFor(() => screen.getByText('Weekly Groceries'), {
+        timeout: 3000,
+      });
+      await userEvent.click(screen.getByText('Weekly Groceries'));
+      await waitFor(() => screen.getByText('Milk'), { timeout: 3000 });
+
+      await userEvent.click(screen.getByRole('button', { name: 'Edit link' }));
+      await userEvent.type(
+        screen.getByLabelText('Link'),
+        'https://store.example/milk',
+      );
+      await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+      await waitFor(
+        () => expect(productBody?.['url']).toBe('https://store.example/milk'),
+        { timeout: 3000 },
+      );
+      expect(productBody?.['name']).toBe('Milk');
+      await waitFor(() => expect(itemBody?.['productId']).toBe('product-new'), {
+        timeout: 3000,
+      });
+    });
+
+    it('updates the linked product when the item already has one', async () => {
+      const linkedList = {
+        ...MOCK_LIST,
+        items: [{ ...MOCK_LIST.items[0], productId: MOCK_PRODUCT.id }],
+      };
+      let patchedId: string | undefined;
+      let patchBody: Record<string, unknown> | undefined;
+      server.use(
+        http.get('/api/v1/products', () => HttpResponse.json([MOCK_PRODUCT])),
+        http.get('/api/v1/shopping-lists', () =>
+          HttpResponse.json([linkedList]),
+        ),
+        http.get('/api/v1/shopping-lists/:id', () =>
+          HttpResponse.json(linkedList),
+        ),
+        http.patch('/api/v1/products/:id', async ({ request, params }) => {
+          patchedId = params['id'] as string;
+          patchBody = (await request.json()) as Record<string, unknown>;
+          return HttpResponse.json({ ...MOCK_PRODUCT, url: patchBody['url'] });
+        }),
+      );
+
+      renderWithProviders(<ShoppingPage />);
+      await waitFor(() => screen.getByText('Weekly Groceries'), {
+        timeout: 3000,
+      });
+      await userEvent.click(screen.getByText('Weekly Groceries'));
+      await waitFor(() => screen.getByText('Milk'), { timeout: 3000 });
+
+      await userEvent.click(screen.getByRole('button', { name: 'Edit link' }));
+      await userEvent.type(
+        screen.getByLabelText('Link'),
+        'https://store.example/oat-milk',
+      );
+      await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+      await waitFor(() => expect(patchedId).toBe(MOCK_PRODUCT.id), {
+        timeout: 3000,
+      });
+      expect(patchBody?.['url']).toBe('https://store.example/oat-milk');
+    });
+
+    it('disables Save until the URL actually changes', async () => {
+      const linkedList = {
+        ...MOCK_LIST,
+        items: [{ ...MOCK_LIST.items[0], productId: MOCK_PRODUCT.id }],
+      };
+      server.use(
+        http.get('/api/v1/products', () =>
+          HttpResponse.json([
+            { ...MOCK_PRODUCT, url: 'https://store.example/existing' },
+          ]),
+        ),
+        http.get('/api/v1/shopping-lists', () =>
+          HttpResponse.json([linkedList]),
+        ),
+        http.get('/api/v1/shopping-lists/:id', () =>
+          HttpResponse.json(linkedList),
+        ),
+      );
+
+      renderWithProviders(<ShoppingPage />);
+      await waitFor(() => screen.getByText('Weekly Groceries'), {
+        timeout: 3000,
+      });
+      await userEvent.click(screen.getByText('Weekly Groceries'));
+      await waitFor(() => screen.getByText('Milk'), { timeout: 3000 });
+
+      await userEvent.click(screen.getByRole('button', { name: 'Edit link' }));
+      expect(
+        await screen.findByDisplayValue('https://store.example/existing'),
+      ).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+    });
+  });
+
   describe('product link + preview (#197)', () => {
     it('creates a new product with the typed link when adding a free-text item', async () => {
       let productBody: Record<string, unknown> | undefined;

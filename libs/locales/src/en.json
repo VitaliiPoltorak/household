@@ -267,7 +267,10 @@
     "itemCount": "{{count}} item",
     "itemCount_other": "{{count}} items",
     "selectListPrompt": "Select a list to view items",
-    "noItemsYet": "No items yet."
+    "noItemsYet": "No items yet.",
+    "editLink": "Edit link",
+    "editLinkTitle": "Product link",
+    "linkUrl": "Link"
   },
   "household": {
     "title": "Household",

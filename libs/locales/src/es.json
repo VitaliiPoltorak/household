@@ -267,7 +267,10 @@
     "itemCount": "{{count}} artículo",
     "itemCount_other": "{{count}} artículos",
     "selectListPrompt": "Selecciona una lista para ver los artículos",
-    "noItemsYet": "Aún no hay artículos."
+    "noItemsYet": "Aún no hay artículos.",
+    "editLink": "Editar enlace",
+    "editLinkTitle": "Enlace del producto",
+    "linkUrl": "Enlace"
   },
   "household": {
     "title": "Hogar",
