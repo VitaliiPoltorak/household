@@ -1391,6 +1391,44 @@
           }
         },
         {
+          "name": "Bulk add items",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "pm.test('Creates both items', () => pm.expect(pm.response.json()).to.have.lengthOf(2));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Household-Id",
+                "value": "{{householdId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/shopping-lists/{{listId}}/items/bulk",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"items\": [\n    { \"name\": \"Bread {{runId}}\" },\n    { \"name\": \"Eggs {{runId}}\" }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
           "name": "Mark item purchased",
           "event": [
             {
