@@ -256,7 +256,8 @@
       "other": "Otro"
     },
     "itemNameTooShort": "El nombre del artículo debe tener al menos 3 caracteres",
-    "archive": "Archivar"
+    "archive": "Archivar",
+    "rename": "Renombrar"
   },
   "household": {
     "title": "Hogar",

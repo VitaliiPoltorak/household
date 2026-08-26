@@ -264,6 +264,69 @@ describe('ShoppingPage', () => {
     expect(screen.getByText('Silpo')).toBeInTheDocument();
   });
 
+  describe('rename shopping list (#202)', () => {
+    it('renames a list via the edit affordance', async () => {
+      let lastBody: Record<string, unknown> | undefined;
+      server.use(
+        http.get('/api/v1/shopping-lists', () =>
+          HttpResponse.json([MOCK_LIST]),
+        ),
+        http.get('/api/v1/shopping-lists/:id', () =>
+          HttpResponse.json(MOCK_LIST),
+        ),
+        http.patch('/api/v1/shopping-lists/:id', async ({ request }) => {
+          lastBody = (await request.json()) as Record<string, unknown>;
+          return HttpResponse.json({
+            ...MOCK_LIST,
+            name: lastBody['name'] as string,
+          });
+        }),
+      );
+
+      renderWithProviders(<ShoppingPage />);
+      await waitFor(() => screen.getByText('Weekly Groceries'), {
+        timeout: 3000,
+      });
+      await userEvent.click(screen.getByText('Weekly Groceries'));
+      await waitFor(() => screen.getByText('Milk'), { timeout: 3000 });
+
+      await userEvent.click(screen.getByRole('button', { name: 'Rename' }));
+      const input = screen.getByLabelText('List name');
+      await userEvent.clear(input);
+      await userEvent.type(input, 'Weekend Shop');
+      await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+      await waitFor(() => expect(lastBody?.['name']).toBe('Weekend Shop'), {
+        timeout: 3000,
+      });
+    });
+
+    it('disables saving when the name is unchanged or empty', async () => {
+      server.use(
+        http.get('/api/v1/shopping-lists', () =>
+          HttpResponse.json([MOCK_LIST]),
+        ),
+        http.get('/api/v1/shopping-lists/:id', () =>
+          HttpResponse.json(MOCK_LIST),
+        ),
+      );
+
+      renderWithProviders(<ShoppingPage />);
+      await waitFor(() => screen.getByText('Weekly Groceries'), {
+        timeout: 3000,
+      });
+      await userEvent.click(screen.getByText('Weekly Groceries'));
+      await waitFor(() => screen.getByText('Milk'), { timeout: 3000 });
+
+      await userEvent.click(screen.getByRole('button', { name: 'Rename' }));
+      expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+
+      const input = screen.getByLabelText('List name');
+      await userEvent.clear(input);
+      expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+    });
+  });
+
   describe('archive list action (#199)', () => {
     it('archives an active list and clears the selection', async () => {
       let lastBody: Record<string, unknown> | undefined;
