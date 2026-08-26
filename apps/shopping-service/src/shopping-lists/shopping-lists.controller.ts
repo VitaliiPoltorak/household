@@ -1,14 +1,27 @@
 import {
-  Controller, Get, Post, Patch, Delete,
-  Param, Body, Headers, Query, HttpCode, HttpStatus, UnauthorizedException,
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Delete,
+  Param,
+  Body,
+  Headers,
+  Query,
+  HttpCode,
+  HttpStatus,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { ApiTags, ApiHeader, ApiQuery } from '@nestjs/swagger';
 import { ShoppingListsService } from './shopping-lists.service';
 import { ShoppingListItemsService } from './shopping-list-items.service';
 import { ListStatus } from './entities/shopping-list.entity';
 import {
-  CreateShoppingListDto, UpdateShoppingListDto,
-  CreateItemDto, UpdateItemDto,
+  CreateShoppingListDto,
+  UpdateShoppingListDto,
+  CreateItemDto,
+  UpdateItemDto,
+  BulkCreateItemsDto,
 } from './dto/shopping-list.dto';
 
 @ApiTags('Shopping Lists')
@@ -85,6 +98,17 @@ export class ShoppingListsController {
     return this.itemsSvc.addItem(id, hid, dto);
   }
 
+  @Post(':id/items/bulk')
+  bulkAddItems(
+    @Headers('x-user-id') uid: string,
+    @Headers('x-household-id') hid: string,
+    @Param('id') id: string,
+    @Body() dto: BulkCreateItemsDto,
+  ) {
+    this.require(uid, hid);
+    return this.itemsSvc.bulkAddItems(id, hid, dto.items);
+  }
+
   @Patch(':id/items/:itemId')
   updateItem(
     @Headers('x-user-id') uid: string,
@@ -109,6 +133,7 @@ export class ShoppingListsController {
   }
 
   private require(uid: string, hid: string): void {
-    if (!uid || !hid) throw new UnauthorizedException('Missing required headers');
+    if (!uid || !hid)
+      throw new UnauthorizedException('Missing required headers');
   }
 }

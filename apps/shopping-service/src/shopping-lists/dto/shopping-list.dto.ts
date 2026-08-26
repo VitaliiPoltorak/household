@@ -7,8 +7,10 @@ import {
   IsString,
   IsBoolean,
   MinLength,
+  ArrayMinSize,
+  ValidateNested,
 } from 'class-validator';
-import { Transform } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
 import { ListStatus } from '../entities/shopping-list.entity';
 
@@ -71,6 +73,14 @@ export class CreateItemDto {
   @IsString()
   @IsOptional()
   preferredStoreId?: string;
+}
+
+export class BulkCreateItemsDto {
+  @ApiProperty({ type: [CreateItemDto] })
+  @ValidateNested({ each: true })
+  @Type(() => CreateItemDto)
+  @ArrayMinSize(1)
+  items: CreateItemDto[];
 }
 
 export class UpdateItemDto extends PartialType(CreateItemDto) {

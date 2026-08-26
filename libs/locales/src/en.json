@@ -257,7 +257,12 @@
     },
     "itemNameTooShort": "Item name must be at least 3 characters",
     "archive": "Archive",
-    "rename": "Rename"
+    "rename": "Rename",
+    "bulkAdd": "Paste multiple items",
+    "singleAdd": "Add one at a time",
+    "bulkAddPlaceholder": "milk, eggs, bread\nor one item per line",
+    "addNItems": "Add {{count}} item",
+    "addNItems_other": "Add {{count}} items"
   },
   "household": {
     "title": "Household",

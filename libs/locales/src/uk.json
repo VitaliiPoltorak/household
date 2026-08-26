@@ -258,7 +258,13 @@
     },
     "itemNameTooShort": "Назва товару має містити щонайменше 3 символи",
     "archive": "Архівувати",
-    "rename": "Перейменувати"
+    "rename": "Перейменувати",
+    "bulkAdd": "Вставити кілька товарів",
+    "singleAdd": "Додавати по одному",
+    "bulkAddPlaceholder": "молоко, яйця, хліб\nабо по одному товару на рядок",
+    "addNItems": "Додати {{count}} товар",
+    "addNItems_few": "Додати {{count}} товари",
+    "addNItems_many": "Додати {{count}} товарів"
   },
   "household": {
     "title": "Дім",

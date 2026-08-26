@@ -257,7 +257,12 @@
     },
     "itemNameTooShort": "El nombre del artículo debe tener al menos 3 caracteres",
     "archive": "Archivar",
-    "rename": "Renombrar"
+    "rename": "Renombrar",
+    "bulkAdd": "Pegar varios artículos",
+    "singleAdd": "Añadir uno por uno",
+    "bulkAddPlaceholder": "leche, huevos, pan\no un artículo por línea",
+    "addNItems": "Añadir {{count}} artículo",
+    "addNItems_other": "Añadir {{count}} artículos"
   },
   "household": {
     "title": "Hogar",

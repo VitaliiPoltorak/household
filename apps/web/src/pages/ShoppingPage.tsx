@@ -135,6 +135,18 @@ export function ShoppingPage() {
       qc.invalidateQueries({ queryKey: ['shopping-list', selectedList?.id] }),
   });
 
+  const bulkAddItems = useMutation({
+    mutationFn: ({ listId, names }: { listId: string; names: string[] }) =>
+      shoppingApi.bulkAddItems(
+        listId,
+        hid,
+        uid,
+        names.map((name) => ({ name })),
+      ),
+    onSuccess: () =>
+      qc.invalidateQueries({ queryKey: ['shopping-list', selectedList?.id] }),
+  });
+
   // A link is attached to the Product, not the item instance (#197) — so
   // adding an item with a link either updates the already-selected product
   // (from #196 autocomplete) or creates a new one, before the item itself
@@ -313,6 +325,9 @@ export function ShoppingPage() {
                 linkUrl,
               )
             }
+            onBulkAddItems={(names) =>
+              bulkAddItems.mutate({ listId: selectedList.id, names })
+            }
             onToggleItem={(itemId, isPurchased) =>
               toggleItem.mutate({
                 listId: selectedList.id,
@@ -378,6 +393,7 @@ function ListDetail({
   onRenameClick,
   onDelete,
   onAddItem,
+  onBulkAddItems,
   onToggleItem,
   onDeleteItem,
   onSetActualStore,
@@ -398,6 +414,7 @@ function ListDetail({
     productId?: string,
     linkUrl?: string,
   ) => void;
+  onBulkAddItems: (names: string[]) => void;
   onToggleItem: (itemId: string, purchased: boolean) => void;
   onDeleteItem: (itemId: string) => void;
   onSetActualStore: (itemId: string, storeId: string) => void;
@@ -409,6 +426,7 @@ function ListDetail({
   const [selectedProductId, setSelectedProductId] = useState('');
   const [linkUrl, setLinkUrl] = useState('');
   const [suggestOpen, setSuggestOpen] = useState(false);
+  const [showBulkAdd, setShowBulkAdd] = useState(false);
 
   const purchased = list.items?.filter((i) => i.isPurchased).length ?? 0;
   const total = list.items?.length ?? 0;
@@ -500,8 +518,31 @@ function ListDetail({
         </div>
       )}
 
-      {/* Add item form */}
       {list.status === 'active' && (
+        <div className="-mb-2 flex justify-end">
+          <button
+            type="button"
+            onClick={() => setShowBulkAdd((v) => !v)}
+            className="text-xs text-primary-600 hover:underline dark:text-primary-400"
+          >
+            {showBulkAdd ? t('shopping.singleAdd') : t('shopping.bulkAdd')}
+          </button>
+        </div>
+      )}
+
+      {list.status === 'active' && showBulkAdd && (
+        <BulkAddPanel
+          existingNames={(list.items ?? []).map((i) => i.name)}
+          onSubmit={(names) => {
+            onBulkAddItems(names);
+            setShowBulkAdd(false);
+          }}
+          onCancel={() => setShowBulkAdd(false)}
+        />
+      )}
+
+      {/* Add item form */}
+      {list.status === 'active' && !showBulkAdd && (
         <form onSubmit={submit} className="flex gap-2">
           <div className="relative flex-1">
             <input
@@ -609,6 +650,93 @@ function ListDetail({
             />
           ))
         )}
+      </div>
+    </div>
+  );
+}
+
+// Splits on comma or newline, trims, drops anything below the #200 3-char
+// floor, and dedupes case-insensitively both within the pasted text and
+// against names already on the list.
+function parseBulkNames(raw: string, existingNames: string[]): string[] {
+  const existingLower = new Set(existingNames.map((n) => n.toLowerCase()));
+  const seenLower = new Set<string>();
+  const result: string[] = [];
+  for (const token of raw.split(/[,\n]/)) {
+    const name = token.trim();
+    if (name.length < 3) continue;
+    const lower = name.toLowerCase();
+    if (existingLower.has(lower) || seenLower.has(lower)) continue;
+    seenLower.add(lower);
+    result.push(name);
+  }
+  return result;
+}
+
+function BulkAddPanel({
+  existingNames,
+  onSubmit,
+  onCancel,
+}: {
+  existingNames: string[];
+  onSubmit: (names: string[]) => void;
+  onCancel: () => void;
+}) {
+  const { t } = useTranslation();
+  const [raw, setRaw] = useState('');
+  const [removed, setRemoved] = useState<Set<string>>(new Set());
+
+  const parsed = useMemo(
+    () => parseBulkNames(raw, existingNames),
+    [raw, existingNames],
+  );
+  const preview = parsed.filter((n) => !removed.has(n));
+
+  return (
+    <div className="space-y-2 rounded-lg border border-gray-200 p-3 dark:border-gray-800">
+      <textarea
+        value={raw}
+        onChange={(e) => {
+          setRaw(e.target.value);
+          setRemoved(new Set());
+        }}
+        placeholder={t('shopping.bulkAddPlaceholder')}
+        rows={3}
+        autoFocus
+        className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500"
+      />
+      {preview.length > 0 && (
+        <ul className="flex flex-wrap gap-1.5">
+          {preview.map((name) => (
+            <li
+              key={name}
+              className="flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-700 dark:bg-gray-800 dark:text-gray-300"
+            >
+              {name}
+              <button
+                type="button"
+                onClick={() => setRemoved((r) => new Set(r).add(name))}
+                aria-label={`${t('common.delete')} ${name}`}
+                className="text-gray-400 hover:text-red-500 dark:text-gray-500 dark:hover:text-red-400"
+              >
+                ✕
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <div className="flex gap-2">
+        <Button type="button" variant="secondary" size="sm" onClick={onCancel}>
+          {t('common.cancel')}
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          disabled={preview.length === 0}
+          onClick={() => onSubmit(preview)}
+        >
+          {t('shopping.addNItems', { count: preview.length })}
+        </Button>
       </div>
     </div>
   );
