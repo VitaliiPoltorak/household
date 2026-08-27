@@ -2,6 +2,7 @@ import { Outlet, Navigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
+import { MobileTabBar } from './MobileTabBar';
 
 export function Layout() {
   const { user, isLoading } = useAuth();
@@ -21,10 +22,11 @@ export function Layout() {
       <Sidebar />
       <div className="flex flex-1 flex-col overflow-hidden">
         <Header />
-        <main className="flex-1 overflow-y-auto p-6 text-gray-900 dark:text-gray-100">
+        <main className="flex-1 overflow-y-auto p-4 pb-24 text-gray-900 dark:text-gray-100 md:p-6">
           <Outlet />
         </main>
       </div>
+      <MobileTabBar />
     </div>
   );
 }

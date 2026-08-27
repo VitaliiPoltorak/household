@@ -31,7 +31,8 @@
     "shopping": "Shopping",
     "household": "Household",
     "settings": "Settings",
-    "invites": "Invites"
+    "invites": "Invites",
+    "menu": "Menu"
   },
   "auth": {
     "title": "Household",

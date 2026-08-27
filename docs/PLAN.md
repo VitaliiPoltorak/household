@@ -870,6 +870,7 @@ pnpm test:postman                                            # API scenario coll
 ✔ React 18 + Vite 5 + TypeScript + TanStack Query + Tailwind
 ✔ Auth flow — Google OAuth (@react-oauth/google), email + password (register, verify-email, login, unlock, change-password) with react-hook-form + zod, HttpOnly cookie refresh, CSRF header
 ✔ Layout: sidebar, household switcher
+✔ Responsive mobile nav (<768px) — Sidebar replaced by a fixed bottom tab bar (`MobileTabBar`, same 5 destinations via shared `usePrimaryNav`) plus an "account menu" bottom sheet (`MobileMenuSheet`: profile, Invites, Settings, theme, language, sign out) opened from a compact mobile Header; desktop chrome unchanged above the breakpoint
 ✔ Pages:
     ✔ Dashboard (balances, upcoming payments)
     ✔ Accounts & Transactions (inline edit, transfer modal, multi-currency totals with PrivatBank rates)
@@ -877,7 +878,7 @@ pnpm test:postman                                            # API scenario coll
     ✔ Shopping lists
     ✔ Household settings & invites
     ✔ User settings (profile, i18n, logout-all)
-    □ Bank connections (Monobank) — waits for Integration Service
+    ✔ Bank connections (Monobank) — #291
 ✔ Dark theme (#42) — light / dark / system, class on <html>, `useTheme` + `<html>` inline script against FOUC, toggle in Header and selector in Settings
 ✔ Socket.IO client
     ✔ Connect on login, disconnect on logout
@@ -885,7 +886,7 @@ pnpm test:postman                                            # API scenario coll
     ✔ "Who's online" indicators (presence)
     ✔ "Editing…" indicator for transactions and shopping items
 ✔ i18n (react-i18next): en / uk / de / es with a header language switcher
-✔ 42 Vitest tests (integration via MSW)
+✔ 166 Vitest tests (integration via MSW)
 ✔ Brand kit (#232) — logo mark + product icon set (`src/components/brand/`), indigo/sand Tailwind palette (also closed #203's missing-shade gap), Manrope + IBM Plex Mono self-hosted via `@fontsource`, full favicon/app-icon set + web manifest
 ```
 

@@ -3,27 +3,13 @@ import { useTranslation } from 'react-i18next';
 import clsx from 'clsx';
 import { useHousehold } from '../../contexts/HouseholdContext';
 import { Logo } from '../brand/Logo';
-import {
-  HomeIcon,
-  BillIcon,
-  TxIcon,
-  ListIcon,
-  MembersIcon,
-  InviteIcon,
-  SettingsIcon,
-} from '../brand/icons';
+import { InviteIcon, SettingsIcon } from '../brand/icons';
+import { usePrimaryNav } from './primaryNav';
 
 export function Sidebar() {
   const { t } = useTranslation();
   const { households, activeHousehold, setActiveHousehold } = useHousehold();
-
-  const NAV = [
-    { to: '/dashboard', label: t('nav.dashboard'), Icon: HomeIcon },
-    { to: '/accounts', label: t('nav.accounts'), Icon: BillIcon },
-    { to: '/transactions', label: t('nav.transactions'), Icon: TxIcon },
-    { to: '/shopping', label: t('nav.shopping'), Icon: ListIcon },
-    { to: '/household', label: t('nav.household'), Icon: MembersIcon },
-  ];
+  const NAV = usePrimaryNav();
 
   const BOTTOM_NAV = [
     { to: '/invites', label: t('nav.invites'), Icon: InviteIcon },
@@ -31,7 +17,7 @@ export function Sidebar() {
   ];
 
   return (
-    <aside className="flex w-56 flex-col border-r border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
+    <aside className="hidden w-56 flex-col border-r border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900 md:flex">
       <div className="flex h-14 items-center gap-2 border-b border-gray-200 px-4 dark:border-gray-800">
         <Logo className="h-6 w-6 text-primary-600 dark:text-primary-300" />
         <span className="text-lg font-bold tracking-tight text-primary-600 dark:text-primary-300">
