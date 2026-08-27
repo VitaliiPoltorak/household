@@ -47,6 +47,7 @@ export class BankConnectionsService {
         tokenEncrypted: encryptSecret(dto.token, this.encryptionKey),
         monobankClientId: clientInfo.clientId,
         monobankAccountId: clientInfo.accounts[0]?.id ?? null,
+        maskedPan: clientInfo.accounts[0]?.maskedPan[0] ?? null,
         accountMappings: {},
         lastSyncAt: null,
         status: BankConnectionStatus.ACTIVE,

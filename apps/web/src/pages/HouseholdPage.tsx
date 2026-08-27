@@ -11,6 +11,7 @@ import { Button } from '../components/ui/Button';
 import { Input, Select } from '../components/ui/Input';
 import { Modal } from '../components/ui/Modal';
 import { RoleBadge } from '../components/households/RoleBadge';
+import { BankConnectionsSection } from '../components/households/BankConnectionsSection';
 import { formatDate } from '../lib/date-format';
 
 const ROLES: MemberRole[] = ['admin', 'member', 'viewer'];
@@ -275,6 +276,9 @@ export function HouseholdPage() {
           </div>
         </Section>
       )}
+
+      {/* Bank connections */}
+      <BankConnectionsSection hid={hid} />
 
       {/* Danger zone */}
       {households.length > 1 && (

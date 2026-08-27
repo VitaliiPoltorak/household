@@ -283,3 +283,30 @@ export interface ShoppingListItem {
   isPurchased: boolean;
   price: number | null;
 }
+
+export type BankProvider = 'monobank';
+export type BankConnectionStatus = 'active' | 'error' | 'disconnected';
+
+export interface BankConnection {
+  id: string;
+  provider: BankProvider;
+  monobankClientId: string | null;
+  monobankAccountId: string | null;
+  maskedPan: string | null;
+  lastSyncAt: string | null;
+  status: BankConnectionStatus;
+  createdAt: string;
+}
+
+export type SyncStatus = 'running' | 'success' | 'failed';
+
+export interface BankSyncLog {
+  id: string;
+  connectionId: string;
+  startedAt: string;
+  finishedAt: string | null;
+  status: SyncStatus;
+  error: string | null;
+  transactionsCount: number;
+  createdAt: string;
+}
