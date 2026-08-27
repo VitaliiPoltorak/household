@@ -287,7 +287,7 @@ auth-service          # :3001  — LISTEN_HOST=127.0.0.1 by default, 0.0.0.0 in 
 household-service     # :3002
 finance-service       # :3003
 shopping-service      # :3004
-integration-service   # :3005 — Monobank connect + incremental sync (#20); mapping (#21) not implemented
+integration-service   # :3005 — Monobank connect + incremental sync (#20) + mapping (#21)
 realtime-gateway      # :3010 (Socket.IO) — LISTEN_HOST=0.0.0.0 (client edge)
 notification-service  # Phase 6 (not implemented)
 
@@ -322,7 +322,7 @@ apps/
   household-service/    # :3002 — households, members, invites
   finance-service/      # :3003 — accounts, transactions, categories, reports
   shopping-service/     # :3004 — stores, products, lists + items
-  integration-service/  # :3005 — Monobank connect + incremental sync (#20); mapping (#21) not implemented
+  integration-service/  # :3005 — Monobank connect + incremental sync (#20) + mapping (#21)
   realtime-gateway/     # :3010 — Socket.IO, Kafka bridge, presence
   web/                  # :5173 — React 18 + Vite SPA
   notification-service/ # Phase 6 — email + push (not implemented)
@@ -724,10 +724,12 @@ Finance Service → Kafka: finance.transaction.created
 | DELETE | `/integrations/monobank/connections/:id` | Disconnect |
 | POST | `/integrations/monobank/connections/:id/sync` | Trigger manual sync |
 | GET | `/integrations/monobank/connections/:id/logs` | Sync history |
-| GET | `/integrations/monobank/transactions` | Unmapped external transactions *(#21, not implemented)* |
-| POST | `/integrations/monobank/transactions/:id/map` | Link to an account/category *(#21, not implemented)* |
+| GET | `/integrations/monobank/transactions` | Unmapped external transactions |
+| POST | `/integrations/monobank/transactions/:id/map` | Link to an account/category — creates the finance-service transaction |
 
 > #20: `connect` validates the token against Monobank's `/personal/client-info` before persisting, and encrypts it at rest (AES-256-GCM, `TOKEN_ENCRYPTION_KEY` — same strength rule as `JWT_SECRET`). `sync` fetches the primary Monobank account's statement only (the first account returned by `client-info`) — Monobank's 1-request/60s limit is per token across *all* of a client's accounts, so a manual "sync now" trigger fetching several accounts serially would turn one HTTP request into a multi-minute wait; multi-account sync is a natural follow-up once #21 gives each Monobank account somewhere to map to. Concurrency is guarded by a `sync:lock:{connectionId}` Redis lock (crash-safe TTL) plus an explicit 60s-since-`lastSyncAt` check (the lock alone doesn't cover back-to-back non-overlapping syncs). Fetched statement items are upserted into `external_transactions` keyed on `(connectionId, externalId)`, tolerating overlap at incremental-sync window boundaries.
+>
+> #21: `GET .../transactions` lists unmapped `external_transactions` for the household, parsed from the raw Monobank payload, with a `suggestedCategoryName` hint from a baseline MCC→category table (`mcc-category.ts`) — a suggestion only, never auto-applied, since silently miscategorizing money is worse than asking. `POST .../transactions/:id/map` calls finance-service's `POST /transactions` **directly** (not through the gateway, but signed with the same `GATEWAY_SIGNING_SECRET`/`computeSignature` the gateway's proxy uses — the same trust boundary, a second caller) so balance mutation stays owned by finance-service's existing atomic `create()` path. `Transaction.externalId` (a pre-existing, previously-unused column) is set to `monobank:<id>` and used for idempotency — a retried map call returns the already-created transaction instead of double-booking it. Currency is resolved from Monobank's numeric ISO 4217 code via a small baseline table (`currency-code.ts`); an unmapped code fails closed with 400 rather than guessing. Multi-account sync (#293) and Monobank webhooks (#292) are separate, already-filed follow-ups.
 
 ---
 
@@ -837,11 +839,12 @@ pnpm test:postman                                            # API scenario coll
 ### Phase 3 — Integrations + Migrations (in progress)
 
 ```
-▷ Integration Service (#20, #21)
+✔ Integration Service (#20, #21)
     ✔ Monobank connect + sync
     ✔ Incremental sync honouring rate limits
-    □ Map external → internal transactions (#21)
+    ✔ Map external → internal transactions (#21)
     ✔ Kafka: integration.monobank.*
+    □ Multi-account sync (#293), Monobank webhooks (#292) — follow-ups, not MVP scope
 
 ▷ Apple + Facebook OAuth end-to-end (#22)
     ✔ Strategies implemented (google/apple/facebook.strategy.ts + OAuthStrategyRegistry)

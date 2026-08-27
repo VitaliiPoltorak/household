@@ -306,6 +306,9 @@ services:
     environment:
       <<: *service-env
       POSTGRES_HOST: postgres
+      # #21: POST .../transactions/:id/map calls finance-service directly
+      # (signed, not through the gateway) to create the mapped transaction.
+      FINANCE_SERVICE_URL: http://finance-service:3003
     healthcheck:
       test: ["CMD", "node", "-e", "require('net').connect(3005,'127.0.0.1').on('connect',()=>process.exit(0)).on('error',()=>process.exit(1))"]
       interval: 5s

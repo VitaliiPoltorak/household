@@ -2006,9 +2006,72 @@
             ],
             "url": "{{baseUrl}}/integrations/monobank/connections/00000000-0000-4000-8000-000000000000"
           }
+        },
+        {
+          "name": "List unmapped transactions (none yet)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const r = pm.response.json();",
+                  "pm.test('Is empty array', () => pm.expect(r).to.be.an('array').that.is.empty);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Household-Id",
+                "value": "{{householdId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/integrations/monobank/transactions"
+          }
+        },
+        {
+          "name": "Reject mapping a nonexistent transaction",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 404', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Household-Id",
+                "value": "{{householdId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/integrations/monobank/transactions/00000000-0000-4000-8000-000000000000/map",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"accountId\": \"00000000-0000-4000-8000-000000000001\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
         }
       ],
-      "description": "Credential-free scenario checks for integration-service (#20) — validation, tenant isolation, and 404 routing. A real Monobank connect + sync (valid token → client-info → statement) is deliberately manual-only here, the same carve-out this collection already makes for real OAuth consent: Monobank issues personal tokens per real bank account, so there's no scriptable credential to seed like the two e2e users below."
+      "description": "Credential-free scenario checks for integration-service (#20) — validation, tenant isolation, and 404 routing. A real Monobank connect + sync (valid token → client-info → statement) is deliberately manual-only here, the same carve-out this collection already makes for real OAuth consent: Monobank issues personal tokens per real bank account, so there's no scriptable credential to seed like the two e2e users below. #21's mapping endpoints are covered the same way — listing/404 paths only. A real map (an unmapped transaction created by a real sync, then linked to an account/category) needs an actual synced Monobank transaction, so it stays manual-only for the same reason."
     },
     {
       "name": "Cleanup",

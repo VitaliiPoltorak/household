@@ -1,14 +1,30 @@
-import { Inject, Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { EVENT_PUBLISHER, IEventPublisher, LIST_HARD_LIMIT } from '@household/contracts';
+import {
+  EVENT_PUBLISHER,
+  IEventPublisher,
+  LIST_HARD_LIMIT,
+} from '@household/contracts';
 import { nextDayIso } from '@household/common';
 import { AccountsService } from '../accounts/accounts.service';
 import { CategoriesService } from '../categories/categories.service';
 import { IncomeSourcesService } from '../income-sources/income-sources.service';
-import { Transaction, TransactionType, TransferDirection } from './entities/transaction.entity';
 import {
-  CreateTransactionDto, CreateTransferDto, TransactionResponseDto, UpdateTransactionDto,
+  Transaction,
+  TransactionType,
+  TransferDirection,
+} from './entities/transaction.entity';
+import {
+  CreateTransactionDto,
+  CreateTransferDto,
+  TransactionResponseDto,
+  UpdateTransactionDto,
 } from './dto/transaction.dto';
 import { BalanceAdjustmentService } from './balance-adjustment.service';
 import { TransferDomainService } from './transfer-domain.service';
@@ -38,16 +54,29 @@ export class TransactionsService {
   // throws NotFoundException on miss.
   private async assertReferencesBelongToHousehold(
     householdId: string,
-    refs: { accountId?: string; categoryId?: string | null; incomeSourceId?: string | null },
+    refs: {
+      accountId?: string;
+      categoryId?: string | null;
+      incomeSourceId?: string | null;
+    },
   ): Promise<void> {
     const checks: Promise<unknown>[] = [];
-    if (refs.accountId) checks.push(this.accountsService.findOne(refs.accountId, householdId));
-    if (refs.categoryId) checks.push(this.categoriesService.findOne(refs.categoryId, householdId));
-    if (refs.incomeSourceId) checks.push(this.incomeSourcesService.findOne(refs.incomeSourceId, householdId));
+    if (refs.accountId)
+      checks.push(this.accountsService.findOne(refs.accountId, householdId));
+    if (refs.categoryId)
+      checks.push(this.categoriesService.findOne(refs.categoryId, householdId));
+    if (refs.incomeSourceId)
+      checks.push(
+        this.incomeSourcesService.findOne(refs.incomeSourceId, householdId),
+      );
     await Promise.all(checks);
   }
 
-  async create(householdId: string, userId: string, dto: CreateTransactionDto): Promise<Transaction> {
+  async create(
+    householdId: string,
+    userId: string,
+    dto: CreateTransactionDto,
+  ): Promise<Transaction> {
     // Defence-in-depth. DTO already restricts via @IsEnum, but a transfer
     // created here would skip the paired-leg logic in createTransfer() and
     // leave the ledger in an unpaired state.
@@ -55,6 +84,17 @@ export class TransactionsService {
       throw new BadRequestException(
         'Use POST /transactions/transfer to create transfers',
       );
+    }
+
+    // Idempotency for integrations that retry (e.g. integration-service's
+    // Monobank map endpoint, #21) — a repeated call with the same
+    // externalId returns the transaction already created instead of
+    // double-booking it and double-applying the balance delta.
+    if (dto.externalId) {
+      const existing = await this.repo.findOne({
+        where: { householdId, externalId: dto.externalId },
+      });
+      if (existing) return existing;
     }
 
     await this.assertReferencesBelongToHousehold(householdId, {
@@ -109,21 +149,34 @@ export class TransactionsService {
    */
   async findAll(
     householdId: string,
-    query: { type?: TransactionType; accountId?: string; categoryId?: string; from?: string; to?: string },
+    query: {
+      type?: TransactionType;
+      accountId?: string;
+      categoryId?: string;
+      from?: string;
+      to?: string;
+    },
   ): Promise<TransactionResponseDto[]> {
     // Base query — always household-scoped; date and type filters are also
     // simple WHEREs. accountId is applied AFTER dedupe so we don't drop the
     // paired counterpart mid-flight.
-    const qb = this.repo.createQueryBuilder('t')
+    const qb = this.repo
+      .createQueryBuilder('t')
       .where('t.householdId = :householdId', { householdId });
 
     if (query.type) qb.andWhere('t.type = :type', { type: query.type });
-    if (query.categoryId) qb.andWhere('t.categoryId = :categoryId', { categoryId: query.categoryId });
+    if (query.categoryId)
+      qb.andWhere('t.categoryId = :categoryId', {
+        categoryId: query.categoryId,
+      });
 
     // Half-open interval on the upper bound so the query stays correct if
     // Transaction.date is ever migrated from DATE to TIMESTAMP (#82).
     if (query.from) qb.andWhere('t.date >= :from', { from: query.from });
-    if (query.to) qb.andWhere('t.date < :toExclusive', { toExclusive: nextDayIso(query.to) });
+    if (query.to)
+      qb.andWhere('t.date < :toExclusive', {
+        toExclusive: nextDayIso(query.to),
+      });
 
     // If the caller filtered by account, we must include BOTH legs of any
     // transfer that touches that account (so we can pick the matched leg
@@ -144,8 +197,11 @@ export class TransactionsService {
       );
     }
 
-    const rows = await qb.orderBy('t.date', 'DESC').addOrderBy('t.createdAt', 'DESC')
-      .take(LIST_HARD_LIMIT).getMany();
+    const rows = await qb
+      .orderBy('t.date', 'DESC')
+      .addOrderBy('t.createdAt', 'DESC')
+      .take(LIST_HARD_LIMIT)
+      .getMany();
 
     return this.collapseTransferPairs(rows, query.accountId);
   }
@@ -184,7 +240,10 @@ export class TransactionsService {
       }
     }
 
-    const collapsed: Array<{ primary: Transaction; counter: Transaction | null }> = [];
+    const collapsed: Array<{
+      primary: Transaction;
+      counter: Transaction | null;
+    }> = [];
 
     for (const legs of pairs.values()) {
       if (legs.length === 1) {
@@ -203,11 +262,14 @@ export class TransactionsService {
 
     // Re-sort after collapse so pairs land at the correct date position.
     collapsed.sort((a, b) => {
-      if (a.primary.date !== b.primary.date) return a.primary.date < b.primary.date ? 1 : -1;
+      if (a.primary.date !== b.primary.date)
+        return a.primary.date < b.primary.date ? 1 : -1;
       return a.primary.createdAt < b.primary.createdAt ? 1 : -1;
     });
 
-    return collapsed.map(({ primary, counter }) => TransactionResponseDto.fromEntity(primary, counter));
+    return collapsed.map(({ primary, counter }) =>
+      TransactionResponseDto.fromEntity(primary, counter),
+    );
   }
 
   private pickPrimaryLeg(
@@ -224,13 +286,23 @@ export class TransactionsService {
       }
     }
     // Default: debit leg (source) is primary.
-    const debit = legs.find((l) => l.transferDirection === TransferDirection.DEBIT);
-    const credit = legs.find((l) => l.transferDirection === TransferDirection.CREDIT);
+    const debit = legs.find(
+      (l) => l.transferDirection === TransferDirection.DEBIT,
+    );
+    const credit = legs.find(
+      (l) => l.transferDirection === TransferDirection.CREDIT,
+    );
     if (debit && credit) return { primary: debit, counter: credit };
 
     // Legacy fallback: older insert = debit, newer = credit.
     const sorted = [...legs].sort((a, b) =>
-      a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : a.id < b.id ? -1 : 1,
+      a.createdAt < b.createdAt
+        ? -1
+        : a.createdAt > b.createdAt
+          ? 1
+          : a.id < b.id
+            ? -1
+            : 1,
     );
     return { primary: sorted[0], counter: sorted[1] };
   }
@@ -241,18 +313,23 @@ export class TransactionsService {
     return transaction;
   }
 
-  async update(id: string, householdId: string, dto: UpdateTransactionDto): Promise<Transaction> {
+  async update(
+    id: string,
+    householdId: string,
+    dto: UpdateTransactionDto,
+  ): Promise<Transaction> {
     const existing = await this.findOne(id, householdId);
 
-    if (dto.type !== undefined && (dto.type as TransactionType) === TransactionType.TRANSFER) {
+    if (
+      dto.type !== undefined &&
+      (dto.type as TransactionType) === TransactionType.TRANSFER
+    ) {
       throw new BadRequestException(
         'Cannot change transaction type to transfer',
       );
     }
     if (existing.isTransferLeg() && dto.type !== undefined) {
-      throw new BadRequestException(
-        'Cannot change type of a transfer leg',
-      );
+      throw new BadRequestException('Cannot change type of a transfer leg');
     }
 
     await this.assertReferencesBelongToHousehold(householdId, {
@@ -267,7 +344,10 @@ export class TransactionsService {
       const txRepo = manager.getRepository(Transaction);
 
       // Recalculate balance when amount or type changes (skip for transfers — both legs must stay in sync)
-      if (!existing.isTransferLeg() && (dto.amount !== undefined || dto.type !== undefined)) {
+      if (
+        !existing.isTransferLeg() &&
+        (dto.amount !== undefined || dto.type !== undefined)
+      ) {
         await this.balances.swap(
           existing.accountId,
           existing.type,
@@ -326,7 +406,12 @@ export class TransactionsService {
           transferDirection: null,
         }),
       );
-      await this.balances.apply(accountId, TransactionType.ADJUSTMENT, delta, manager);
+      await this.balances.apply(
+        accountId,
+        TransactionType.ADJUSTMENT,
+        delta,
+        manager,
+      );
       return saved;
     });
 
