@@ -31,7 +31,8 @@
     "shopping": "Покупки",
     "household": "Дім",
     "settings": "Налаштування",
-    "invites": "Запрошення"
+    "invites": "Запрошення",
+    "menu": "Меню"
   },
   "auth": {
     "title": "Household",

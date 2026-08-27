@@ -31,7 +31,8 @@
     "shopping": "Compras",
     "household": "Hogar",
     "settings": "Configuración",
-    "invites": "Invitaciones"
+    "invites": "Invitaciones",
+    "menu": "Menú"
   },
   "auth": {
     "title": "Household",
