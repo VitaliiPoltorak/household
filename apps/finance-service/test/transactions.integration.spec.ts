@@ -1,6 +1,11 @@
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
-import { createTestApp, cleanDatabase, resetKafkaMocks, mockKafkaProducer } from '@household/testing';
+import {
+  createTestApp,
+  cleanDatabase,
+  resetKafkaMocks,
+  mockKafkaProducer,
+} from '@household/testing';
 import { AppModule } from '../src/app.module';
 
 const H = 'test-household-id';
@@ -14,15 +19,20 @@ async function createAccount(
 ): Promise<string> {
   const res = await request(app.getHttpServer())
     .post('/accounts')
-    .set('X-User-Id', U).set('X-Household-Id', H)
+    .set('X-User-Id', U)
+    .set('X-Household-Id', H)
     .send({ name, type, currency });
   return res.body.id as string;
 }
 
-async function getBalance(app: INestApplication, accountId: string): Promise<number> {
+async function getBalance(
+  app: INestApplication,
+  accountId: string,
+): Promise<number> {
   const res = await request(app.getHttpServer())
     .get(`/accounts/${accountId}`)
-    .set('X-User-Id', U).set('X-Household-Id', H);
+    .set('X-User-Id', U)
+    .set('X-Household-Id', H);
   return Number(res.body.balance);
 }
 
@@ -34,7 +44,8 @@ async function createCategory(
 ): Promise<string> {
   const res = await request(app.getHttpServer())
     .post('/categories')
-    .set('X-User-Id', U).set('X-Household-Id', householdId)
+    .set('X-User-Id', U)
+    .set('X-Household-Id', householdId)
     .send({ name, type });
   return res.body.id as string;
 }
@@ -47,7 +58,8 @@ async function createIncomeSource(
 ): Promise<string> {
   const res = await request(app.getHttpServer())
     .post('/income-sources')
-    .set('X-User-Id', U).set('X-Household-Id', householdId)
+    .set('X-User-Id', U)
+    .set('X-Household-Id', householdId)
     .send({ name, type });
   return res.body.id as string;
 }
@@ -64,7 +76,9 @@ describe('Transactions (integration)', () => {
     resetKafkaMocks();
   });
 
-  afterAll(async () => { await app.close(); });
+  afterAll(async () => {
+    await app.close();
+  });
 
   describe('POST /transactions — income', () => {
     it('increases account balance', async () => {
@@ -72,8 +86,15 @@ describe('Transactions (integration)', () => {
 
       await request(app.getHttpServer())
         .post('/transactions')
-        .set('X-User-Id', U).set('X-Household-Id', H)
-        .send({ accountId, type: 'income', amount: 5000, currency: 'UAH', date: '2026-07-30' })
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
+        .send({
+          accountId,
+          type: 'income',
+          amount: 5000,
+          currency: 'UAH',
+          date: '2026-07-30',
+        })
         .expect(201);
 
       expect(await getBalance(app, accountId)).toBe(5000);
@@ -83,8 +104,15 @@ describe('Transactions (integration)', () => {
       const accountId = await createAccount(app, 'Bank');
       await request(app.getHttpServer())
         .post('/transactions')
-        .set('X-User-Id', U).set('X-Household-Id', H)
-        .send({ accountId, type: 'income', amount: 1000, currency: 'UAH', date: '2026-07-30' });
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
+        .send({
+          accountId,
+          type: 'income',
+          amount: 1000,
+          currency: 'UAH',
+          date: '2026-07-30',
+        });
 
       expect(mockKafkaProducer.emit).toHaveBeenCalledWith(
         'finance.transaction.created',
@@ -94,18 +122,148 @@ describe('Transactions (integration)', () => {
     });
   });
 
+  describe('POST /transactions — externalId idempotency (#21)', () => {
+    it('a repeated call with the same externalId returns the existing transaction instead of creating a duplicate', async () => {
+      const accountId = await createAccount(app, 'Bank');
+      const payload = {
+        accountId,
+        type: 'income',
+        amount: 1000,
+        currency: 'UAH',
+        date: '2026-07-30',
+        externalId: 'monobank:tx-1',
+      };
+
+      const first = await request(app.getHttpServer())
+        .post('/transactions')
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
+        .send(payload)
+        .expect(201);
+
+      const second = await request(app.getHttpServer())
+        .post('/transactions')
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
+        .send(payload)
+        .expect(201);
+
+      expect(second.body.id).toBe(first.body.id);
+      expect(await getBalance(app, accountId)).toBe(1000);
+
+      const list = await request(app.getHttpServer())
+        .get('/transactions')
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H);
+      expect(list.body).toHaveLength(1);
+    });
+
+    it('a different externalId creates a separate transaction', async () => {
+      const accountId = await createAccount(app, 'Bank');
+
+      await request(app.getHttpServer())
+        .post('/transactions')
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
+        .send({
+          accountId,
+          type: 'income',
+          amount: 1000,
+          currency: 'UAH',
+          date: '2026-07-30',
+          externalId: 'monobank:tx-1',
+        })
+        .expect(201);
+      await request(app.getHttpServer())
+        .post('/transactions')
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
+        .send({
+          accountId,
+          type: 'income',
+          amount: 500,
+          currency: 'UAH',
+          date: '2026-07-30',
+          externalId: 'monobank:tx-2',
+        })
+        .expect(201);
+
+      expect(await getBalance(app, accountId)).toBe(1500);
+    });
+
+    it('externalId is scoped per household — another household reusing the same externalId still creates its own transaction', async () => {
+      const accountId = await createAccount(app, 'Bank');
+      const otherHousehold = 'other-household-id';
+      const otherAccountId = await request(app.getHttpServer())
+        .post('/accounts')
+        .set('X-User-Id', U)
+        .set('X-Household-Id', otherHousehold)
+        .send({ name: 'Bank', type: 'bank', currency: 'UAH' })
+        .then((r) => r.body.id as string);
+
+      await request(app.getHttpServer())
+        .post('/transactions')
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
+        .send({
+          accountId,
+          type: 'income',
+          amount: 1000,
+          currency: 'UAH',
+          date: '2026-07-30',
+          externalId: 'monobank:tx-shared',
+        })
+        .expect(201);
+      await request(app.getHttpServer())
+        .post('/transactions')
+        .set('X-User-Id', U)
+        .set('X-Household-Id', otherHousehold)
+        .send({
+          accountId: otherAccountId,
+          type: 'income',
+          amount: 200,
+          currency: 'UAH',
+          date: '2026-07-30',
+          externalId: 'monobank:tx-shared',
+        })
+        .expect(201);
+
+      expect(await getBalance(app, accountId)).toBe(1000);
+
+      const otherBalance = await request(app.getHttpServer())
+        .get(`/accounts/${otherAccountId}`)
+        .set('X-User-Id', U)
+        .set('X-Household-Id', otherHousehold);
+      expect(Number(otherBalance.body.balance)).toBe(200);
+    });
+  });
+
   describe('POST /transactions — expense', () => {
     it('decreases account balance', async () => {
       const accountId = await createAccount(app, 'Bank');
       await request(app.getHttpServer())
         .post('/transactions')
-        .set('X-User-Id', U).set('X-Household-Id', H)
-        .send({ accountId, type: 'income', amount: 1000, currency: 'UAH', date: '2026-07-30' });
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
+        .send({
+          accountId,
+          type: 'income',
+          amount: 1000,
+          currency: 'UAH',
+          date: '2026-07-30',
+        });
 
       await request(app.getHttpServer())
         .post('/transactions')
-        .set('X-User-Id', U).set('X-Household-Id', H)
-        .send({ accountId, type: 'expense', amount: 300, currency: 'UAH', date: '2026-07-30' })
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
+        .send({
+          accountId,
+          type: 'expense',
+          amount: 300,
+          currency: 'UAH',
+          date: '2026-07-30',
+        })
         .expect(201);
 
       expect(await getBalance(app, accountId)).toBe(700);
@@ -119,13 +277,27 @@ describe('Transactions (integration)', () => {
 
       await request(app.getHttpServer())
         .post('/transactions')
-        .set('X-User-Id', U).set('X-Household-Id', H)
-        .send({ accountId: fromId, type: 'income', amount: 2000, currency: 'UAH', date: '2026-07-30' });
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
+        .send({
+          accountId: fromId,
+          type: 'income',
+          amount: 2000,
+          currency: 'UAH',
+          date: '2026-07-30',
+        });
 
       const res = await request(app.getHttpServer())
         .post('/transactions/transfer')
-        .set('X-User-Id', U).set('X-Household-Id', H)
-        .send({ fromAccountId: fromId, toAccountId: toId, amount: 500, currency: 'UAH', date: '2026-07-30' })
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
+        .send({
+          fromAccountId: fromId,
+          toAccountId: toId,
+          amount: 500,
+          currency: 'UAH',
+          date: '2026-07-30',
+        })
         .expect(201);
 
       const [debit, credit] = res.body as Array<{ transferPairId: string }>;
@@ -135,7 +307,8 @@ describe('Transactions (integration)', () => {
 
       const summary = await request(app.getHttpServer())
         .get('/accounts/summary')
-        .set('X-User-Id', U).set('X-Household-Id', H);
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H);
       expect(summary.body.totalBalance).toBe(2000);
     });
 
@@ -143,8 +316,15 @@ describe('Transactions (integration)', () => {
       const id = await createAccount(app, 'Bank');
       await request(app.getHttpServer())
         .post('/transactions/transfer')
-        .set('X-User-Id', U).set('X-Household-Id', H)
-        .send({ fromAccountId: id, toAccountId: id, amount: 100, currency: 'UAH', date: '2026-07-30' })
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
+        .send({
+          fromAccountId: id,
+          toAccountId: id,
+          amount: 100,
+          currency: 'UAH',
+          date: '2026-07-30',
+        })
         .expect(400);
     });
 
@@ -152,13 +332,21 @@ describe('Transactions (integration)', () => {
       const mine = await createAccount(app, 'Mine');
       const foreign = await request(app.getHttpServer())
         .post('/accounts')
-        .set('X-User-Id', U).set('X-Household-Id', 'other-household')
+        .set('X-User-Id', U)
+        .set('X-Household-Id', 'other-household')
         .send({ name: 'Foreign', type: 'bank', currency: 'UAH' });
 
       await request(app.getHttpServer())
         .post('/transactions/transfer')
-        .set('X-User-Id', U).set('X-Household-Id', H)
-        .send({ fromAccountId: mine, toAccountId: foreign.body.id, amount: 100, currency: 'UAH', date: '2026-07-30' })
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
+        .send({
+          fromAccountId: mine,
+          toAccountId: foreign.body.id,
+          amount: 100,
+          currency: 'UAH',
+          date: '2026-07-30',
+        })
         .expect(404);
 
       expect(await getBalance(app, mine)).toBe(0);
@@ -168,13 +356,21 @@ describe('Transactions (integration)', () => {
       const mine = await createAccount(app, 'Mine');
       const foreign = await request(app.getHttpServer())
         .post('/accounts')
-        .set('X-User-Id', U).set('X-Household-Id', 'other-household')
+        .set('X-User-Id', U)
+        .set('X-Household-Id', 'other-household')
         .send({ name: 'Foreign', type: 'bank', currency: 'UAH' });
 
       await request(app.getHttpServer())
         .post('/transactions/transfer')
-        .set('X-User-Id', U).set('X-Household-Id', H)
-        .send({ fromAccountId: foreign.body.id, toAccountId: mine, amount: 100, currency: 'UAH', date: '2026-07-30' })
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
+        .send({
+          fromAccountId: foreign.body.id,
+          toAccountId: mine,
+          amount: 100,
+          currency: 'UAH',
+          date: '2026-07-30',
+        })
         .expect(404);
 
       expect(await getBalance(app, mine)).toBe(0);
@@ -184,8 +380,15 @@ describe('Transactions (integration)', () => {
       const mine = await createAccount(app, 'Mine');
       await request(app.getHttpServer())
         .post('/transactions/transfer')
-        .set('X-User-Id', U).set('X-Household-Id', H)
-        .send({ fromAccountId: mine, toAccountId: '00000000-0000-0000-0000-000000000000', amount: 100, currency: 'UAH', date: '2026-07-30' })
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
+        .send({
+          fromAccountId: mine,
+          toAccountId: '00000000-0000-0000-0000-000000000000',
+          amount: 100,
+          currency: 'UAH',
+          date: '2026-07-30',
+        })
         .expect(404);
     });
   });
@@ -202,17 +405,25 @@ describe('Transactions (integration)', () => {
       const usdId = await createAccount(app, 'USD Bank', 'bank', 'USD');
       await request(app.getHttpServer())
         .post('/transactions')
-        .set('X-User-Id', U).set('X-Household-Id', H)
-        .send({ accountId: uahId, type: 'income', amount: 5000, currency: 'UAH', date: '2026-07-30' });
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
+        .send({
+          accountId: uahId,
+          type: 'income',
+          amount: 5000,
+          currency: 'UAH',
+          date: '2026-07-30',
+        });
 
       const res = await request(app.getHttpServer())
         .post('/transactions/transfer')
-        .set('X-User-Id', U).set('X-Household-Id', H)
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
         .send({
           fromAccountId: uahId,
           toAccountId: usdId,
           fromAmount: 1000,
-          toAmount: 24.20,
+          toAmount: 24.2,
           currency: 'UAH',
           toCurrency: 'USD',
           date: '2026-07-30',
@@ -220,7 +431,10 @@ describe('Transactions (integration)', () => {
         .expect(201);
 
       const [debit, credit] = res.body as Array<{
-        amount: number | string; currency: string; transferPairId: string; transferDirection: string;
+        amount: number | string;
+        currency: string;
+        transferPairId: string;
+        transferDirection: string;
       }>;
       // Same pair id links the two legs.
       expect(debit.transferPairId).toBe(credit.transferPairId);
@@ -229,12 +443,12 @@ describe('Transactions (integration)', () => {
       expect(Number(debit.amount)).toBe(1000);
       expect(debit.currency).toBe('UAH');
       expect(credit.transferDirection).toBe('credit');
-      expect(Number(credit.amount)).toBe(24.20);
+      expect(Number(credit.amount)).toBe(24.2);
       expect(credit.currency).toBe('USD');
 
       // Each account's balance moves in its own currency by its own amount.
       expect(await getBalance(app, uahId)).toBe(4000);
-      expect(await getBalance(app, usdId)).toBe(24.20);
+      expect(await getBalance(app, usdId)).toBe(24.2);
     });
 
     it('surfaces cross-currency counterAmount + counterCurrency in GET /transactions', async () => {
@@ -242,16 +456,24 @@ describe('Transactions (integration)', () => {
       const usdId = await createAccount(app, 'USD Bank', 'bank', 'USD');
       await request(app.getHttpServer())
         .post('/transactions')
-        .set('X-User-Id', U).set('X-Household-Id', H)
-        .send({ accountId: uahId, type: 'income', amount: 5000, currency: 'UAH', date: '2026-07-30' });
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
+        .send({
+          accountId: uahId,
+          type: 'income',
+          amount: 5000,
+          currency: 'UAH',
+          date: '2026-07-30',
+        });
       await request(app.getHttpServer())
         .post('/transactions/transfer')
-        .set('X-User-Id', U).set('X-Household-Id', H)
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
         .send({
           fromAccountId: uahId,
           toAccountId: usdId,
           fromAmount: 1000,
-          toAmount: 24.20,
+          toAmount: 24.2,
           currency: 'UAH',
           toCurrency: 'USD',
           date: '2026-07-30',
@@ -259,7 +481,8 @@ describe('Transactions (integration)', () => {
 
       const list = await request(app.getHttpServer())
         .get('/transactions?type=transfer')
-        .set('X-User-Id', U).set('X-Household-Id', H)
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
         .expect(200);
 
       expect(list.body).toHaveLength(1);
@@ -268,7 +491,7 @@ describe('Transactions (integration)', () => {
       // and counter* reflect the USD side.
       expect(Number(row.amount)).toBe(1000);
       expect(row.currency).toBe('UAH');
-      expect(row.counterAmount).toBe(24.20);
+      expect(row.counterAmount).toBe(24.2);
       expect(row.counterCurrency).toBe('USD');
     });
 
@@ -277,16 +500,24 @@ describe('Transactions (integration)', () => {
       const usdId = await createAccount(app, 'USD Bank', 'bank', 'USD');
       await request(app.getHttpServer())
         .post('/transactions')
-        .set('X-User-Id', U).set('X-Household-Id', H)
-        .send({ accountId: uahId, type: 'income', amount: 5000, currency: 'UAH', date: '2026-07-30' });
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
+        .send({
+          accountId: uahId,
+          type: 'income',
+          amount: 5000,
+          currency: 'UAH',
+          date: '2026-07-30',
+        });
       const transferRes = await request(app.getHttpServer())
         .post('/transactions/transfer')
-        .set('X-User-Id', U).set('X-Household-Id', H)
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
         .send({
           fromAccountId: uahId,
           toAccountId: usdId,
           fromAmount: 1000,
-          toAmount: 24.20,
+          toAmount: 24.2,
           currency: 'UAH',
           toCurrency: 'USD',
           date: '2026-07-30',
@@ -294,11 +525,12 @@ describe('Transactions (integration)', () => {
       const [debit] = transferRes.body as Array<{ id: string }>;
 
       expect(await getBalance(app, uahId)).toBe(4000);
-      expect(await getBalance(app, usdId)).toBe(24.20);
+      expect(await getBalance(app, usdId)).toBe(24.2);
 
       await request(app.getHttpServer())
         .delete(`/transactions/${debit.id}`)
-        .set('X-User-Id', U).set('X-Household-Id', H)
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
         .expect(204);
 
       // UAH gets its 1000 back, USD gives its 24.20 back — each in its own ccy.
@@ -311,7 +543,8 @@ describe('Transactions (integration)', () => {
       const usdId = await createAccount(app, 'USD', 'bank', 'USD');
       await request(app.getHttpServer())
         .post('/transactions/transfer')
-        .set('X-User-Id', U).set('X-Household-Id', H)
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
         .send({
           fromAccountId: uahId,
           toAccountId: usdId,
@@ -330,7 +563,8 @@ describe('Transactions (integration)', () => {
       const usdId = await createAccount(app, 'USD', 'bank', 'USD');
       await request(app.getHttpServer())
         .post('/transactions/transfer')
-        .set('X-User-Id', U).set('X-Household-Id', H)
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
         .send({
           fromAccountId: uahId,
           toAccountId: usdId,
@@ -350,7 +584,8 @@ describe('Transactions (integration)', () => {
       const usdId = await createAccount(app, 'USD', 'bank', 'USD');
       await request(app.getHttpServer())
         .post('/transactions/transfer')
-        .set('X-User-Id', U).set('X-Household-Id', H)
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
         .send({
           fromAccountId: uahId,
           toAccountId: usdId,
@@ -367,7 +602,8 @@ describe('Transactions (integration)', () => {
       const usdId = await createAccount(app, 'USD', 'bank', 'USD');
       await request(app.getHttpServer())
         .post('/transactions/transfer')
-        .set('X-User-Id', U).set('X-Household-Id', H)
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
         .send({
           fromAccountId: uahId,
           toAccountId: usdId,
@@ -385,12 +621,20 @@ describe('Transactions (integration)', () => {
       const to = await createAccount(app, 'B', 'cash', 'UAH');
       await request(app.getHttpServer())
         .post('/transactions')
-        .set('X-User-Id', U).set('X-Household-Id', H)
-        .send({ accountId: from, type: 'income', amount: 1000, currency: 'UAH', date: '2026-07-30' });
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
+        .send({
+          accountId: from,
+          type: 'income',
+          amount: 1000,
+          currency: 'UAH',
+          date: '2026-07-30',
+        });
 
       await request(app.getHttpServer())
         .post('/transactions/transfer')
-        .set('X-User-Id', U).set('X-Household-Id', H)
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
         .send({
           fromAccountId: from,
           toAccountId: to,
@@ -409,11 +653,16 @@ describe('Transactions (integration)', () => {
   describe('Cross-household reference isolation', () => {
     it('rejects POST /transactions with a category from another household', async () => {
       const accountId = await createAccount(app, 'Bank');
-      const foreignCategoryId = await createCategory(app, 'other-household', 'Foreign');
+      const foreignCategoryId = await createCategory(
+        app,
+        'other-household',
+        'Foreign',
+      );
 
       await request(app.getHttpServer())
         .post('/transactions')
-        .set('X-User-Id', U).set('X-Household-Id', H)
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
         .send({
           accountId,
           categoryId: foreignCategoryId,
@@ -429,11 +678,16 @@ describe('Transactions (integration)', () => {
 
     it('rejects POST /transactions with an income source from another household', async () => {
       const accountId = await createAccount(app, 'Bank');
-      const foreignIncomeSourceId = await createIncomeSource(app, 'other-household', 'Foreign');
+      const foreignIncomeSourceId = await createIncomeSource(
+        app,
+        'other-household',
+        'Foreign',
+      );
 
       await request(app.getHttpServer())
         .post('/transactions')
-        .set('X-User-Id', U).set('X-Household-Id', H)
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
         .send({
           accountId,
           incomeSourceId: foreignIncomeSourceId,
@@ -450,12 +704,14 @@ describe('Transactions (integration)', () => {
     it('rejects POST /transactions with an account from another household', async () => {
       const foreignAccountId = await request(app.getHttpServer())
         .post('/accounts')
-        .set('X-User-Id', U).set('X-Household-Id', 'other-household')
+        .set('X-User-Id', U)
+        .set('X-Household-Id', 'other-household')
         .send({ name: 'Foreign', type: 'bank', currency: 'UAH' });
 
       await request(app.getHttpServer())
         .post('/transactions')
-        .set('X-User-Id', U).set('X-Household-Id', H)
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
         .send({
           accountId: foreignAccountId.body.id,
           type: 'income',
@@ -470,13 +726,25 @@ describe('Transactions (integration)', () => {
       const accountId = await createAccount(app, 'Bank');
       const tx = await request(app.getHttpServer())
         .post('/transactions')
-        .set('X-User-Id', U).set('X-Household-Id', H)
-        .send({ accountId, type: 'expense', amount: 100, currency: 'UAH', date: '2026-07-30' });
-      const foreignCategoryId = await createCategory(app, 'other-household', 'Foreign');
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
+        .send({
+          accountId,
+          type: 'expense',
+          amount: 100,
+          currency: 'UAH',
+          date: '2026-07-30',
+        });
+      const foreignCategoryId = await createCategory(
+        app,
+        'other-household',
+        'Foreign',
+      );
 
       await request(app.getHttpServer())
         .patch(`/transactions/${tx.body.id}`)
-        .set('X-User-Id', U).set('X-Household-Id', H)
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
         .send({ categoryId: foreignCategoryId })
         .expect(404);
     });
@@ -485,13 +753,25 @@ describe('Transactions (integration)', () => {
       const accountId = await createAccount(app, 'Bank');
       const tx = await request(app.getHttpServer())
         .post('/transactions')
-        .set('X-User-Id', U).set('X-Household-Id', H)
-        .send({ accountId, type: 'income', amount: 100, currency: 'UAH', date: '2026-07-30' });
-      const foreignIncomeSourceId = await createIncomeSource(app, 'other-household', 'Foreign');
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
+        .send({
+          accountId,
+          type: 'income',
+          amount: 100,
+          currency: 'UAH',
+          date: '2026-07-30',
+        });
+      const foreignIncomeSourceId = await createIncomeSource(
+        app,
+        'other-household',
+        'Foreign',
+      );
 
       await request(app.getHttpServer())
         .patch(`/transactions/${tx.body.id}`)
-        .set('X-User-Id', U).set('X-Household-Id', H)
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
         .send({ incomeSourceId: foreignIncomeSourceId })
         .expect(404);
     });
@@ -503,17 +783,35 @@ describe('Transactions (integration)', () => {
       const toId = await createAccount(app, 'Cash', 'cash');
       await request(app.getHttpServer())
         .post('/transactions')
-        .set('X-User-Id', U).set('X-Household-Id', H)
-        .send({ accountId: fromId, type: 'income', amount: 2000, currency: 'UAH', date: '2026-07-30' });
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
+        .send({
+          accountId: fromId,
+          type: 'income',
+          amount: 2000,
+          currency: 'UAH',
+          date: '2026-07-30',
+        });
       const transferRes = await request(app.getHttpServer())
         .post('/transactions/transfer')
-        .set('X-User-Id', U).set('X-Household-Id', H)
-        .send({ fromAccountId: fromId, toAccountId: toId, amount: 500, currency: 'UAH', date: '2026-07-30' });
-      const [debit, credit] = transferRes.body as Array<{ id: string; transferPairId: string }>;
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
+        .send({
+          fromAccountId: fromId,
+          toAccountId: toId,
+          amount: 500,
+          currency: 'UAH',
+          date: '2026-07-30',
+        });
+      const [debit, credit] = transferRes.body as Array<{
+        id: string;
+        transferPairId: string;
+      }>;
 
       const list = await request(app.getHttpServer())
         .get('/transactions?type=transfer')
-        .set('X-User-Id', U).set('X-Household-Id', H)
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
         .expect(200);
 
       // Exactly one row for the pair (not two)
@@ -536,21 +834,38 @@ describe('Transactions (integration)', () => {
       const toId = await createAccount(app, 'Cash', 'cash');
       await request(app.getHttpServer())
         .post('/transactions')
-        .set('X-User-Id', U).set('X-Household-Id', H)
-        .send({ accountId: fromId, type: 'income', amount: 2000, currency: 'UAH', date: '2026-07-30' });
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
+        .send({
+          accountId: fromId,
+          type: 'income',
+          amount: 2000,
+          currency: 'UAH',
+          date: '2026-07-30',
+        });
       await request(app.getHttpServer())
         .post('/transactions/transfer')
-        .set('X-User-Id', U).set('X-Household-Id', H)
-        .send({ fromAccountId: fromId, toAccountId: toId, amount: 500, currency: 'UAH', date: '2026-07-30' });
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
+        .send({
+          fromAccountId: fromId,
+          toAccountId: toId,
+          amount: 500,
+          currency: 'UAH',
+          date: '2026-07-30',
+        });
 
       const list = await request(app.getHttpServer())
         .get('/transactions')
-        .set('X-User-Id', U).set('X-Household-Id', H)
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
         .expect(200);
 
       // income + 1 transfer row (not 3)
       expect(list.body).toHaveLength(2);
-      const transfers = list.body.filter((t: { type: string }) => t.type === 'transfer');
+      const transfers = list.body.filter(
+        (t: { type: string }) => t.type === 'transfer',
+      );
       expect(transfers).toHaveLength(1);
     });
 
@@ -559,16 +874,31 @@ describe('Transactions (integration)', () => {
       const toId = await createAccount(app, 'Cash', 'cash');
       await request(app.getHttpServer())
         .post('/transactions')
-        .set('X-User-Id', U).set('X-Household-Id', H)
-        .send({ accountId: fromId, type: 'income', amount: 2000, currency: 'UAH', date: '2026-07-30' });
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
+        .send({
+          accountId: fromId,
+          type: 'income',
+          amount: 2000,
+          currency: 'UAH',
+          date: '2026-07-30',
+        });
       await request(app.getHttpServer())
         .post('/transactions/transfer')
-        .set('X-User-Id', U).set('X-Household-Id', H)
-        .send({ fromAccountId: fromId, toAccountId: toId, amount: 500, currency: 'UAH', date: '2026-07-30' });
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
+        .send({
+          fromAccountId: fromId,
+          toAccountId: toId,
+          amount: 500,
+          currency: 'UAH',
+          date: '2026-07-30',
+        });
 
       const list = await request(app.getHttpServer())
         .get(`/transactions?accountId=${fromId}&type=transfer`)
-        .set('X-User-Id', U).set('X-Household-Id', H)
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
         .expect(200);
 
       expect(list.body).toHaveLength(1);
@@ -581,16 +911,31 @@ describe('Transactions (integration)', () => {
       const toId = await createAccount(app, 'Cash', 'cash');
       await request(app.getHttpServer())
         .post('/transactions')
-        .set('X-User-Id', U).set('X-Household-Id', H)
-        .send({ accountId: fromId, type: 'income', amount: 2000, currency: 'UAH', date: '2026-07-30' });
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
+        .send({
+          accountId: fromId,
+          type: 'income',
+          amount: 2000,
+          currency: 'UAH',
+          date: '2026-07-30',
+        });
       await request(app.getHttpServer())
         .post('/transactions/transfer')
-        .set('X-User-Id', U).set('X-Household-Id', H)
-        .send({ fromAccountId: fromId, toAccountId: toId, amount: 500, currency: 'UAH', date: '2026-07-30' });
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
+        .send({
+          fromAccountId: fromId,
+          toAccountId: toId,
+          amount: 500,
+          currency: 'UAH',
+          date: '2026-07-30',
+        });
 
       const list = await request(app.getHttpServer())
         .get(`/transactions?accountId=${toId}&type=transfer`)
-        .set('X-User-Id', U).set('X-Household-Id', H)
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
         .expect(200);
 
       expect(list.body).toHaveLength(1);
@@ -604,16 +949,31 @@ describe('Transactions (integration)', () => {
       const toId = await createAccount(app, 'Cash', 'cash');
       await request(app.getHttpServer())
         .post('/transactions')
-        .set('X-User-Id', U).set('X-Household-Id', H)
-        .send({ accountId: fromId, type: 'income', amount: 2000, currency: 'UAH', date: '2026-07-30' });
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
+        .send({
+          accountId: fromId,
+          type: 'income',
+          amount: 2000,
+          currency: 'UAH',
+          date: '2026-07-30',
+        });
       await request(app.getHttpServer())
         .post('/transactions/transfer')
-        .set('X-User-Id', U).set('X-Household-Id', H)
-        .send({ fromAccountId: fromId, toAccountId: toId, amount: 500, currency: 'UAH', date: '2026-07-30' });
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
+        .send({
+          fromAccountId: fromId,
+          toAccountId: toId,
+          amount: 500,
+          currency: 'UAH',
+          date: '2026-07-30',
+        });
 
       const foreign = await request(app.getHttpServer())
         .get('/transactions')
-        .set('X-User-Id', U).set('X-Household-Id', 'other-household')
+        .set('X-User-Id', U)
+        .set('X-Household-Id', 'other-household')
         .expect(200);
       expect(foreign.body).toHaveLength(0);
     });
@@ -622,12 +982,20 @@ describe('Transactions (integration)', () => {
       const accountId = await createAccount(app, 'Bank');
       await request(app.getHttpServer())
         .post('/transactions')
-        .set('X-User-Id', U).set('X-Household-Id', H)
-        .send({ accountId, type: 'income', amount: 1000, currency: 'UAH', date: '2026-07-30' });
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
+        .send({
+          accountId,
+          type: 'income',
+          amount: 1000,
+          currency: 'UAH',
+          date: '2026-07-30',
+        });
 
       const list = await request(app.getHttpServer())
         .get('/transactions')
-        .set('X-User-Id', U).set('X-Household-Id', H);
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H);
       expect(list.body).toHaveLength(1);
       expect(list.body[0].counterAccountId).toBeNull();
       expect(list.body[0].counterTransactionId).toBeNull();
@@ -643,13 +1011,27 @@ describe('Transactions (integration)', () => {
 
       await request(app.getHttpServer())
         .post('/transactions')
-        .set('X-User-Id', U).set('X-Household-Id', H)
-        .send({ accountId: fromId, type: 'income', amount: 2000, currency: 'UAH', date: '2026-07-30' });
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
+        .send({
+          accountId: fromId,
+          type: 'income',
+          amount: 2000,
+          currency: 'UAH',
+          date: '2026-07-30',
+        });
 
       const transferRes = await request(app.getHttpServer())
         .post('/transactions/transfer')
-        .set('X-User-Id', U).set('X-Household-Id', H)
-        .send({ fromAccountId: fromId, toAccountId: toId, amount: 500, currency: 'UAH', date: '2026-07-30' });
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
+        .send({
+          fromAccountId: fromId,
+          toAccountId: toId,
+          amount: 500,
+          currency: 'UAH',
+          date: '2026-07-30',
+        });
       const [debit, credit] = transferRes.body as Array<{ id: string }>;
 
       expect(await getBalance(app, fromId)).toBe(1500);
@@ -658,7 +1040,8 @@ describe('Transactions (integration)', () => {
       // Delete one leg — expect both legs gone and both balances restored
       await request(app.getHttpServer())
         .delete(`/transactions/${debit.id}`)
-        .set('X-User-Id', U).set('X-Household-Id', H)
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
         .expect(204);
 
       expect(await getBalance(app, fromId)).toBe(2000);
@@ -667,34 +1050,51 @@ describe('Transactions (integration)', () => {
       // Paired leg should be gone too
       await request(app.getHttpServer())
         .delete(`/transactions/${credit.id}`)
-        .set('X-User-Id', U).set('X-Household-Id', H)
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
         .expect(404);
 
       // No transfer transactions left
       const list = await request(app.getHttpServer())
         .get('/transactions?type=transfer')
-        .set('X-User-Id', U).set('X-Household-Id', H);
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H);
       expect(list.body).toHaveLength(0);
     });
 
-    it('rejects cross-household delete of the other household\'s transfer', async () => {
+    it("rejects cross-household delete of the other household's transfer", async () => {
       // Household A creates a transfer
       const fromA = await createAccount(app, 'Bank A');
       const toA = await createAccount(app, 'Cash A', 'cash');
       await request(app.getHttpServer())
         .post('/transactions')
-        .set('X-User-Id', U).set('X-Household-Id', H)
-        .send({ accountId: fromA, type: 'income', amount: 2000, currency: 'UAH', date: '2026-07-30' });
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
+        .send({
+          accountId: fromA,
+          type: 'income',
+          amount: 2000,
+          currency: 'UAH',
+          date: '2026-07-30',
+        });
       const transferRes = await request(app.getHttpServer())
         .post('/transactions/transfer')
-        .set('X-User-Id', U).set('X-Household-Id', H)
-        .send({ fromAccountId: fromA, toAccountId: toA, amount: 500, currency: 'UAH', date: '2026-07-30' });
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
+        .send({
+          fromAccountId: fromA,
+          toAccountId: toA,
+          amount: 500,
+          currency: 'UAH',
+          date: '2026-07-30',
+        });
       const [debit] = transferRes.body as Array<{ id: string }>;
 
       // Household B tries to delete
       await request(app.getHttpServer())
         .delete(`/transactions/${debit.id}`)
-        .set('X-User-Id', U).set('X-Household-Id', 'other-household')
+        .set('X-User-Id', U)
+        .set('X-Household-Id', 'other-household')
         .expect(404);
 
       // Both legs still exist, balances unchanged
@@ -708,18 +1108,33 @@ describe('Transactions (integration)', () => {
 
       await request(app.getHttpServer())
         .post('/transactions')
-        .set('X-User-Id', U).set('X-Household-Id', H)
-        .send({ accountId: fromId, type: 'income', amount: 2000, currency: 'UAH', date: '2026-07-30' });
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
+        .send({
+          accountId: fromId,
+          type: 'income',
+          amount: 2000,
+          currency: 'UAH',
+          date: '2026-07-30',
+        });
 
       const transferRes = await request(app.getHttpServer())
         .post('/transactions/transfer')
-        .set('X-User-Id', U).set('X-Household-Id', H)
-        .send({ fromAccountId: fromId, toAccountId: toId, amount: 500, currency: 'UAH', date: '2026-07-30' });
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
+        .send({
+          fromAccountId: fromId,
+          toAccountId: toId,
+          amount: 500,
+          currency: 'UAH',
+          date: '2026-07-30',
+        });
       const [, credit] = transferRes.body as Array<{ id: string }>;
 
       await request(app.getHttpServer())
         .delete(`/transactions/${credit.id}`)
-        .set('X-User-Id', U).set('X-Household-Id', H)
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
         .expect(204);
 
       expect(await getBalance(app, fromId)).toBe(2000);
@@ -732,12 +1147,20 @@ describe('Transactions (integration)', () => {
       const accountId = await createAccount(app, 'Bank');
       const tx = await request(app.getHttpServer())
         .post('/transactions')
-        .set('X-User-Id', U).set('X-Household-Id', H)
-        .send({ accountId, type: 'income', amount: 3000, currency: 'UAH', date: '2026-07-30' });
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
+        .send({
+          accountId,
+          type: 'income',
+          amount: 3000,
+          currency: 'UAH',
+          date: '2026-07-30',
+        });
 
       await request(app.getHttpServer())
         .delete(`/transactions/${tx.body.id}`)
-        .set('X-User-Id', U).set('X-Household-Id', H)
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
         .expect(204);
 
       expect(await getBalance(app, accountId)).toBe(0);
@@ -747,16 +1170,31 @@ describe('Transactions (integration)', () => {
       const accountId = await createAccount(app, 'Bank');
       await request(app.getHttpServer())
         .post('/transactions')
-        .set('X-User-Id', U).set('X-Household-Id', H)
-        .send({ accountId, type: 'income', amount: 1000, currency: 'UAH', date: '2026-07-30' });
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
+        .send({
+          accountId,
+          type: 'income',
+          amount: 1000,
+          currency: 'UAH',
+          date: '2026-07-30',
+        });
       const expense = await request(app.getHttpServer())
         .post('/transactions')
-        .set('X-User-Id', U).set('X-Household-Id', H)
-        .send({ accountId, type: 'expense', amount: 400, currency: 'UAH', date: '2026-07-30' });
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
+        .send({
+          accountId,
+          type: 'expense',
+          amount: 400,
+          currency: 'UAH',
+          date: '2026-07-30',
+        });
 
       await request(app.getHttpServer())
         .delete(`/transactions/${expense.body.id}`)
-        .set('X-User-Id', U).set('X-Household-Id', H)
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
         .expect(204);
 
       expect(await getBalance(app, accountId)).toBe(1000);
@@ -768,40 +1206,79 @@ describe('Transactions (integration)', () => {
       const accountId = await createAccount(app, 'Bank');
       await request(app.getHttpServer())
         .post('/transactions')
-        .set('X-User-Id', U).set('X-Household-Id', H)
-        .send({ accountId, type: 'income', amount: 1000, currency: 'UAH', date: '2026-07-30' });
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
+        .send({
+          accountId,
+          type: 'income',
+          amount: 1000,
+          currency: 'UAH',
+          date: '2026-07-30',
+        });
       await request(app.getHttpServer())
         .post('/transactions')
-        .set('X-User-Id', U).set('X-Household-Id', H)
-        .send({ accountId, type: 'income', amount: 500, currency: 'UAH', date: '2026-07-30' });
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
+        .send({
+          accountId,
+          type: 'income',
+          amount: 500,
+          currency: 'UAH',
+          date: '2026-07-30',
+        });
       await request(app.getHttpServer())
         .post('/transactions')
-        .set('X-User-Id', U).set('X-Household-Id', H)
-        .send({ accountId, type: 'expense', amount: 200, currency: 'UAH', date: '2026-07-30' });
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
+        .send({
+          accountId,
+          type: 'expense',
+          amount: 200,
+          currency: 'UAH',
+          date: '2026-07-30',
+        });
 
       const res = await request(app.getHttpServer())
         .get('/transactions?type=income')
-        .set('X-User-Id', U).set('X-Household-Id', H)
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
         .expect(200);
 
       expect(res.body).toHaveLength(2);
-      expect(res.body.every((t: { type: string }) => t.type === 'income')).toBe(true);
+      expect(res.body.every((t: { type: string }) => t.type === 'income')).toBe(
+        true,
+      );
     });
 
     it('filters by date range', async () => {
       const accountId = await createAccount(app, 'Bank');
       await request(app.getHttpServer())
         .post('/transactions')
-        .set('X-User-Id', U).set('X-Household-Id', H)
-        .send({ accountId, type: 'income', amount: 100, currency: 'UAH', date: '2026-06-15' });
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
+        .send({
+          accountId,
+          type: 'income',
+          amount: 100,
+          currency: 'UAH',
+          date: '2026-06-15',
+        });
       await request(app.getHttpServer())
         .post('/transactions')
-        .set('X-User-Id', U).set('X-Household-Id', H)
-        .send({ accountId, type: 'income', amount: 200, currency: 'UAH', date: '2026-07-15' });
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
+        .send({
+          accountId,
+          type: 'income',
+          amount: 200,
+          currency: 'UAH',
+          date: '2026-07-15',
+        });
 
       const res = await request(app.getHttpServer())
         .get('/transactions?from=2026-07-01&to=2026-07-31')
-        .set('X-User-Id', U).set('X-Household-Id', H)
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
         .expect(200);
 
       expect(res.body).toHaveLength(1);
@@ -815,16 +1292,31 @@ describe('Transactions (integration)', () => {
       const accountId = await createAccount(app, 'Bank');
       await request(app.getHttpServer())
         .post('/transactions')
-        .set('X-User-Id', U).set('X-Household-Id', H)
-        .send({ accountId, type: 'income', amount: 100, currency: 'UAH', date: '2026-07-31' });
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
+        .send({
+          accountId,
+          type: 'income',
+          amount: 100,
+          currency: 'UAH',
+          date: '2026-07-31',
+        });
       await request(app.getHttpServer())
         .post('/transactions')
-        .set('X-User-Id', U).set('X-Household-Id', H)
-        .send({ accountId, type: 'income', amount: 200, currency: 'UAH', date: '2026-08-01' });
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
+        .send({
+          accountId,
+          type: 'income',
+          amount: 200,
+          currency: 'UAH',
+          date: '2026-08-01',
+        });
 
       const res = await request(app.getHttpServer())
         .get('/transactions?from=2026-07-01&to=2026-07-31')
-        .set('X-User-Id', U).set('X-Household-Id', H)
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
         .expect(200);
 
       expect(res.body).toHaveLength(1);
@@ -837,8 +1329,15 @@ describe('Transactions (integration)', () => {
       const accountId = await createAccount(app, 'Bank');
       await request(app.getHttpServer())
         .post('/transactions')
-        .set('X-User-Id', U).set('X-Household-Id', H)
-        .send({ accountId, type: 'income', amount: -100, currency: 'UAH', date: '2026-07-30' })
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
+        .send({
+          accountId,
+          type: 'income',
+          amount: -100,
+          currency: 'UAH',
+          date: '2026-07-30',
+        })
         .expect(400);
     });
 
@@ -846,8 +1345,15 @@ describe('Transactions (integration)', () => {
       const accountId = await createAccount(app, 'Bank');
       await request(app.getHttpServer())
         .post('/transactions')
-        .set('X-User-Id', U).set('X-Household-Id', H)
-        .send({ accountId, type: 'transfer', amount: 100, currency: 'UAH', date: '2026-07-30' })
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
+        .send({
+          accountId,
+          type: 'transfer',
+          amount: 100,
+          currency: 'UAH',
+          date: '2026-07-30',
+        })
         .expect(400);
     });
 
@@ -855,12 +1361,20 @@ describe('Transactions (integration)', () => {
       const accountId = await createAccount(app, 'Bank');
       const tx = await request(app.getHttpServer())
         .post('/transactions')
-        .set('X-User-Id', U).set('X-Household-Id', H)
-        .send({ accountId, type: 'income', amount: 100, currency: 'UAH', date: '2026-07-30' });
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
+        .send({
+          accountId,
+          type: 'income',
+          amount: 100,
+          currency: 'UAH',
+          date: '2026-07-30',
+        });
 
       await request(app.getHttpServer())
         .patch(`/transactions/${tx.body.id}`)
-        .set('X-User-Id', U).set('X-Household-Id', H)
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
         .send({ type: 'transfer' })
         .expect(400);
     });
@@ -870,20 +1384,35 @@ describe('Transactions (integration)', () => {
       const toId = await createAccount(app, 'Cash', 'cash');
       await request(app.getHttpServer())
         .post('/transactions')
-        .set('X-User-Id', U).set('X-Household-Id', H)
-        .send({ accountId: fromId, type: 'income', amount: 1000, currency: 'UAH', date: '2026-07-30' });
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
+        .send({
+          accountId: fromId,
+          type: 'income',
+          amount: 1000,
+          currency: 'UAH',
+          date: '2026-07-30',
+        });
 
       const transferRes = await request(app.getHttpServer())
         .post('/transactions/transfer')
-        .set('X-User-Id', U).set('X-Household-Id', H)
-        .send({ fromAccountId: fromId, toAccountId: toId, amount: 200, currency: 'UAH', date: '2026-07-30' });
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
+        .send({
+          fromAccountId: fromId,
+          toAccountId: toId,
+          amount: 200,
+          currency: 'UAH',
+          date: '2026-07-30',
+        });
       const [debit] = transferRes.body as Array<{ id: string }>;
 
       // Attempting to convert a transfer leg to a regular income row would
       // orphan the paired leg and desync balances.
       await request(app.getHttpServer())
         .patch(`/transactions/${debit.id}`)
-        .set('X-User-Id', U).set('X-Household-Id', H)
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
         .send({ type: 'income' })
         .expect(400);
     });

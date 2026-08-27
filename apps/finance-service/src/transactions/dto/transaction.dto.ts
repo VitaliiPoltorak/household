@@ -1,41 +1,78 @@
 import {
-  IsDateString, IsEnum, IsNotEmpty, IsNumber, IsOptional, IsPositive, IsString, Length,
+  IsDateString,
+  IsEnum,
+  IsNotEmpty,
+  IsNumber,
+  IsOptional,
+  IsPositive,
+  IsString,
+  Length,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Transaction, TransactionType, TransferDirection } from '../entities/transaction.entity';
+import {
+  Transaction,
+  TransactionType,
+  TransferDirection,
+} from '../entities/transaction.entity';
 
 export class CreateTransactionDto {
   @ApiProperty()
-  @IsString() @IsNotEmpty()
+  @IsString()
+  @IsNotEmpty()
   accountId: string;
 
-  @ApiProperty({ enum: [TransactionType.INCOME, TransactionType.EXPENSE, TransactionType.ADJUSTMENT] })
-  @IsEnum([TransactionType.INCOME, TransactionType.EXPENSE, TransactionType.ADJUSTMENT])
+  @ApiProperty({
+    enum: [
+      TransactionType.INCOME,
+      TransactionType.EXPENSE,
+      TransactionType.ADJUSTMENT,
+    ],
+  })
+  @IsEnum([
+    TransactionType.INCOME,
+    TransactionType.EXPENSE,
+    TransactionType.ADJUSTMENT,
+  ])
   type: Exclude<TransactionType, TransactionType.TRANSFER>;
 
-  @ApiProperty({ example: 1500.00 })
-  @IsNumber() @IsPositive()
+  @ApiProperty({ example: 1500.0 })
+  @IsNumber()
+  @IsPositive()
   amount: number;
 
   @ApiPropertyOptional({ example: 'UAH', default: 'UAH' })
-  @IsString() @IsOptional() @Length(3, 3)
+  @IsString()
+  @IsOptional()
+  @Length(3, 3)
   currency?: string;
 
   @ApiPropertyOptional()
-  @IsString() @IsOptional()
+  @IsString()
+  @IsOptional()
   categoryId?: string;
 
   @ApiPropertyOptional()
-  @IsString() @IsOptional()
+  @IsString()
+  @IsOptional()
   incomeSourceId?: string;
 
   @ApiPropertyOptional()
-  @IsString() @IsOptional()
+  @IsString()
+  @IsOptional()
   description?: string;
 
   @ApiProperty({ example: '2026-07-30' })
   @IsDateString()
   date: string;
+
+  // Set by an integration (e.g. integration-service mapping a Monobank
+  // transaction, #21) so a retried map call is idempotent instead of
+  // double-booking the same bank transaction. Namespaced by the caller
+  // (e.g. "monobank:<id>") since this column is shared across integrations.
+  @ApiPropertyOptional()
+  @IsString()
+  @IsOptional()
+  externalId?: string;
 }
 
 /**
@@ -54,41 +91,70 @@ export class CreateTransactionDto {
  */
 export class CreateTransferDto {
   @ApiProperty({ description: 'Source account id' })
-  @IsString() @IsNotEmpty()
+  @IsString()
+  @IsNotEmpty()
   fromAccountId: string;
 
   @ApiProperty({ description: 'Destination account id' })
-  @IsString() @IsNotEmpty()
+  @IsString()
+  @IsNotEmpty()
   toAccountId: string;
 
   /**
    * Legacy same-currency shortcut. When present without `fromAmount` /
    * `toAmount`, both legs are booked at this amount in `currency`.
    */
-  @ApiPropertyOptional({ example: 500.00, description: 'Legacy — same-currency amount for both legs.' })
-  @IsNumber() @IsPositive() @IsOptional()
+  @ApiPropertyOptional({
+    example: 500.0,
+    description: 'Legacy — same-currency amount for both legs.',
+  })
+  @IsNumber()
+  @IsPositive()
+  @IsOptional()
   amount?: number;
 
   /** Amount debited from the source account, denominated in `currency`. */
-  @ApiPropertyOptional({ example: 1000.00, description: 'Amount debited from the source account (in source currency).' })
-  @IsNumber() @IsPositive() @IsOptional()
+  @ApiPropertyOptional({
+    example: 1000.0,
+    description: 'Amount debited from the source account (in source currency).',
+  })
+  @IsNumber()
+  @IsPositive()
+  @IsOptional()
   fromAmount?: number;
 
   /** Amount credited to the destination account, denominated in `toCurrency`. */
-  @ApiPropertyOptional({ example: 24.20, description: 'Amount credited to the destination account (in destination currency).' })
-  @IsNumber() @IsPositive() @IsOptional()
+  @ApiPropertyOptional({
+    example: 24.2,
+    description:
+      'Amount credited to the destination account (in destination currency).',
+  })
+  @IsNumber()
+  @IsPositive()
+  @IsOptional()
   toAmount?: number;
 
-  @ApiPropertyOptional({ example: 'UAH', description: 'Source currency (defaults to UAH).' })
-  @IsString() @IsOptional() @Length(3, 3)
+  @ApiPropertyOptional({
+    example: 'UAH',
+    description: 'Source currency (defaults to UAH).',
+  })
+  @IsString()
+  @IsOptional()
+  @Length(3, 3)
   currency?: string;
 
-  @ApiPropertyOptional({ example: 'USD', description: 'Destination currency. Omit for same-currency transfers.' })
-  @IsString() @IsOptional() @Length(3, 3)
+  @ApiPropertyOptional({
+    example: 'USD',
+    description: 'Destination currency. Omit for same-currency transfers.',
+  })
+  @IsString()
+  @IsOptional()
+  @Length(3, 3)
   toCurrency?: string;
 
   @ApiPropertyOptional()
-  @IsString() @IsOptional()
+  @IsString()
+  @IsOptional()
   description?: string;
 
   @ApiProperty({ example: '2026-07-30' })
@@ -124,7 +190,8 @@ export class TransactionResponseDto {
   @ApiProperty() date: string;
   @ApiProperty() createdBy: string;
   @ApiProperty({ nullable: true }) transferPairId: string | null;
-  @ApiProperty({ enum: TransferDirection, nullable: true }) transferDirection: TransferDirection | null;
+  @ApiProperty({ enum: TransferDirection, nullable: true })
+  transferDirection: TransferDirection | null;
   @ApiProperty() createdAt: Date;
   @ApiProperty() updatedAt: Date;
 
@@ -148,7 +215,10 @@ export class TransactionResponseDto {
   @ApiPropertyOptional({ nullable: true })
   counterCurrency: string | null;
 
-  static fromEntity(tx: Transaction, counter: Transaction | null = null): TransactionResponseDto {
+  static fromEntity(
+    tx: Transaction,
+    counter: Transaction | null = null,
+  ): TransactionResponseDto {
     return {
       id: tx.id,
       householdId: tx.householdId,
@@ -174,28 +244,44 @@ export class TransactionResponseDto {
 }
 
 export class UpdateTransactionDto {
-  @ApiPropertyOptional({ enum: [TransactionType.INCOME, TransactionType.EXPENSE, TransactionType.ADJUSTMENT] })
-  @IsEnum([TransactionType.INCOME, TransactionType.EXPENSE, TransactionType.ADJUSTMENT])
+  @ApiPropertyOptional({
+    enum: [
+      TransactionType.INCOME,
+      TransactionType.EXPENSE,
+      TransactionType.ADJUSTMENT,
+    ],
+  })
+  @IsEnum([
+    TransactionType.INCOME,
+    TransactionType.EXPENSE,
+    TransactionType.ADJUSTMENT,
+  ])
   @IsOptional()
   type?: Exclude<TransactionType, TransactionType.TRANSFER>;
 
   @ApiPropertyOptional()
-  @IsNumber() @IsPositive() @IsOptional()
+  @IsNumber()
+  @IsPositive()
+  @IsOptional()
   amount?: number;
 
   @ApiPropertyOptional()
-  @IsDateString() @IsOptional()
+  @IsDateString()
+  @IsOptional()
   date?: string;
 
   @ApiPropertyOptional()
-  @IsString() @IsOptional()
+  @IsString()
+  @IsOptional()
   description?: string;
 
   @ApiPropertyOptional()
-  @IsString() @IsOptional()
+  @IsString()
+  @IsOptional()
   categoryId?: string;
 
   @ApiPropertyOptional()
-  @IsString() @IsOptional()
+  @IsString()
+  @IsOptional()
   incomeSourceId?: string;
 }

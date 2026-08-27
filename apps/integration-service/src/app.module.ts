@@ -5,6 +5,7 @@ import { KafkaModule } from '@household/kafka';
 import { ensureSchema } from '@household/database';
 import { RedisModule } from './redis/redis.module';
 import { BankConnectionsModule } from './bank-connections/bank-connections.module';
+import { ExternalTransactionsModule } from './external-transactions/external-transactions.module';
 import { EventsModule } from './events/events.module';
 import { BankConnection } from './bank-connections/entities/bank-connection.entity';
 import { BankSyncLog } from './bank-connections/entities/bank-sync-log.entity';
@@ -34,6 +35,7 @@ import { ExternalTransaction } from './external-transactions/entities/external-t
     KafkaModule.forRootAsync('integration-service'),
     RedisModule,
     BankConnectionsModule,
+    ExternalTransactionsModule,
     EventsModule,
   ],
 })
