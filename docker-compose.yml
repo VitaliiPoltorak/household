@@ -154,6 +154,7 @@ services:
       HOUSEHOLD_SERVICE_URL: http://household-service:3002
       FINANCE_SERVICE_URL: http://finance-service:3003
       SHOPPING_SERVICE_URL: http://shopping-service:3004
+      INTEGRATION_SERVICE_URL: http://integration-service:3005
       # Web still runs on host; the browser talks to the gateway from there.
       CORS_ORIGIN: http://localhost:5173
     healthcheck:
@@ -172,6 +173,8 @@ services:
       finance-service:
         condition: service_healthy
       shopping-service:
+        condition: service_healthy
+      integration-service:
         condition: service_healthy
 
   auth-service:
@@ -277,6 +280,34 @@ services:
       POSTGRES_HOST: postgres
     healthcheck:
       test: ["CMD", "node", "-e", "require('net').connect(3004,'127.0.0.1').on('connect',()=>process.exit(0)).on('error',()=>process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 20s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+
+  integration-service:
+    build:
+      context: .
+      args:
+        SERVICE: integration-service
+    image: household/integration-service
+    container_name: household-integration-service
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3005:3005"
+    env_file: .env
+    environment:
+      <<: *service-env
+      POSTGRES_HOST: postgres
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('net').connect(3005,'127.0.0.1').on('connect',()=>process.exit(0)).on('error',()=>process.exit(1))"]
       interval: 5s
       timeout: 3s
       retries: 20

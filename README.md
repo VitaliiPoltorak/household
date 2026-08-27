@@ -28,6 +28,7 @@ Shared libraries in `libs/`: `common` (config, filters, JWT verify, gateway sign
 | household-service | 3002 | Households, members, roles, invites |
 | finance-service | 3003 | Accounts, transactions (incl. cross-currency transfers), categories, recurring payments |
 | shopping-service | 3004 | Stores, products, shopping lists |
+| integration-service | 3005 | Monobank connection, statement sync (mapping to accounts — #21) |
 | realtime-gateway | 3010 | Socket.IO, presence, live updates |
 | **web** | **5173** | **React SPA — dashboard, finance, shopping, household, email/password auth (register + verify + login + unlock + password change)** |
 
@@ -79,6 +80,7 @@ pnpm --filter @household/auth-service dev
 pnpm --filter @household/household-service dev
 pnpm --filter @household/finance-service dev
 pnpm --filter @household/shopping-service dev
+pnpm --filter @household/integration-service dev
 pnpm --filter @household/realtime-gateway dev
 ```
 
@@ -100,6 +102,7 @@ The web app uses a Vite proxy — all `/api` requests are forwarded to the API G
 | Auth Service | http://localhost:3001/docs |
 | Household Service | http://localhost:3002/docs |
 | Finance Service | http://localhost:3003/docs |
+| Integration Service | http://localhost:3005/docs |
 
 Dev tools (only available with `--profile tools`):
 
@@ -129,6 +132,7 @@ Copy `.env.example` to `.env`. Full annotated reference lives in [`.env.example`
 |---|---|
 | `GATEWAY_SIGNING_SECRET` | HMAC secret used by `api-gateway` / `realtime-gateway` to sign the `X-User-Id` / `X-Household-Id` / `X-User-Email` trust headers. Downstream services verify the signature. Refuses to start empty when `NODE_ENV=production` (#46). |
 | `KAFKA_SIGNING_KEY` | Optional in dev, expected in staging/prod — HMAC used to authenticate Kafka messages between services (#63). Rotation: keep the previous value in `KAFKA_SIGNING_KEY_PREV` while the new one propagates. |
+| `TOKEN_ENCRYPTION_KEY` | Encrypts bank connection tokens (e.g. Monobank) at rest on `integration-service` (AES-256-GCM). Same strength rule as `JWT_SECRET` — refuses to start empty/placeholder/short when `NODE_ENV=production`. |
 | `AUTH_COOKIE_SECURE=true` | Default. Only set to `false` for local `http://` dev on non-localhost hosts — `SameSite=None` requires `Secure` (#60/#61). |
 
 ### Optional / defaulted
@@ -141,8 +145,9 @@ Copy `.env.example` to `.env`. Full annotated reference lives in [`.env.example`
 | `KAFKA_BROKERS` | `localhost:9092` | |
 | `JWT_ACCESS_EXPIRES` | `15m` | |
 | `JWT_REFRESH_EXPIRES_DAYS` | `30` | |
-| `AUTH_SERVICE_PORT`, `HOUSEHOLD_SERVICE_PORT`, `FINANCE_SERVICE_PORT`, `SHOPPING_SERVICE_PORT`, `REALTIME_GATEWAY_PORT` | `3001`–`3004`, `3010` | |
-| `AUTH_SERVICE_URL` … `SHOPPING_SERVICE_URL` | `http://localhost:300x` | Used by `api-gateway` for proxying. |
+| `AUTH_SERVICE_PORT`, `HOUSEHOLD_SERVICE_PORT`, `FINANCE_SERVICE_PORT`, `SHOPPING_SERVICE_PORT`, `INTEGRATION_SERVICE_PORT`, `REALTIME_GATEWAY_PORT` | `3001`–`3005`, `3010` | |
+| `AUTH_SERVICE_URL` … `INTEGRATION_SERVICE_URL` | `http://localhost:300x` | Used by `api-gateway` for proxying. |
+| `MONOBANK_API_BASE_URL` | `https://api.monobank.ua` | Override only for testing `integration-service` against a stub/mock server. |
 | `PROXY_ROUTES_JSON` / `PROXY_ROUTES_PATH` | ships with `apps/api-gateway/src/proxy/routes.default.json` | Override the gateway's proxy table without recompiling (#88). |
 | `THROTTLE_TTL` / `THROTTLE_LIMIT` | `60` / `100` | Redis rate limiting on `api-gateway`. |
 | `APPLE_CLIENT_ID` | — | Required for Apple login (App Store mandatory once other providers are enabled). |
@@ -165,7 +170,7 @@ pnpm test:integration       # integration tests (requires `docker compose up -d`
 pnpm format                 # prettier format
 
 # Per-service dev shortcuts (root-level scripts)
-pnpm gateway | pnpm auth | pnpm household | pnpm finance | pnpm shopping | pnpm realtime | pnpm web
+pnpm gateway | pnpm auth | pnpm household | pnpm finance | pnpm shopping | pnpm integration | pnpm realtime | pnpm web
 
 # Web app
 pnpm --filter @household/web dev          # start dev server
@@ -175,6 +180,7 @@ pnpm --filter @household/web test:ui      # Vitest UI
 # Backend integration tests per service (requires docker compose up -d)
 pnpm --filter @household/finance-service test:integration
 pnpm --filter @household/shopping-service test:integration
+pnpm --filter @household/integration-service test:integration
 
 # Unit tests per service (no Docker needed)
 pnpm --filter @household/api-gateway test:unit

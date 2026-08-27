@@ -44,6 +44,7 @@ COPY apps/api-gateway/package.json apps/api-gateway/package.json
 COPY apps/auth-service/package.json apps/auth-service/package.json
 COPY apps/finance-service/package.json apps/finance-service/package.json
 COPY apps/household-service/package.json apps/household-service/package.json
+COPY apps/integration-service/package.json apps/integration-service/package.json
 COPY apps/realtime-gateway/package.json apps/realtime-gateway/package.json
 COPY apps/shopping-service/package.json apps/shopping-service/package.json
 COPY libs/audit/package.json libs/audit/package.json
