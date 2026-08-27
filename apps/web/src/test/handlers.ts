@@ -1,4 +1,5 @@
 import { http, HttpResponse } from 'msw';
+import type { BankConnection, BankSyncLog } from '../types/api';
 
 const BASE = '/api/v1';
 
@@ -128,6 +129,28 @@ export const MOCK_TRANSACTION = {
   counterTransactionId: null,
   counterAmount: null,
   counterCurrency: null,
+};
+
+export const MOCK_BANK_CONNECTION: BankConnection = {
+  id: 'conn-1',
+  provider: 'monobank',
+  monobankClientId: 'mono-client-1',
+  monobankAccountId: 'acc-mono-1',
+  maskedPan: '444455******1234',
+  lastSyncAt: null,
+  status: 'active',
+  createdAt: '2026-07-01T00:00:00Z',
+};
+
+export const MOCK_SYNC_LOG: BankSyncLog = {
+  id: 'log-1',
+  connectionId: 'conn-1',
+  startedAt: '2026-07-01T00:00:00Z',
+  finishedAt: '2026-07-01T00:00:05Z',
+  status: 'success',
+  error: null,
+  transactionsCount: 3,
+  createdAt: '2026-07-01T00:00:00Z',
 };
 
 // --- Handlers ---
@@ -367,4 +390,9 @@ export const handlers = [
       { status: 201 },
     );
   }),
+
+  // Integrations — Monobank
+  http.get(`${BASE}/integrations/monobank/connections`, () =>
+    HttpResponse.json([]),
+  ),
 ];

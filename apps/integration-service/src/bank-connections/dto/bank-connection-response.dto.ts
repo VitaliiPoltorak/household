@@ -17,6 +17,12 @@ export class BankConnectionResponseDto {
   @ApiProperty({ required: false, nullable: true }) monobankAccountId:
     | string
     | null;
+  @ApiProperty({
+    required: false,
+    nullable: true,
+    description: 'e.g. "444455******1234"',
+  })
+  maskedPan: string | null;
   @ApiProperty({ required: false, nullable: true }) lastSyncAt: Date | null;
   @ApiProperty({ enum: BankConnectionStatus }) status: BankConnectionStatus;
   @ApiProperty() createdAt: Date;
@@ -27,6 +33,7 @@ export class BankConnectionResponseDto {
       provider: connection.provider,
       monobankClientId: connection.monobankClientId,
       monobankAccountId: connection.monobankAccountId,
+      maskedPan: connection.maskedPan,
       lastSyncAt: connection.lastSyncAt,
       status: connection.status,
       createdAt: connection.createdAt,

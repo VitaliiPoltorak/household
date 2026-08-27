@@ -39,6 +39,14 @@ export class BankConnection extends BaseEntity {
   @Column({ name: 'monobank_account_id', type: 'varchar', nullable: true })
   monobankAccountId: string | null;
 
+  // Monobank's own masked PAN for the synced account (e.g. "444455******1234"),
+  // captured once at connect() time purely for display — the UI has nothing
+  // human-recognizable to show otherwise (monobankAccountId is an opaque id).
+  // Never a security control: this is what Monobank itself already sends
+  // back over the wire on every client-info call, not raw card data.
+  @Column({ name: 'masked_pan', type: 'varchar', nullable: true })
+  maskedPan: string | null;
+
   // Maps a Monobank account id -> internal finance-service account id.
   // Populated by the mapping flow (#21); left empty by connect() here.
   @Column({ name: 'account_mappings', type: 'jsonb', default: '{}' })

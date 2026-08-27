@@ -437,8 +437,8 @@ shopping_list_items
 ```
 bank_connections
   id, household_id, provider (monobank), token_encrypted,
-  monobank_client_id, monobank_account_id, account_mappings (json),
-  last_sync_at, status
+  monobank_client_id, monobank_account_id, masked_pan,
+  account_mappings (json), last_sync_at, status
 
 bank_sync_logs
   id, connection_id, started_at, finished_at, status, error?, transactions_count

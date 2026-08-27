@@ -11,6 +11,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { ApiTags, ApiHeader } from '@nestjs/swagger';
+import { Audit } from '@household/audit';
 import { BankConnectionsService } from './bank-connections.service';
 import { SyncService } from './sync.service';
 import { ConnectMonobankDto } from './dto/connect-monobank.dto';
@@ -26,6 +27,10 @@ export class BankConnectionsController {
   ) {}
 
   @Post('connect')
+  @Audit({
+    action: 'integration.monobank.connect',
+    resourceType: 'bank_connection',
+  })
   async connect(
     @Headers('x-household-id') hid: string,
     @Body() dto: ConnectMonobankDto,
@@ -44,6 +49,11 @@ export class BankConnectionsController {
 
   @Delete('connections/:id')
   @HttpCode(HttpStatus.NO_CONTENT)
+  @Audit({
+    action: 'integration.monobank.disconnect',
+    resourceType: 'bank_connection',
+    resourceIdParam: 'id',
+  })
   remove(@Headers('x-household-id') hid: string, @Param('id') id: string) {
     this.require(hid);
     return this.svc.remove(id, hid);

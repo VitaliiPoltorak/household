@@ -108,6 +108,7 @@ describe('Bank connections (integration)', () => {
         provider: 'monobank',
         monobankClientId: 'mono-client-1',
         monobankAccountId: 'acc-1',
+        maskedPan: '444455******1234',
         status: 'active',
         lastSyncAt: null,
       });

@@ -398,5 +398,28 @@
     "empty": "Keine ausstehenden Einladungen.",
     "accept": "Annehmen",
     "decline": "Ablehnen"
+  },
+  "bankConnections": {
+    "title": "Bankverbindungen",
+    "connect": "Bank verbinden",
+    "empty": "Noch keine Bankkonten verbunden.",
+    "connectTitle": "Monobank verbinden",
+    "tokenLabel": "Persönliches API-Token",
+    "tokenPlaceholder": "Monobank-Token einfügen…",
+    "tokenHint": "Ein Token erhältst du auf api.monobank.ua nach der Anmeldung mit deinem Monobank-Konto.",
+    "invalidToken": "Dieses Token ist ungültig oder wurde widerrufen.",
+    "lastSync": "Zuletzt synchronisiert {{when}}",
+    "neverSynced": "Noch nie synchronisiert",
+    "syncNow": "Jetzt synchronisieren",
+    "syncing": "Synchronisiere…",
+    "syncInProgress": "Für diese Verbindung läuft bereits eine Synchronisierung.",
+    "syncRateLimited": "Monobank erlaubt nur eine Synchronisierung pro Minute — versuche es gleich noch einmal.",
+    "syncFailedInline": "Letzte Synchronisierung fehlgeschlagen — Details in der Historie unten.",
+    "disconnect": "Trennen",
+    "disconnectConfirm": "Dieses Bankkonto trennen? Du kannst es später erneut verbinden, der Synchronisierungsverlauf bleibt erhalten.",
+    "history": "Synchronisierungsverlauf",
+    "historyEmpty": "Noch keine Synchronisierungen.",
+    "transactionCount_one": "{{count}} Transaktion",
+    "transactionCount_other": "{{count}} Transaktionen"
   }
 }

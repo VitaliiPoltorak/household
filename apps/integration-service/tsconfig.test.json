@@ -3,6 +3,8 @@
   "compilerOptions": {
     "esModuleInterop": true,
     "paths": {
+      "@household/audit": ["libs/audit/src"],
+      "@household/audit/*": ["libs/audit/src/*"],
       "@household/common": ["libs/common/src"],
       "@household/common/*": ["libs/common/src/*"],
       "@household/contracts": ["libs/contracts/src"],

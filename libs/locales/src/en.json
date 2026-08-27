@@ -398,5 +398,28 @@
     "empty": "No pending invites.",
     "accept": "Accept",
     "decline": "Decline"
+  },
+  "bankConnections": {
+    "title": "Bank connections",
+    "connect": "Connect bank",
+    "empty": "No bank accounts connected yet.",
+    "connectTitle": "Connect Monobank",
+    "tokenLabel": "Personal API token",
+    "tokenPlaceholder": "Paste your Monobank token…",
+    "tokenHint": "Get a token at api.monobank.ua after logging in with your Monobank account.",
+    "invalidToken": "This token is invalid or has been revoked.",
+    "lastSync": "Last synced {{when}}",
+    "neverSynced": "Never synced",
+    "syncNow": "Sync now",
+    "syncing": "Syncing…",
+    "syncInProgress": "A sync for this connection is already in progress.",
+    "syncRateLimited": "Monobank allows one sync per minute — try again shortly.",
+    "syncFailedInline": "Last sync failed — see history below.",
+    "disconnect": "Disconnect",
+    "disconnectConfirm": "Disconnect this bank account? You can reconnect later, but sync history stays as-is.",
+    "history": "Sync history",
+    "historyEmpty": "No syncs yet.",
+    "transactionCount_one": "{{count}} transaction",
+    "transactionCount_other": "{{count}} transactions"
   }
 }

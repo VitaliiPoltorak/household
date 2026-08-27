@@ -6,6 +6,7 @@ module.exports = {
   rootDir: '.',
   testMatch: ['<rootDir>/test/**/*.integration.spec.ts'],
   moduleNameMapper: {
+    '^@household/audit(.*)$': '<rootDir>/../../libs/audit/src$1',
     '^@household/common(.*)$': '<rootDir>/../../libs/common/src$1',
     '^@household/contracts(.*)$': '<rootDir>/../../libs/contracts/src$1',
     '^@household/database(.*)$': '<rootDir>/../../libs/database/src$1',
