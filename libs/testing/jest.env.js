@@ -18,6 +18,13 @@ if (!process.env.JWT_SECRET) {
   process.env.JWT_SECRET = 'test-jwt-secret';
 }
 
+// integration-service's requireStrongEncryptionKey (mirrors JWT_SECRET
+// above) reads TOKEN_ENCRYPTION_KEY at bootstrap. NODE_ENV=test skips the
+// production strength check, so any value works here.
+if (!process.env.TOKEN_ENCRYPTION_KEY) {
+  process.env.TOKEN_ENCRYPTION_KEY = 'test-token-encryption-key';
+}
+
 // Argon2id at production parameters (m=19456,t=2) takes ~40 ms per hash on
 // commodity hardware — across the full email/password integration suite
 // that adds up to minutes. Drop to the crate's floor (m=8,t=1) in test only;

@@ -12,6 +12,7 @@
     "household": "pnpm --filter @household/household-service dev",
     "finance": "pnpm --filter @household/finance-service dev",
     "shopping": "pnpm --filter @household/shopping-service dev",
+    "integration": "pnpm --filter @household/integration-service dev",
     "realtime": "pnpm --filter @household/realtime-gateway dev",
     "lint": "turbo run lint",
     "test": "turbo run test",

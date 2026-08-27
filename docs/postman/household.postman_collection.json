@@ -1837,6 +1837,180 @@
       ]
     },
     {
+      "name": "Integration — Monobank",
+      "item": [
+        {
+          "name": "Reject connect without X-Household-Id",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 401', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/integrations/monobank/connect",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"fake-token\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Reject connect with missing token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Household-Id",
+                "value": "{{householdId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/integrations/monobank/connect",
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "List connections (none yet)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const r = pm.response.json();",
+                  "pm.test('Is empty array', () => pm.expect(r).to.be.an('array').that.is.empty);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Household-Id",
+                "value": "{{householdId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/integrations/monobank/connections"
+          }
+        },
+        {
+          "name": "Reject sync for a nonexistent connection",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 404', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Household-Id",
+                "value": "{{householdId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/integrations/monobank/connections/00000000-0000-4000-8000-000000000000/sync"
+          }
+        },
+        {
+          "name": "Reject logs for a nonexistent connection",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 404', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Household-Id",
+                "value": "{{householdId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/integrations/monobank/connections/00000000-0000-4000-8000-000000000000/logs"
+          }
+        },
+        {
+          "name": "Reject delete for a nonexistent connection",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 404', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "X-Household-Id",
+                "value": "{{householdId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/integrations/monobank/connections/00000000-0000-4000-8000-000000000000"
+          }
+        }
+      ],
+      "description": "Credential-free scenario checks for integration-service (#20) — validation, tenant isolation, and 404 routing. A real Monobank connect + sync (valid token → client-info → statement) is deliberately manual-only here, the same carve-out this collection already makes for real OAuth consent: Monobank issues personal tokens per real bank account, so there's no scriptable credential to seed like the two e2e users below."
+    },
+    {
       "name": "Cleanup",
       "description": "Runs even after upstream failures where practical (guarded on householdId) — never run this collection with --bail, which would skip this folder and leak a household + two live sessions per failed run.",
       "item": [

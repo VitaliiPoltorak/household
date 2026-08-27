@@ -88,5 +88,11 @@
     "envKey": "SHOPPING_SERVICE_URL",
     "defaultUrl": "http://localhost:3004",
     "rewrites": { "^": "/shopping-lists" }
+  },
+  {
+    "prefix": "/api/v1/integrations/monobank",
+    "envKey": "INTEGRATION_SERVICE_URL",
+    "defaultUrl": "http://localhost:3005",
+    "rewrites": { "^": "/monobank" }
   }
 ]
