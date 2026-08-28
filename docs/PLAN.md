@@ -491,7 +491,7 @@ Finance Service → Kafka: finance.transaction.created
 | `finance.account.created` | Finance | — |
 | `finance.transaction.created` | Finance | Notification |
 | `finance.transaction.updated` | Finance | — |
-| `finance.recurring_payment.due` | Finance (cron) | Notification |
+| `finance.recurring.triggered` | Finance (cron) | Notification |
 | `integration.monobank.sync.started` | Integration | — |
 | `integration.monobank.sync.completed` | Integration | Finance |
 | `integration.monobank.sync.failed` | Integration | Notification |
@@ -612,7 +612,7 @@ Finance Service → Kafka: finance.transaction.created
 | DELETE | `/recurring-payments/:id` | Delete |
 | GET | `/recurring-payments/upcoming?days=30` | Upcoming payments (default 30 days) |
 
-> The cron scheduler (`@nestjs/schedule`) already runs a daily due-check (#78); publishing the Kafka event `finance.recurring_payment.due` for Notification Service is Phase 6.
+> The cron scheduler (`@nestjs/schedule`, `RecurringPaymentScheduler`) runs daily, auto-creates the transaction for each due payment, and publishes `finance.recurring.triggered` (#31, done) — Notification Service (#30, Phase 6) still needs to be built to consume it.
 
 ---
 
@@ -911,7 +911,7 @@ pnpm test:postman                                            # API scenario coll
 
 ```
 □ Notification Service (email + push) — #30
-□ Recurring payment Kafka reminders (cron already exists, publishing — #31)
+✔ Recurring payment cron + Kafka publish (#31) — auto-fires due payments, publishes `finance.recurring.triggered`
 ✔ CI/CD — GitHub Actions (#32): lint + build + unit + integration on every PR
     □ migration:run as part of the deploy pipeline
 
