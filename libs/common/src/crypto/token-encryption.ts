@@ -65,10 +65,29 @@ export function encryptSecret(plaintext: string, secret: string): string {
 }
 
 /**
- * Reverses encryptSecret(). Throws if `secret` doesn't match or the payload
- * was tampered with (GCM auth tag verification fails).
+ * Reverses encryptSecret(). Throws if neither `secret` nor `previousSecret`
+ * matches, or the payload was tampered with (GCM auth tag verification
+ * fails for both).
+ *
+ * `previousSecret` supports key rotation: set TOKEN_ENCRYPTION_KEY_PREV to
+ * the old key while TOKEN_ENCRYPTION_KEY holds the new one. Rows encrypted
+ * under the old key keep decrypting via the fallback until re-encrypted
+ * (mirrors KAFKA_SIGNING_KEY_PREV's rotation window).
  */
-export function decryptSecret(payload: string, secret: string): string {
+export function decryptSecret(
+  payload: string,
+  secret: string,
+  previousSecret?: string,
+): string {
+  try {
+    return decryptWithKey(payload, secret);
+  } catch (err) {
+    if (previousSecret) return decryptWithKey(payload, previousSecret);
+    throw err;
+  }
+}
+
+function decryptWithKey(payload: string, secret: string): string {
   const key = deriveKey(secret);
   const buf = Buffer.from(payload, 'base64');
   const iv = buf.subarray(0, IV_LENGTH);

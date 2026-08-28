@@ -20,6 +20,9 @@ import { MonobankClientService } from '../monobank/monobank-client.service';
 @Injectable()
 export class BankConnectionsService {
   private readonly encryptionKey: string;
+  // Optional fallback for key rotation — set only while TOKEN_ENCRYPTION_KEY
+  // is being rotated. See decryptToken().
+  private readonly previousEncryptionKey?: string;
 
   constructor(
     @InjectRepository(BankConnection)
@@ -30,6 +33,9 @@ export class BankConnectionsService {
     config: ConfigService,
   ) {
     this.encryptionKey = requireStrongEncryptionKey(config);
+    this.previousEncryptionKey = config.get<string>(
+      'TOKEN_ENCRYPTION_KEY_PREV',
+    );
   }
 
   async connect(
@@ -85,6 +91,10 @@ export class BankConnectionsService {
   }
 
   decryptToken(connection: BankConnection): string {
-    return decryptSecret(connection.tokenEncrypted, this.encryptionKey);
+    return decryptSecret(
+      connection.tokenEncrypted,
+      this.encryptionKey,
+      this.previousEncryptionKey,
+    );
   }
 }

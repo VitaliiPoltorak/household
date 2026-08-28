@@ -3,8 +3,11 @@ import {
   INestApplication,
   UnauthorizedException,
 } from '@nestjs/common';
+import { getRepositoryToken } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import request from 'supertest';
 import Redis from 'ioredis';
+import { encryptSecret } from '@household/common';
 import {
   createTestApp,
   cleanDatabase,
@@ -18,6 +21,11 @@ import {
   type MonobankStatementItem,
 } from '../src/monobank/monobank-client.service';
 import { REDIS_CLIENT } from '../src/redis/redis.module';
+import {
+  BankConnection,
+  BankConnectionStatus,
+  BankProvider,
+} from '../src/bank-connections/entities/bank-connection.entity';
 
 class FakeMonobankClient {
   clientInfo: MonobankClientInfo = {
@@ -285,6 +293,66 @@ describe('Bank connections (integration)', () => {
         .get(`/monobank/connections/${created.body.id}/logs`)
         .set('X-Household-Id', 'other-household')
         .expect(404);
+    });
+  });
+
+  describe('TOKEN_ENCRYPTION_KEY rotation (#296)', () => {
+    // Simulates a row encrypted before a key rotation: the connection's
+    // tokenEncrypted is under OLD_KEY, while the app boots with the default
+    // primary key (TOKEN_ENCRYPTION_KEY=test-token-encryption-key, set by
+    // libs/testing/jest.env.js) and OLD_KEY only as TOKEN_ENCRYPTION_KEY_PREV.
+    const OLD_KEY = 'old-key-from-before-the-rotation';
+    let rotationApp: INestApplication;
+    let rotationMonobank: FakeMonobankClient & { receivedToken?: string };
+    let connectionRepo: Repository<BankConnection>;
+
+    beforeAll(async () => {
+      process.env.TOKEN_ENCRYPTION_KEY_PREV = OLD_KEY;
+      rotationMonobank = Object.assign(new FakeMonobankClient(), {
+        receivedToken: undefined as string | undefined,
+      });
+      rotationMonobank.getStatement = async function (
+        this: FakeMonobankClient & { receivedToken?: string },
+        token: string,
+      ) {
+        this.receivedToken = token;
+        return this.statementItems;
+      };
+      rotationApp = await createTestApp(AppModule, (b) =>
+        b.overrideProvider(MonobankClientService).useValue(rotationMonobank),
+      );
+      connectionRepo = rotationApp.get<Repository<BankConnection>>(
+        getRepositoryToken(BankConnection),
+      );
+    });
+
+    afterAll(async () => {
+      delete process.env.TOKEN_ENCRYPTION_KEY_PREV;
+      await rotationApp.close();
+    });
+
+    it('decrypts and syncs a connection whose token was encrypted under the previous key', async () => {
+      const created = await connectionRepo.save(
+        connectionRepo.create({
+          householdId: H,
+          provider: BankProvider.MONOBANK,
+          tokenEncrypted: encryptSecret('mono-token-pre-rotation', OLD_KEY),
+          monobankClientId: 'mono-client-1',
+          monobankAccountId: 'acc-1',
+          maskedPan: '444455******1234',
+          accountMappings: {},
+          lastSyncAt: null,
+          status: BankConnectionStatus.ACTIVE,
+        }),
+      );
+
+      const res = await request(rotationApp.getHttpServer())
+        .post(`/monobank/connections/${created.id}/sync`)
+        .set('X-Household-Id', H)
+        .expect(201);
+
+      expect(res.body).toMatchObject({ status: 'success' });
+      expect(rotationMonobank.receivedToken).toBe('mono-token-pre-rotation');
     });
   });
 });
