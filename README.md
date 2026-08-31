@@ -259,6 +259,108 @@ pnpm --filter @household/web test:ui    # browser UI
 
 **Covered flows:** login, dashboard (empty state + create household + multi-currency total with per-currency breakdown and PrivatBank conversion), accounts (list/create/archive + multi-currency estimated total), transactions (list/create/delete/filter/transfer incl. cross-currency with auto-rate + manual override), shopping lists (list/create/select/mark purchased).
 
+## Deployment
+
+Production runs the same `docker-compose.yml` as local development, on a single VPS, with a thin
+`docker-compose.prod.yml` overlay for the handful of values that differ. The web app is built and
+served separately as static files.
+
+| Piece | Where | Notes |
+|---|---|---|
+| Backend (7 services + Postgres + Redis + Kafka) | netcup VPS 500 G12 — 2 vCPU / 4 GB / 128 GB NVMe, Vienna | Single box, `docker compose`, ~€5.72/mo (no minimum contract term) |
+| TLS + reverse proxy | Caddy on the host | Automatic Let's Encrypt; only `:80`/`:443` are open (ufw) |
+| Web app | Cloudflare Pages | Static SPA build, auto-deploys on push to `main`, free tier |
+| DNS | DuckDNS (temporary) | A real domain is pending — see [#301](https://github.com/VitaliiPoltorak/household/issues/301) |
+
+### Host prerequisites
+
+Docker + Docker Compose, `git`, Caddy, a firewall allowing only SSH/80/443, and **2 GB of swap**.
+Swap is not optional here: the full stack idles close to the 4 GB ceiling, and without swap the OOM
+killer takes out Kafka or Postgres instead of the box briefly paging.
+
+### Reverse proxy
+
+Compose publishes every service on `127.0.0.1` only, so Caddy is the single public entry point. It
+fronts `api-gateway` and routes the Socket.IO path to `realtime-gateway`:
+
+```
+<your-domain> {
+    handle /socket.io/* {
+        reverse_proxy 127.0.0.1:3010
+    }
+    handle {
+        reverse_proxy 127.0.0.1:3000
+    }
+}
+```
+
+### The prod overlay
+
+`docker-compose.prod.yml` only overrides `NODE_ENV`, the CORS allow-lists, and `AUTH_COOKIE_SECURE`:
+
+```yaml
+services:
+  api-gateway:
+    environment:
+      NODE_ENV: production
+      CORS_ORIGIN: https://<web-origin>
+  auth-service:
+    environment:
+      AUTH_COOKIE_SECURE: 'true'
+  realtime-gateway:
+    environment:
+      NODE_ENV: production
+      WS_CORS_ORIGINS: https://<web-origin>
+```
+
+> **Why the five database-backed services are deliberately *not* on `NODE_ENV=production` yet.**
+> Every service that owns a schema gates TypeORM on `synchronize: NODE_ENV === 'development'`
+> (`apps/*/src/app.module.ts`). Initial migrations don't exist yet — that's still open work in
+> Phase 6 — so flipping those services to `production` stops the schema from ever being created and
+> the first request dies with `relation "auth.auth_providers" does not exist`. They stay on the
+> default `development` until `migration:run` replaces `synchronize`. The trade-off is tracked in
+> [#304](https://github.com/VitaliiPoltorak/household/issues/304): the *runtime* protections still
+> hold (gateway signature verification keys off the presence of `GATEWAY_SIGNING_SECRET`, not off
+> `NODE_ENV`), but the bootstrap fail-fast guards on those five services are inactive.
+
+Deploy commands always pass both files:
+
+```bash
+export COMPOSE_BAKE=false
+docker compose -f docker-compose.yml -f docker-compose.prod.yml build <service>   # one at a time
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --wait
+```
+
+Building one service at a time is deliberate on a 2-vCPU box — see the comments in
+`scripts/rebuild-touched-services.sh` for why `COMPOSE_BAKE=false` plus a per-service `build` is the
+only invocation that actually scopes to a single service.
+
+The checkout on the server has `core.hooksPath` pointed at `.githooks`, so a `git pull` there
+rebuilds and restarts exactly the services whose sources changed — the same mechanism used locally.
+
+### Web app (Cloudflare Pages)
+
+| Setting | Value |
+|---|---|
+| Root directory | *(repo root — do not set to `apps/web`)* |
+| Build command | `pnpm install --filter @household/web... --frozen-lockfile && pnpm --filter @household/web build` |
+| Build output | `apps/web/dist` |
+| Env vars | `VITE_API_URL`, `VITE_WS_URL`, `VITE_GOOGLE_CLIENT_ID` |
+
+Root directory has to stay at the repo root: `apps/web` resolves `@household/locales` through a Vite
+alias to `../../libs/locales/src` (`apps/web/vite.config.ts`), not through `node_modules`, so the
+build breaks if `libs/` isn't in the checkout. The `--filter @household/web...` install keeps the
+backend's dependencies out of the build.
+
+`VITE_*` values are inlined at build time, so changing one requires a redeploy, not just a settings
+save. `apps/web/public/_headers` sets `Cross-Origin-Opener-Policy: same-origin-allow-popups` so
+Google's popup sign-in can `postMessage` back to the app.
+
+### Not yet automated
+
+Pushes are deployed by hand (`git pull` on the server). Automated deploys and database backups are
+still open — see the Phase 6 issues.
+
 ## Architecture overview
 
 Clients (web / mobile) communicate only with the API Gateway over HTTPS/REST and WebSocket (Socket.IO, Phase 2). The Gateway validates JWT, extracts `userId` from the token, reads `X-Household-Id` from the request header, and proxies both as `X-User-Id` / `X-Household-Id` headers to downstream services. Services trust these headers and do not re-validate the JWT.
