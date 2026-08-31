@@ -3,12 +3,11 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { KafkaModule } from '@household/kafka';
 import { ensureSchema } from '@household/database';
-import { AuditLog, AuditModule } from '@household/audit';
+import { AuditModule } from '@household/audit';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { SessionsModule } from './sessions/sessions.module';
-import { User } from './users/entities/user.entity';
-import { AuthProvider } from './users/entities/auth-provider.entity';
+import { entities } from './config/entities';
 
 @Module({
   imports: [
@@ -29,7 +28,7 @@ import { AuthProvider } from './users/entities/auth-provider.entity';
           password: config.get<string>('POSTGRES_PASSWORD', 'household_secret'),
           database: config.get<string>('POSTGRES_DB', 'household'),
           schema: 'auth',
-          entities: [User, AuthProvider, AuditLog],
+          entities,
           synchronize: config.get('NODE_ENV') === 'development',
         };
       },

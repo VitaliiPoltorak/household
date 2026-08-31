@@ -4,7 +4,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { KafkaModule } from '@household/kafka';
 import { ensureSchema } from '@household/database';
-import { AuditLog, AuditModule } from '@household/audit';
+import { AuditModule } from '@household/audit';
 import { AccountsModule } from './accounts/accounts.module';
 import { TransactionsModule } from './transactions/transactions.module';
 import { CategoriesModule } from './categories/categories.module';
@@ -15,16 +15,7 @@ import { EventsModule } from './events/events.module';
 import { RatesModule } from './rates/rates.module';
 import { CurrenciesModule } from './currencies/currencies.module';
 import { AccountTypesModule } from './account-types/account-types.module';
-import { Account } from './accounts/entities/account.entity';
-import { Transaction } from './transactions/entities/transaction.entity';
-import { Category } from './categories/entities/category.entity';
-import { IncomeSource } from './income-sources/entities/income-source.entity';
-import { RecurringPayment } from './recurring-payments/entities/recurring-payment.entity';
-import { ExchangeRate } from './rates/entities/exchange-rate.entity';
-import { Currency } from './currencies/entities/currency.entity';
-import { HouseholdCurrency } from './currencies/entities/household-currency.entity';
-import { AccountTypeCatalog } from './account-types/entities/account-type-catalog.entity';
-import { HouseholdAccountType } from './account-types/entities/household-account-type.entity';
+import { entities } from './config/entities';
 
 @Module({
   imports: [
@@ -42,19 +33,7 @@ import { HouseholdAccountType } from './account-types/entities/household-account
           password: config.get<string>('POSTGRES_PASSWORD', 'household_secret'),
           database: config.get<string>('POSTGRES_DB', 'household'),
           schema: 'finance',
-          entities: [
-            Account,
-            Transaction,
-            Category,
-            IncomeSource,
-            RecurringPayment,
-            ExchangeRate,
-            Currency,
-            HouseholdCurrency,
-            AccountTypeCatalog,
-            HouseholdAccountType,
-            AuditLog,
-          ],
+          entities,
           synchronize: config.get('NODE_ENV') === 'development',
         };
       },
