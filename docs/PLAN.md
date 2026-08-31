@@ -915,15 +915,18 @@ pnpm test:postman                                            # API scenario coll
 ✔ CI/CD — GitHub Actions (#32): lint + build + unit + integration on every PR
     □ migration:run as part of the deploy pipeline
 
-□ Migrations in production
+□ Migrations in production — blocks NODE_ENV=production on the 5 schema-owning services (#304)
     □ synchronize: false in every service (removed from code, not only env)
     □ migration:run executed before each service starts (CMD in Dockerfile)
     □ Ensure the rollback strategy is understood (down migrations)
 
-□ Backend deployment (Railway / Fly.io / VPS + Docker) — #33
-□ Web deployment (Vercel / Cloudflare Pages — static) — #33
+✔ Backend deployment (#33) — netcup VPS, docker compose + docker-compose.prod.yml overlay, Caddy/TLS
+✔ Web deployment (#33) — Cloudflare Pages, auto-deploy on push to main
+    □ Real domain — refresh cookie is third-party across pages.dev ↔ duckdns.org (#301)
+    □ Automated deploy — currently a manual `git pull` on the server (#305)
+    □ Database backups — pg_dump off-box on a schedule (#306)
 
-□ Monitoring — Sentry (#33)
+□ Monitoring — Sentry (#231)
     □ @sentry/nestjs in every NestJS service
         □ SentryModule.forRoot({ dsn, environment, release })
         □ SentryInterceptor to capture unhandled exceptions
@@ -975,19 +978,45 @@ pnpm test:postman                                            # API scenario coll
 
 ## 11. Deployment and App Store
 
-### Backend
+Operational runbook (host prerequisites, Caddy config, prod overlay, Cloudflare Pages settings)
+lives in [`README.md` → Deployment](../README.md#deployment). This section records *what was chosen
+and why*.
 
-| Option | Pros | Cons |
-|--------|------|------|
-| **Railway / Render** | Simple, Docker-native | More expensive at scale |
-| **Fly.io** | Edge network, good for EU | Slightly more complex |
-| **VPS (Hetzner)** | Cheap, full control | Ops are on you |
+### Backend — decided: single VPS (netcup), not a PaaS
 
-Recommendation for the start: **Railway** or **Fly.io** — less DevOps, more focus on code.
+The original recommendation here was Railway or Fly.io. That was reconsidered before the first
+deploy, because the deciding factor turned out to be **Kafka**, not the app itself:
 
-### Web
+| Option | Monthly | Why it was / wasn't chosen |
+|--------|---------|----------------------------|
+| **netcup VPS 500 G12** (chosen) | **~€5.72** | 2 vCPU / 4 GB / 128 GB NVMe, Vienna. Runs the existing `docker-compose.yml` unchanged — Kafka included, no substitution needed. No minimum contract term. |
+| Hetzner CPX22 | ~€19.99 | Same approach, more established brand, ~3.5× the price for less RAM |
+| Railway | ~$40–90 | Per-resource billing; no managed Kafka, so Kafka is billed as ordinary compute anyway |
+| Render | ~$80–110 | Billed per service — 8 services before a single request is served |
+| AWS "done properly" (ECS + RDS + ElastiCache + **MSK** + ALB + NAT) | **~$375–450** | MSK has a hard 3-broker minimum (~$225/mo just for the queue). 15–20× a VPS, and most of the multiplier is the managed-Kafka tax. |
 
-Static SPA → **Cloudflare Pages** or **Vercel** (free tier).
+For a household app the managed-Kafka premium buys nothing, so the stack stays on one box and
+`docker-compose.yml` is the deployment artifact. AWS-style managed infra only starts paying for
+itself with real users and an SLA to defend.
+
+Two constraints the 4 GB box imposed, both already in the repo:
+- `KAFKA_HEAP_OPTS=-Xmx384m -Xms384m` in `docker-compose.yml` (#302). The JVM's default heap sizing
+  scales with host RAM and reached ~1 GB+ — a quarter of the box before a single message.
+- 2 GB of swap on the host, as insurance against the OOM killer rather than a place to actually run.
+
+If the box is ever outgrown, the cheapest large win is swapping Apache Kafka for **Redpanda** — it
+speaks the same wire protocol, so `libs/kafka` (plain `kafkajs`, no transactions / Streams / Schema
+Registry / admin API) would not change at all; only the compose service block and the `KAFKA_BROKERS`
+host would. Scoped out, not scheduled.
+
+### Web — decided: Cloudflare Pages
+
+Static SPA → **Cloudflare Pages**. Unlimited static requests on the free tier and per-PR preview
+deployments out of the box. Netlify was rejected: its April 2026 credit model caps the free tier at
+roughly 15 GB/month, after which the site is paused until the next cycle.
+
+Keeping the web app off the VPS (rather than serving `dist/` from Caddy) also keeps frontend-only
+changes out of the backend deploy path entirely.
 
 ### Mobile → App Store
 
@@ -999,15 +1028,34 @@ Static SPA → **Cloudflare Pages** or **Vercel** (free tier).
 
 ### Env variables (prod)
 
+Authoritative list with per-variable notes: [`.env.example`](../.env.example) and
+[`README.md` → Environment variables](../README.md#environment-variables). Summary of what must be
+set to real values on a deploy:
+
 ```
-DATABASE_URL, REDIS_URL, KAFKA_BROKERS
-JWT_SECRET, JWT_REFRESH_SECRET
-GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET
-APPLE_CLIENT_ID, APPLE_TEAM_ID, APPLE_KEY_ID
-FACEBOOK_APP_ID, FACEBOOK_APP_SECRET
-MONOBANK_WEBHOOK_SECRET (if applicable)
-ENCRYPTION_KEY (for bank tokens)
+POSTGRES_HOST/PORT/USER/PASSWORD/DB       # not a DATABASE_URL — services build their own connection
+REDIS_HOST, REDIS_PORT
+KAFKA_BROKERS
+
+JWT_SECRET                                # openssl rand -base64 48
+GATEWAY_SIGNING_SECRET                    # signs X-User-Id / X-Household-Id trust headers
+KAFKA_SIGNING_KEY (+ _PREV during rotation)
+TOKEN_ENCRYPTION_KEY (+ _PREV)            # AES-256-GCM for bank tokens
+
+CORS_ORIGIN, WS_CORS_ORIGINS              # the web origin, not the API origin
+AUTH_COOKIE_SECURE=true
+AUTH_DEV_LOG_SECRETS=false                # logs verification codes when true
+
+GOOGLE_CLIENT_ID                          # no client secret: the flow verifies a Google ID token
+APPLE_CLIENT_ID
 ```
+
+Web build-time vars (Cloudflare Pages, inlined by Vite — a change needs a redeploy):
+`VITE_API_URL`, `VITE_WS_URL`, `VITE_GOOGLE_CLIENT_ID`.
+
+There is no `JWT_REFRESH_SECRET`: refresh tokens are opaque and stored in Redis under
+`session:{userId}`, not signed. There is no `GOOGLE_CLIENT_SECRET`: `auth-service` verifies the
+Google ID token the SPA obtained, it never performs a server-side code exchange.
 
 ---
 
