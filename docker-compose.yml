@@ -52,6 +52,11 @@ services:
     ports:
       - "127.0.0.1:9092:9092"
     environment:
+      # Default JVM heap sizing on this image scales with host RAM and can
+      # reach ~1GB+ on a small VPS — excessive for a single low-throughput
+      # broker. Capped explicitly so Kafka leaves headroom for the 7 Node
+      # services + Postgres + Redis sharing the same box.
+      KAFKA_HEAP_OPTS: "-Xmx384m -Xms384m"
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: broker,controller
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
