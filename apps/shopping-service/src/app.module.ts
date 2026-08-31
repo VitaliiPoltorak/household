@@ -7,10 +7,7 @@ import { StoresModule } from './stores/stores.module';
 import { ProductsModule } from './products/products.module';
 import { ShoppingListsModule } from './shopping-lists/shopping-lists.module';
 import { EventsModule } from './events/events.module';
-import { Store } from './stores/entities/store.entity';
-import { Product } from './products/entities/product.entity';
-import { ShoppingList } from './shopping-lists/entities/shopping-list.entity';
-import { ShoppingListItem } from './shopping-lists/entities/shopping-list-item.entity';
+import { entities } from './config/entities';
 
 @Module({
   imports: [
@@ -28,7 +25,7 @@ import { ShoppingListItem } from './shopping-lists/entities/shopping-list-item.e
           password: config.get<string>('POSTGRES_PASSWORD', 'household_secret'),
           database: config.get<string>('POSTGRES_DB', 'household'),
           schema: 'shopping',
-          entities: [Store, Product, ShoppingList, ShoppingListItem],
+          entities,
           synchronize: config.get('NODE_ENV') === 'development',
         };
       },

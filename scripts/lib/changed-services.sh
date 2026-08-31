@@ -32,6 +32,7 @@ ALL_SERVICES=(
   household-service
   finance-service
   shopping-service
+  integration-service
   realtime-gateway
 )
 

@@ -3,14 +3,12 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { KafkaModule } from '@household/kafka';
 import { ensureSchema } from '@household/database';
-import { AuditLog, AuditModule } from '@household/audit';
+import { AuditModule } from '@household/audit';
 import { RedisModule } from './redis/redis.module';
 import { BankConnectionsModule } from './bank-connections/bank-connections.module';
 import { ExternalTransactionsModule } from './external-transactions/external-transactions.module';
 import { EventsModule } from './events/events.module';
-import { BankConnection } from './bank-connections/entities/bank-connection.entity';
-import { BankSyncLog } from './bank-connections/entities/bank-sync-log.entity';
-import { ExternalTransaction } from './external-transactions/entities/external-transaction.entity';
+import { entities } from './config/entities';
 
 @Module({
   imports: [
@@ -28,12 +26,7 @@ import { ExternalTransaction } from './external-transactions/entities/external-t
           password: config.get<string>('POSTGRES_PASSWORD', 'household_secret'),
           database: config.get<string>('POSTGRES_DB', 'household'),
           schema: 'integration',
-          entities: [
-            BankConnection,
-            BankSyncLog,
-            ExternalTransaction,
-            AuditLog,
-          ],
+          entities,
           synchronize: config.get('NODE_ENV') === 'development',
         };
       },

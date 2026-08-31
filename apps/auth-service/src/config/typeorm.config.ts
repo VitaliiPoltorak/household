@@ -1,13 +1,13 @@
+import { join } from 'path';
 import { DataSource } from 'typeorm';
 import { createDataSourceOptions } from '@household/database';
-import { User } from '../users/entities/user.entity';
-import { AuthProvider } from '../users/entities/auth-provider.entity';
+import { entities } from './entities';
 
 export default new DataSource({
   ...createDataSourceOptions({
     schema: 'auth',
-    entities: [User, AuthProvider],
-    migrations: ['src/migrations/*.ts'],
+    entities,
+    migrations: [join(__dirname, '..', 'migrations', '*.{ts,js}')],
   }),
   synchronize: false,
 });
