@@ -9,8 +9,9 @@ sudo systemctl enable --now household-backup.timer
 ```
 
 Requires `/opt/household/.env.backup` to exist first (`chmod 600`, owned by
-the `household` user — it holds R2 credentials) — see `.env.example`'s
-"Database backups" section for the variables it needs, and
+the same user that owns `/opt/household` — `vitaliy` on this VPS, matching
+`User=` in `household-backup.service` — it holds R2 credentials) — see
+`.env.example`'s "Database backups" section for the variables it needs, and
 `infra/rclone/README.md` for the rclone side of the setup.
 
 Useful commands:

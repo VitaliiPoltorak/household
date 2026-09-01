@@ -1,6 +1,7 @@
 # rclone setup for database backups (#306)
 
-One-time setup on the production VPS, as the `household` user.
+One-time setup on the production VPS, as the user that owns `/opt/household`
+(`vitaliy` on this VPS — same user `household-backup.service` runs as).
 
 ## 1. Create the R2 bucket + API token
 
@@ -28,9 +29,16 @@ rclone obscure "$(openssl rand -base64 32)"   # -> password2 (a different value)
 ```
 
 Copy `infra/rclone/rclone.conf.example` to
-`/opt/household/.config/rclone/rclone.conf` (owned by `household`, mode
-`600`) and fill in the four `REPLACE_WITH_*` placeholders with the values
-from steps 1–2.
+`/opt/household/.config/rclone/rclone.conf` (owned by the same user as
+`/opt/household`, mode `600`) and fill in the four `REPLACE_WITH_*`
+placeholders with the values from steps 1–2.
+
+This path is NOT rclone's default config location (`~/.config/rclone/...`)
+— it lives under `/opt/household` so it doesn't depend on whichever user's
+home directory ends up running the timer. Point rclone at it explicitly by
+setting `RCLONE_CONFIG=/opt/household/.config/rclone/rclone.conf` in
+`/opt/household/.env.backup` (see `.env.example`) — `household-backup.service`
+loads that file, and it's also what "Verify" below exports manually.
 
 ## 3. Verify
 
