@@ -20,7 +20,7 @@ export function createDataSourceOptions(
     schema: cfg.schema,
     entities: cfg.entities,
     migrations: cfg.migrations,
-    synchronize: process.env.NODE_ENV === 'development',
+    synchronize: false,
   };
 }
 

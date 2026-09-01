@@ -90,11 +90,7 @@ All services return a consistent `{ statusCode, message, error, timestamp }` sha
 
 One PostgreSQL instance with **schema-per-service** (not separate databases). Each service manages its own schema and runs its own TypeORM migrations.
 
-**Current state (dev):** `synchronize: true` — TypeORM auto-creates/alters tables on startup. Schema is created via `ensureSchema()` before TypeORM initializes.
-
-**Phase 3 plan:** Generate initial migrations for each service once schemas stabilise. Switch from `synchronize` to `migrations: run`. This is safe in development and required for production.
-
-**Phase 6 plan:** `synchronize: false` in all services. `migration:run` executes as part of the Docker entrypoint before the service starts.
+**Current state:** `synchronize: false` in all five schema-owning services. Each `apps/*/src/app.module.ts` sets `migrations: [...]` + `migrationsRun: true`, so TypeORM runs pending migrations as part of `DataSource` initialization at every service boot — no separate Dockerfile CMD/entrypoint step needed. Schema (the Postgres `CREATE SCHEMA`, not the tables) is still created via `ensureSchema()` before TypeORM initializes. Each service's initial migration self-baselines: on a database `synchronize` already built, it detects the existing tables via `hasTable` and records itself as applied without re-running DDL, so this was a safe swap on an existing deploy (#304).
 
 ## Testing policy (Phase 2+)
 
