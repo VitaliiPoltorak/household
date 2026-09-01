@@ -1,3 +1,4 @@
+import { join } from 'path';
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -27,7 +28,9 @@ import { entities } from './config/entities';
           database: config.get<string>('POSTGRES_DB', 'household'),
           schema: 'integration',
           entities,
-          synchronize: config.get('NODE_ENV') === 'development',
+          migrations: [join(__dirname, 'migrations', '*.{ts,js}')],
+          migrationsRun: true,
+          synchronize: false,
         };
       },
     }),

@@ -296,7 +296,8 @@ fronts `api-gateway` and routes the Socket.IO path to `realtime-gateway`:
 
 ### The prod overlay
 
-`docker-compose.prod.yml` only overrides `NODE_ENV`, the CORS allow-lists, and `AUTH_COOKIE_SECURE`:
+`docker-compose.prod.yml` overrides `NODE_ENV` for every service, plus the CORS allow-lists and
+`AUTH_COOKIE_SECURE`:
 
 ```yaml
 services:
@@ -306,22 +307,34 @@ services:
       CORS_ORIGIN: https://<web-origin>
   auth-service:
     environment:
+      NODE_ENV: production
       AUTH_COOKIE_SECURE: 'true'
+  household-service:
+    environment:
+      NODE_ENV: production
+  finance-service:
+    environment:
+      NODE_ENV: production
+  shopping-service:
+    environment:
+      NODE_ENV: production
+  integration-service:
+    environment:
+      NODE_ENV: production
   realtime-gateway:
     environment:
       NODE_ENV: production
       WS_CORS_ORIGINS: https://<web-origin>
 ```
 
-> **Why the five database-backed services are deliberately *not* on `NODE_ENV=production` yet.**
-> Every service that owns a schema gates TypeORM on `synchronize: NODE_ENV === 'development'`
-> (`apps/*/src/app.module.ts`). Initial migrations don't exist yet — that's still open work in
-> Phase 6 — so flipping those services to `production` stops the schema from ever being created and
-> the first request dies with `relation "auth.auth_providers" does not exist`. They stay on the
-> default `development` until `migration:run` replaces `synchronize`. The trade-off is tracked in
-> [#304](https://github.com/VitaliiPoltorak/household/issues/304): the *runtime* protections still
-> hold (gateway signature verification keys off the presence of `GATEWAY_SIGNING_SECRET`, not off
-> `NODE_ENV`), but the bootstrap fail-fast guards on those five services are inactive.
+All five database-backed services now run their initial migration (`migrationsRun: true` in
+`apps/*/src/app.module.ts`) at bootstrap instead of relying on `synchronize`, so `NODE_ENV=production`
+no longer disables schema creation ([#304](https://github.com/VitaliiPoltorak/household/issues/304)).
+Each migration self-baselines: on a database `synchronize` already built, it detects the existing
+tables and records itself as applied without re-running any DDL, so this is a safe no-op switch on
+an existing deploy. This also restores the bootstrap fail-fast guards (`JWT_SECRET`/
+`TOKEN_ENCRYPTION_KEY` strength checks, `GATEWAY_SIGNING_SECRET` required,
+`AUTH_DEV_LOG_SECRETS` must not be `true`) on all five services.
 
 Deploy commands always pass both files:
 

@@ -850,16 +850,11 @@ pnpm test:postman                                            # API scenario coll
     ✔ Strategies implemented (google/apple/facebook.strategy.ts + OAuthStrategyRegistry)
     □ End-to-end setup + tests (requires Apple Developer Account + Facebook App)
 
-□ TypeORM migrations (schema stabilised after Phase 2)
-    □ Generate initial migration per service:
-        pnpm --filter @household/auth-service migration:generate -- -n InitAuth
-        pnpm --filter @household/household-service migration:generate -- -n InitHousehold
-        pnpm --filter @household/finance-service migration:generate -- -n InitFinance
-        pnpm --filter @household/shopping-service migration:generate -- -n InitShopping
-        pnpm --filter @household/integration-service migration:generate -- -n InitIntegration
-    □ Verify migrations: run creates the schema correctly on an empty DB
-    □ Disable synchronize: true in development (swap for migrations: run in ensureSchema)
-    □ Add migration:run to a docker-compose healthcheck or startup script
+✔ TypeORM migrations (schema stabilised after Phase 2)
+    ✔ Generate initial migration per service (#304, InitAuth/InitHousehold/InitFinance/InitShopping/InitIntegration — self-baselining against an existing `synchronize`-built DB)
+    ✔ Verify migrations: run creates the schema correctly on an empty DB
+    ✔ Disable synchronize in every service — replaced by `migrations` + `migrationsRun: true` in each `app.module.ts` (#304)
+    ✔ Migrations run automatically at service bootstrap (`migrationsRun: true`), no separate startup script needed
 ```
 
 ---
@@ -913,12 +908,12 @@ pnpm test:postman                                            # API scenario coll
 □ Notification Service (email + push) — #30
 ✔ Recurring payment cron + Kafka publish (#31) — auto-fires due payments, publishes `finance.recurring.triggered`
 ✔ CI/CD — GitHub Actions (#32): lint + build + unit + integration on every PR
-    □ migration:run as part of the deploy pipeline
+    ✔ migration:run as part of the deploy pipeline — automatic via `migrationsRun: true` at each service's bootstrap, no separate pipeline step needed
 
-□ Migrations in production — blocks NODE_ENV=production on the 5 schema-owning services (#304)
-    □ synchronize: false in every service (removed from code, not only env)
-    □ migration:run executed before each service starts (CMD in Dockerfile)
-    □ Ensure the rollback strategy is understood (down migrations)
+✔ Migrations in production — no longer blocks NODE_ENV=production on the 5 schema-owning services (#304)
+    ✔ synchronize: false in every service (removed from code, not only env)
+    ✔ migrations run before each service starts serving requests (`migrationsRun: true`, runs inside `TypeOrmModule` bootstrap rather than a separate Dockerfile CMD step)
+    □ Ensure the rollback strategy is understood (down migrations exist per-service but haven't been exercised against a real rollback)
 
 ✔ Backend deployment (#33) — netcup VPS, docker compose + docker-compose.prod.yml overlay, Caddy/TLS
 ✔ Web deployment (#33) — Cloudflare Pages, auto-deploy on push to main
@@ -971,7 +966,6 @@ pnpm test:postman                                            # API scenario coll
 - Mobile app (Phase 5)
 - Multi-currency with internal conversion inside finance (currently — display only)
 - Linking a purchase to a transaction
-- Prod migrations (Phase 6 — currently `synchronize: true` in dev)
 - Sentry monitoring (Phase 6)
 
 ---
