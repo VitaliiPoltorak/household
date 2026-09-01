@@ -1,0 +1,14 @@
+# Installed alongside household-backup.service — see infra/systemd/README.md.
+# 03:15 server time: after the day's traffic, comfortably inside any
+# maintenance window, and offset from :00 so it doesn't compete with other
+# hosts' backup jobs hitting R2 at the top of the hour.
+[Unit]
+Description=Run household database backup nightly
+
+[Timer]
+OnCalendar=*-*-* 03:15:00
+RandomizedDelaySec=300
+Persistent=true
+
+[Install]
+WantedBy=timers.target

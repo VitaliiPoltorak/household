@@ -369,10 +369,44 @@ backend's dependencies out of the build.
 save. `apps/web/public/_headers` sets `Cross-Origin-Opener-Policy: same-origin-allow-popups` so
 Google's popup sign-in can `postMessage` back to the app.
 
+### Database backups
+
+Nightly, off-box, encrypted Postgres backups ([#306](https://github.com/VitaliiPoltorak/household/issues/306)) — `scripts/backup-database.sh`, run by `household-backup.timer` on the VPS host:
+
+1. `pg_dump -Fc` of the whole `household` database (one dump covers every service's schema — they
+   all live in the same Postgres instance, schema-per-service).
+2. Shipped to Cloudflare R2 through an rclone `crypt` remote — encrypted client-side before
+   anything leaves the box, since the dump carries bank connection metadata and user emails.
+3. `scripts/prune-backups.sh` keeps ~7 daily + ~4 weekly copies (grandfather-father-son), deletes
+   the rest.
+4. Pings a [healthchecks.io](https://healthchecks.io) URL on success. This is a dead-man's-switch,
+   not just an error alert — healthchecks.io notices when the *timer stops firing entirely*, not
+   only when the script errors, which is the actual "silently broken for a month" failure mode a
+   backup job usually dies to.
+
+**One-time setup on the VPS** (not automated — a deliberate manual step, same reasoning as the prod
+overlay above): follow `infra/rclone/README.md` (create the R2 bucket + crypt remote) and
+`infra/systemd/README.md` (install the timer). Both need a `/opt/household/.env.backup` populated
+per the "Database backups" section of `.env.example`.
+
+**Restoring:**
+
+```bash
+# Drill — restores into a scratch household_restore_check DB, never touches the live one.
+scripts/restore-database.sh latest
+
+# Real disaster recovery — restores into the live database (asks for confirmation).
+scripts/restore-database.sh household-20260901T031500Z.pgdump household
+```
+
+Run the drill form periodically, not just once after setup — an untested backup is an assumption.
+Point a service at `POSTGRES_DB=household_restore_check` afterward and confirm it actually boots and
+serves real data; a `pg_restore` that exits 0 only proves the dump is well-formed, not that the app
+works against it.
+
 ### Not yet automated
 
-Pushes are deployed by hand (`git pull` on the server). Automated deploys and database backups are
-still open — see the Phase 6 issues.
+Pushes are deployed by hand (`git pull` on the server) — see [#305](https://github.com/VitaliiPoltorak/household/issues/305).
 
 ## Architecture overview
 
