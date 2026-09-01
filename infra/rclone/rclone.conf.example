@@ -1,0 +1,28 @@
+# Template for /opt/household/.config/rclone/rclone.conf on the VPS.
+# NEVER commit a real rclone.conf — access_key_id/secret_access_key and the
+# crypt password are live credentials. See infra/rclone/README.md for how to
+# generate this file for real.
+#
+# Two remotes:
+#   [r2]       the actual Cloudflare R2 bucket (S3-compatible API)
+#   [r2-crypt] a "crypt" wrapper around [r2] — encrypts filenames and
+#              content client-side before anything reaches R2. This is what
+#              scripts/backup-database.sh and restore-database.sh actually
+#              point at (BACKUP_RCLONE_REMOTE=r2-crypt:household-backups).
+
+[r2]
+type = s3
+provider = Cloudflare
+access_key_id = REPLACE_WITH_R2_ACCESS_KEY_ID
+secret_access_key = REPLACE_WITH_R2_SECRET_ACCESS_KEY
+endpoint = https://REPLACE_WITH_R2_ACCOUNT_ID.r2.cloudflarestorage.com
+acl = private
+no_check_bucket = true
+
+[r2-crypt]
+type = crypt
+remote = r2:household-backups
+filename_encryption = standard
+directory_name_encryption = true
+password = REPLACE_WITH_RCLONE_OBSCURED_PASSWORD
+password2 = REPLACE_WITH_RCLONE_OBSCURED_SALT

@@ -919,7 +919,12 @@ pnpm test:postman                                            # API scenario coll
 ✔ Web deployment (#33) — Cloudflare Pages, auto-deploy on push to main
     □ Real domain — refresh cookie is third-party across pages.dev ↔ duckdns.org (#301)
     □ Automated deploy — currently a manual `git pull` on the server (#305)
-    □ Database backups — pg_dump off-box on a schedule (#306)
+    ▷ Database backups (#306) — script + systemd timer + docs ready (nightly pg_dump -> R2 via an
+      encrypting rclone crypt remote, 7 daily + 4 weekly GFS retention, healthchecks.io dead-man's-
+      switch alerting); restore drill verified locally end-to-end (dump -> restore into a scratch DB
+      -> a real service booted against it and served actual data). Not yet installed on the VPS —
+      needs the R2 bucket + healthchecks.io check created and infra/rclone + infra/systemd set up
+      per their READMEs.
 
 □ Monitoring — Sentry (#231)
     □ @sentry/nestjs in every NestJS service

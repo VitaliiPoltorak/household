@@ -1,0 +1,19 @@
+# Installed on the production VPS (not by any automated deploy step — see
+# infra/systemd/README.md for install instructions). Runs
+# scripts/backup-database.sh once, triggered by household-backup.timer.
+#
+# Type=oneshot + no Restart=: a failed run should surface as a failed
+# systemd unit (visible via `systemctl --failed`, `journalctl -u
+# household-backup`) and rely on the healthchecks.io dead-man's-switch
+# for alerting, not silently retry and paper over a real problem.
+[Unit]
+Description=household database backup (pg_dump -> R2, encrypted)
+Wants=network-online.target
+After=network-online.target docker.service
+
+[Service]
+Type=oneshot
+User=household
+WorkingDirectory=/opt/household
+EnvironmentFile=/opt/household/.env.backup
+ExecStart=/opt/household/scripts/backup-database.sh
