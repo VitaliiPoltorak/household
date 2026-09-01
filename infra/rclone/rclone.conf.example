@@ -8,7 +8,10 @@
 #   [r2-crypt] a "crypt" wrapper around [r2] — encrypts filenames and
 #              content client-side before anything reaches R2. This is what
 #              scripts/backup-database.sh and restore-database.sh actually
-#              point at (BACKUP_RCLONE_REMOTE=r2-crypt:household-backups).
+#              point at (BACKUP_RCLONE_REMOTE=r2-crypt:). No bucket-name
+#              suffix — [r2-crypt] below is already rooted at the bucket
+#              via its own `remote =` line; adding the name again would
+#              nest everything one directory deeper.
 
 [r2]
 type = s3

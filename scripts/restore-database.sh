@@ -20,7 +20,9 @@ TARGET_DB="${2:-household_restore_check}"
 
 CONTAINER="${POSTGRES_CONTAINER:-household-postgres}"
 DB_USER="${POSTGRES_USER:-household}"
-RCLONE_REMOTE="${BACKUP_RCLONE_REMOTE:-r2-crypt:household-backups}"
+# See the matching comment in backup-database.sh — [r2-crypt] is already
+# rooted at the bucket, no bucket-name suffix here.
+RCLONE_REMOTE="${BACKUP_RCLONE_REMOTE:-r2-crypt:}"
 
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
