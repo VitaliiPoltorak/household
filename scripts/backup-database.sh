@@ -23,7 +23,12 @@ set -euo pipefail
 CONTAINER="${POSTGRES_CONTAINER:-household-postgres}"
 DB_USER="${POSTGRES_USER:-household}"
 DB_NAME="${POSTGRES_DB:-household}"
-RCLONE_REMOTE="${BACKUP_RCLONE_REMOTE:-r2-crypt:household-backups}"
+# No bucket-name suffix here — [r2-crypt] in rclone.conf is already rooted
+# at r2:household-backups (see infra/rclone/rclone.conf.example). Appending
+# the bucket name again here would nest everything one directory deeper
+# than intended (found live during #306 setup: the raw R2 listing showed
+# one lone encrypted "directory" entry instead of the dump file itself).
+RCLONE_REMOTE="${BACKUP_RCLONE_REMOTE:-r2-crypt:}"
 RETAIN_DAILY="${BACKUP_RETAIN_DAILY:-7}"
 RETAIN_WEEKLY="${BACKUP_RETAIN_WEEKLY:-4}"
 HEALTHCHECK_URL="${BACKUP_HEALTHCHECK_URL:-}"

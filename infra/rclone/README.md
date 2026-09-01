@@ -44,16 +44,38 @@ loads that file, and it's also what "Verify" below exports manually.
 
 ```bash
 export RCLONE_CONFIG=/opt/household/.config/rclone/rclone.conf
-echo hello | rclone rcat r2-crypt:household-backups/smoke-test.txt
-rclone cat r2-crypt:household-backups/smoke-test.txt   # -> hello
-rclone delete r2-crypt:household-backups/smoke-test.txt
+echo hello | rclone rcat r2-crypt:smoke-test.txt
+rclone cat r2-crypt:smoke-test.txt   # -> hello
+rclone delete r2-crypt:smoke-test.txt
 
 # Confirm objects are actually encrypted at the R2 end — this should show
 # an unreadable, encrypted filename, NOT smoke-test.txt:
 rclone lsf r2:household-backups
 ```
 
+No `household-backups` suffix on the `r2-crypt:` calls above — `[r2-crypt]`
+in `rclone.conf` is already rooted at `r2:household-backups` (that's its
+`remote =` line). Adding the bucket name again nests everything one
+directory deeper — the raw R2 listing then shows one lone encrypted
+"directory" entry instead of your file directly (hit this live during
+initial #306 setup; harmless but confusing, worth getting right before
+real backups accumulate).
+
 If the last command ever shows plaintext filenames like
 `household-<timestamp>.pgdump`, the crypt remote isn't wired up correctly —
 `scripts/backup-database.sh` must point at `r2-crypt:...`, never `r2:...`
 directly.
+
+You will likely see a transient error on the first write, e.g.:
+
+```
+ERROR : smoke-test.txt: Failed to copy: NotImplemented: Not Implemented (501)
+ERROR : Attempt 1/3 failed with 1 errors ...
+ERROR : Attempt 2/3 succeeded
+```
+
+This is a known rclone/R2 interaction (rclone's default checksum header on
+the first attempt isn't supported by R2's S3-compatible API) — rclone's
+built-in retry recovers automatically and the command still exits 0.
+Confirmed harmless as long as it ends in "Attempt N/3 succeeded", not a
+final failure.
