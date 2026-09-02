@@ -52,6 +52,7 @@ interface LoginResponse {
 export class AuthController {
   private readonly refreshTtlSec: number;
   private readonly cookieSecure: boolean;
+  private readonly cookieDomain: string | undefined;
 
   constructor(
     private readonly auth: AuthService,
@@ -62,7 +63,13 @@ export class AuthController {
     // Secure defaults to true. Only opt out for explicit local HTTP dev.
     // Browsers require SameSite=None cookies to also be Secure — EXCEPT on
     // localhost, where Chrome/FF allow Secure over http.
-    this.cookieSecure = config.get<string>('AUTH_COOKIE_SECURE', 'true') !== 'false';
+    this.cookieSecure =
+      config.get<string>('AUTH_COOKIE_SECURE', 'true') !== 'false';
+    // Unset by default (single-host / dev). Set to the shared parent domain
+    // (e.g. "example.com") when web and API are deployed on separate
+    // subdomains, so the CSRF cookie is readable via document.cookie from
+    // the web app's own origin — see the domain option in cookies.ts.
+    this.cookieDomain = config.get<string>('AUTH_COOKIE_DOMAIN') || undefined;
   }
 
   @Post('register')
@@ -202,7 +209,10 @@ export class AuthController {
    */
   @Post('oauth/:provider')
   @ApiOperation({ summary: 'Sign in with any registered OAuth provider' })
-  @ApiParam({ name: 'provider', description: 'Provider slug (e.g. google, apple, facebook)' })
+  @ApiParam({
+    name: 'provider',
+    description: 'Provider slug (e.g. google, apple, facebook)',
+  })
   async oauth(
     @Param('provider') provider: string,
     @Body() dto: OAuthAuthDto,
@@ -216,7 +226,9 @@ export class AuthController {
   }
 
   @Post('refresh')
-  @ApiOperation({ summary: 'Refresh access token (reads HttpOnly cookie + CSRF header)' })
+  @ApiOperation({
+    summary: 'Refresh access token (reads HttpOnly cookie + CSRF header)',
+  })
   async refresh(
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
@@ -232,13 +244,18 @@ export class AuthController {
     if (!payload) {
       throw new UnauthorizedException('Missing refresh cookie');
     }
-    const tokens = await this.auth.refresh(payload.sessionId, payload.refreshToken);
+    const tokens = await this.auth.refresh(
+      payload.sessionId,
+      payload.refreshToken,
+    );
     return this.buildLoginResponse(tokens, res);
   }
 
   @Post('logout')
   @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: 'Invalidate refresh cookie for the current session' })
+  @ApiOperation({
+    summary: 'Invalidate refresh cookie for the current session',
+  })
   async logout(
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
@@ -249,13 +266,18 @@ export class AuthController {
     if (payload) {
       await this.auth.logout(payload.sessionId);
     }
-    clearAuthCookies(res, { secure: this.cookieSecure });
+    clearAuthCookies(res, {
+      secure: this.cookieSecure,
+      domain: this.cookieDomain,
+    });
   }
 
   @Post('logout-all')
   @HttpCode(HttpStatus.NO_CONTENT)
   @Audit({ action: 'auth.logout_all', resourceType: 'user' })
-  @ApiOperation({ summary: 'Sign out from all devices — revokes every session for this user' })
+  @ApiOperation({
+    summary: 'Sign out from all devices — revokes every session for this user',
+  })
   @ApiHeader({ name: 'x-user-id', required: true })
   async logoutAll(
     @Headers('x-user-id') userId: string,
@@ -264,7 +286,10 @@ export class AuthController {
     this.requireUserId(userId);
     await this.auth.logoutAll(userId);
     // Also clear this device's cookies — the current session was just revoked.
-    clearAuthCookies(res, { secure: this.cookieSecure });
+    clearAuthCookies(res, {
+      secure: this.cookieSecure,
+      domain: this.cookieDomain,
+    });
   }
 
   @Get('me')
@@ -314,7 +339,10 @@ export class AuthController {
     this.requireUserId(userId);
     await this.auth.deleteAccount(userId);
     // User no longer exists; clear their cookies on this device.
-    clearAuthCookies(res, { secure: this.cookieSecure });
+    clearAuthCookies(res, {
+      secure: this.cookieSecure,
+      domain: this.cookieDomain,
+    });
   }
 
   private requireUserId(userId: string | undefined): asserts userId is string {
@@ -329,7 +357,11 @@ export class AuthController {
       res,
       { sessionId: tokens.sessionId, refreshToken: tokens.refreshToken },
       generateCsrfToken(),
-      { maxAgeSec: this.refreshTtlSec, secure: this.cookieSecure },
+      {
+        maxAgeSec: this.refreshTtlSec,
+        secure: this.cookieSecure,
+        domain: this.cookieDomain,
+      },
     );
     return { accessToken: tokens.accessToken, expiresIn: tokens.expiresIn };
   }
