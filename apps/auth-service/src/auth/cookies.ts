@@ -60,6 +60,16 @@ interface SetCookieOpts {
   maxAgeSec: number;
   // In tests / dev-over-http we may need to relax Secure. Default true.
   secure?: boolean;
+  // Parent domain (e.g. "example.com") to share the CSRF cookie across the
+  // web (app.*) and API (api.*) subdomains. Left undefined, cookies stay
+  // host-only to whatever host answered the request — correct for a
+  // single-host deployment, but on a split subdomain deployment that leaves
+  // the CSRF cookie invisible to `document.cookie` on the web app's own
+  // origin (host-only cookies don't cross hosts even under the same eTLD+1),
+  // which makes the AuthContext "am I logged in?" probe always come back
+  // empty. The refresh cookie deliberately stays host-only regardless: it's
+  // HttpOnly and only ever needs to ride requests *to* the API host.
+  domain?: string;
 }
 
 export function encodeRefreshCookie(payload: CookiePayload): string {
@@ -116,12 +126,13 @@ export function setAuthCookies(
     ...common,
     path: CSRF_PATH,
     httpOnly: false,
+    ...(opts.domain ? { domain: opts.domain } : {}),
   });
 }
 
 export function clearAuthCookies(
   res: Response,
-  opts: { secure?: boolean } = {},
+  opts: { secure?: boolean; domain?: string } = {},
 ): void {
   const secure = opts.secure ?? true;
   const common = {
@@ -132,15 +143,20 @@ export function clearAuthCookies(
     sameSite: secure ? ('none' as const) : ('lax' as const),
     maxAge: 0,
   };
-  // Each cookie must be cleared with the *same* Path it was set on — the
-  // browser keys on (name, domain, path) so a mismatched path leaves the
-  // real cookie in place.
+  // Each cookie must be cleared with the *same* Path (and Domain — see
+  // SetCookieOpts.domain) it was set on — the browser keys on
+  // (name, domain, path) so a mismatch leaves the real cookie in place.
   res.cookie(REFRESH_COOKIE, '', {
     ...common,
     path: REFRESH_PATH,
     httpOnly: true,
   });
-  res.cookie(CSRF_COOKIE, '', { ...common, path: CSRF_PATH, httpOnly: false });
+  res.cookie(CSRF_COOKIE, '', {
+    ...common,
+    path: CSRF_PATH,
+    httpOnly: false,
+    ...(opts.domain ? { domain: opts.domain } : {}),
+  });
 }
 
 export function readRefreshCookie(req: Request): CookiePayload | null {

@@ -134,6 +134,7 @@ Copy `.env.example` to `.env`. Full annotated reference lives in [`.env.example`
 | `KAFKA_SIGNING_KEY` | Optional in dev, expected in staging/prod — HMAC used to authenticate Kafka messages between services (#63). Rotation: keep the previous value in `KAFKA_SIGNING_KEY_PREV` while the new one propagates. |
 | `TOKEN_ENCRYPTION_KEY` | Encrypts bank connection tokens (e.g. Monobank) at rest on `integration-service` (AES-256-GCM). Same strength rule as `JWT_SECRET` — refuses to start empty/placeholder/short when `NODE_ENV=production`. Rotation: keep the previous value in `TOKEN_ENCRYPTION_KEY_PREV` while the new one propagates (#296) — same convention as `KAFKA_SIGNING_KEY_PREV`. |
 | `AUTH_COOKIE_SECURE=true` | Default. Only set to `false` for local `http://` dev on non-localhost hosts — `SameSite=None` requires `Secure` (#60/#61). |
+| `AUTH_COOKIE_DOMAIN` | Unset by default. Set to the shared parent domain (e.g. `example.com`) when web and API are on separate subdomains — widens the CSRF cookie so `document.cookie` on the web app can read it (#301). |
 
 ### Optional / defaulted
 
@@ -309,6 +310,7 @@ services:
     environment:
       NODE_ENV: production
       AUTH_COOKIE_SECURE: 'true'
+      AUTH_COOKIE_DOMAIN: example.com
   household-service:
     environment:
       NODE_ENV: production

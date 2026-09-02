@@ -140,6 +140,30 @@ describe('cookies (#60/#61)', () => {
       expect(refreshCall![2]).toMatchObject({ secure: false, sameSite: 'lax' });
       expect(csrfCall![2]).toMatchObject({ secure: false, sameSite: 'lax' });
     });
+
+    it('scopes the CSRF cookie to a parent domain when given, but keeps the refresh cookie host-only (#301)', () => {
+      // On a split subdomain deployment (app.example.com + api.example.com),
+      // a host-only CSRF cookie set by the API is invisible to
+      // document.cookie on the web app's own origin — the SPA's "am I
+      // logged in?" probe always comes back empty even though the cookie
+      // did reach the browser. Widening only the CSRF cookie's Domain fixes
+      // that; the refresh cookie stays host-only since it's HttpOnly and
+      // only ever needs to ride requests to the API host.
+      const cookie = jest.fn();
+      const res = { cookie } as unknown as Response;
+
+      setAuthCookies(res, { sessionId: 's', refreshToken: 't' }, 'csrf', {
+        maxAgeSec: 60,
+        domain: 'example.com',
+      });
+
+      const refreshCall = cookie.mock.calls.find(
+        (c) => c[0] === REFRESH_COOKIE,
+      );
+      const csrfCall = cookie.mock.calls.find((c) => c[0] === CSRF_COOKIE);
+      expect(csrfCall![2]).toMatchObject({ domain: 'example.com' });
+      expect(refreshCall![2]).not.toHaveProperty('domain');
+    });
   });
 
   describe('clearAuthCookies', () => {
@@ -187,6 +211,20 @@ describe('cookies (#60/#61)', () => {
         '',
         expect.objectContaining({ secure: false, sameSite: 'lax' }),
       );
+    });
+
+    it('clears the CSRF cookie on the same parent domain it was set on (#301)', () => {
+      const cookie = jest.fn();
+      const res = { cookie } as unknown as Response;
+
+      clearAuthCookies(res, { domain: 'example.com' });
+
+      const refreshCall = cookie.mock.calls.find(
+        (c) => c[0] === REFRESH_COOKIE,
+      );
+      const csrfCall = cookie.mock.calls.find((c) => c[0] === CSRF_COOKIE);
+      expect(csrfCall![2]).toMatchObject({ domain: 'example.com' });
+      expect(refreshCall![2]).not.toHaveProperty('domain');
     });
   });
 
