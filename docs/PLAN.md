@@ -917,13 +917,17 @@ pnpm test:postman                                            # API scenario coll
 
 ✔ Backend deployment (#33) — netcup VPS, docker compose + docker-compose.prod.yml overlay, Caddy/TLS
 ✔ Web deployment (#33) — Cloudflare Pages, auto-deploy on push to main
-    □ Real domain (#301) — h-holds.com purchased; refresh cookie is still third-party across
-      pages.dev ↔ duckdns.org until the subdomain cutover below lands
-        □ DNS: app.h-holds.com -> Cloudflare Pages, api.h-holds.com -> VPS (Caddy)
-        □ CORS_ORIGIN / WS_CORS_ORIGINS -> https://app.h-holds.com in docker-compose.prod.yml
-        □ VITE_API_URL / VITE_WS_URL -> api.h-holds.com in Cloudflare Pages env vars
-        □ Google Cloud Console authorized JavaScript origins -> https://app.h-holds.com
-        □ Verify refresh cookie survives a reload in Safari and Firefox (not just Chrome)
+    ✔ Real domain (#301) — h-holds.com. app.h-holds.com (Cloudflare Pages) + api.h-holds.com
+      (VPS/Caddy) share an eTLD+1, so the refresh cookie is no longer third-party in Safari/Firefox.
+        ✔ DNS: app.h-holds.com -> Cloudflare Pages, api.h-holds.com -> VPS (Caddy)
+        ✔ CORS_ORIGIN / WS_CORS_ORIGINS -> https://app.h-holds.com in docker-compose.prod.yml
+        ✔ VITE_API_URL / VITE_WS_URL -> api.h-holds.com in Cloudflare Pages env vars
+        ✔ Google Cloud Console authorized JavaScript origins -> https://app.h-holds.com
+        ✔ AUTH_COOKIE_DOMAIN=h-holds.com — a second, independent bug found once the domain was
+          shared: the CSRF cookie was host-only to api.h-holds.com, so document.cookie on
+          app.h-holds.com could never read it and the "am I logged in?" probe always came back
+          empty. Fixed by widening only the CSRF cookie's Domain (refresh cookie stays host-only).
+        ✔ Verified: session survives a reload in Safari and Firefox, not just Chrome
     □ Automated deploy — currently a manual `git pull` on the server (#305)
     ✔ Database backups (#306) — nightly pg_dump -> Cloudflare R2 via an encrypting rclone crypt
       remote, 7 daily + 4 weekly GFS retention, healthchecks.io dead-man's-switch alerting. Live on
