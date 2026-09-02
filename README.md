@@ -270,7 +270,7 @@ served separately as static files.
 | Backend (7 services + Postgres + Redis + Kafka) | netcup VPS 500 G12 — 2 vCPU / 4 GB / 128 GB NVMe, Vienna | Single box, `docker compose`, ~€5.72/mo (no minimum contract term) |
 | TLS + reverse proxy | Caddy on the host | Automatic Let's Encrypt; only `:80`/`:443` are open (ufw) |
 | Web app | Cloudflare Pages | Static SPA build, auto-deploys on push to `main`, free tier |
-| DNS | DuckDNS (temporary) | A real domain is pending — see [#301](https://github.com/VitaliiPoltorak/household/issues/301) |
+| DNS | Cloudflare DNS (`h-holds.com`) | `app.h-holds.com` -> Cloudflare Pages, `api.h-holds.com` -> VPS. Both share the same registrable domain so the refresh cookie is no longer third-party in Safari/Firefox — see [#301](https://github.com/VitaliiPoltorak/household/issues/301) |
 
 ### Host prerequisites
 
@@ -284,7 +284,7 @@ Compose publishes every service on `127.0.0.1` only, so Caddy is the single publ
 fronts `api-gateway` and routes the Socket.IO path to `realtime-gateway`:
 
 ```
-<your-domain> {
+api.h-holds.com {
     handle /socket.io/* {
         reverse_proxy 127.0.0.1:3010
     }
@@ -304,7 +304,7 @@ services:
   api-gateway:
     environment:
       NODE_ENV: production
-      CORS_ORIGIN: https://<web-origin>
+      CORS_ORIGIN: https://app.h-holds.com
   auth-service:
     environment:
       NODE_ENV: production
@@ -324,7 +324,7 @@ services:
   realtime-gateway:
     environment:
       NODE_ENV: production
-      WS_CORS_ORIGINS: https://<web-origin>
+      WS_CORS_ORIGINS: https://app.h-holds.com
 ```
 
 All five database-backed services now run their initial migration (`migrationsRun: true` in
@@ -358,7 +358,8 @@ rebuilds and restarts exactly the services whose sources changed — the same me
 | Root directory | *(repo root — do not set to `apps/web`)* |
 | Build command | `pnpm install --filter @household/web... --frozen-lockfile && pnpm --filter @household/web build` |
 | Build output | `apps/web/dist` |
-| Env vars | `VITE_API_URL`, `VITE_WS_URL`, `VITE_GOOGLE_CLIENT_ID` |
+| Env vars | `VITE_API_URL=https://api.h-holds.com/api/v1`, `VITE_WS_URL=wss://api.h-holds.com`, `VITE_GOOGLE_CLIENT_ID` |
+| Custom domain | `app.h-holds.com` |
 
 Root directory has to stay at the repo root: `apps/web` resolves `@household/locales` through a Vite
 alias to `../../libs/locales/src` (`apps/web/vite.config.ts`), not through `node_modules`, so the
