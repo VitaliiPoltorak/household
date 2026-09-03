@@ -44,6 +44,11 @@ curl -o actions-runner.tar.gz -L \
   "https://github.com/actions/runner/releases/download/v${RUNNER_VERSION}/actions-runner-linux-x64-${RUNNER_VERSION}.tar.gz"
 tar xzf actions-runner.tar.gz && rm actions-runner.tar.gz
 
+# Required on Debian 13 (trixie): the runner's .NET needs libicu, which a
+# minimal server install doesn't carry. Without it config.sh aborts with
+# "Libicu's dependencies is missing for Dotnet Core 6.0".
+sudo ./bin/installdependencies.sh
+
 ./config.sh \
   --url https://github.com/VitaliiPoltorak/household \
   --token REPLACE_WITH_REGISTRATION_TOKEN \
