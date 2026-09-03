@@ -7,6 +7,11 @@
 #
 # Exits 0 always — a rebuild failure must not block the git operation
 # that triggered it. Errors are surfaced via stderr.
+#
+# Set REBUILD_STRICT=1 to exit non-zero when a service fails to build or
+# start. Only the automated production deploy uses that (.github/workflows/
+# deploy.yml), where a silent failure would show up as a green job while
+# production keeps serving the previous image. Never set it from a git hook.
 
 set -u
 
@@ -89,6 +94,9 @@ done
 if [[ ${#failed[@]} -gt 0 ]]; then
   echo "⚠️  docker compose build/up failed for: ${failed[*]}" >&2
   echo "    Fix manually and re-run: docker compose up -d --build ${failed[*]}" >&2
+  if [[ "${REBUILD_STRICT:-0}" == "1" ]]; then
+    exit 1
+  fi
 fi
 
 exit 0

@@ -407,9 +407,33 @@ Point a service at `POSTGRES_DB=household_restore_check` afterward and confirm i
 serves real data; a `pg_restore` that exits 0 only proves the dump is well-formed, not that the app
 works against it.
 
-### Not yet automated
+### Automated deploy
 
-Pushes are deployed by hand (`git pull` on the server) — see [#305](https://github.com/VitaliiPoltorak/household/issues/305).
+A push to `main` deploys itself ([#305](https://github.com/VitaliiPoltorak/household/issues/305)).
+The VPS is registered as a **self-hosted GitHub Actions runner** (systemd unit, restarts on reboot),
+and `.github/workflows/deploy.yml` runs on it:
+
+1. `git pull --ff-only origin main` in the existing `/opt/household` checkout — no `actions/checkout`,
+   because that checkout is where the untracked `docker-compose.prod.yml` and `.env` files live.
+2. `scripts/rebuild-touched-services.sh` with `REBUILD_STRICT=1` — the same script the local
+   `post-merge` hook uses, so "which services does this diff touch" has one implementation. A
+   docs-only push therefore restarts nothing.
+3. `docker compose up -d --wait` — confirms the whole stack is healthy, and brings back anything
+   that was down before the deploy.
+
+The pull runs with hooks disabled (`-c core.hooksPath=/dev/null`) and calls the rebuild script
+explicitly instead. Otherwise `post-merge` would run it in its best-effort mode, which always exits
+0 — and git ignores a `post-merge` exit code regardless — so a failed build would show up as a green
+deploy while production kept serving the old image. `REBUILD_STRICT=1` is what turns the job red.
+
+A self-hosted runner was chosen over an SSH action so that no private key has to sit in GitHub
+Secrets: the runner dials out to GitHub rather than GitHub dialling in.
+
+**One-time setup on the VPS:** [`infra/github-runner/README.md`](infra/github-runner/README.md).
+It includes a required prerequisite — `COMPOSE_FILE=docker-compose.yml:docker-compose.prod.yml`
+in `/opt/household/.env`. Every bare `docker compose` call on the server (the deploy job's and the
+`post-merge` hook's alike) otherwise resolves to `docker-compose.yml` alone and restarts production
+services without the prod overlay.
 
 ## Architecture overview
 

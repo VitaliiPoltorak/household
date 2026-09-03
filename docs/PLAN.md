@@ -928,7 +928,14 @@ pnpm test:postman                                            # API scenario coll
           app.h-holds.com could never read it and the "am I logged in?" probe always came back
           empty. Fixed by widening only the CSRF cookie's Domain (refresh cookie stays host-only).
         ✔ Verified: session survives a reload in Safari and Firefox, not just Chrome
-    □ Automated deploy — currently a manual `git pull` on the server (#305)
+    ✔ Automated deploy (#305) — the VPS runs a self-hosted GitHub Actions runner (systemd unit,
+      survives reboot); a push to `main` triggers `.github/workflows/deploy.yml`, which pulls the
+      existing `/opt/household` checkout and calls the same `rebuild-touched-services.sh` the local
+      post-merge hook uses, so only the services a diff actually touches are rebuilt and a docs-only
+      push restarts nothing. Run with `REBUILD_STRICT=1` (plus a final `docker compose up -d --wait`)
+      so a failed build turns the Actions job red instead of deploying green over a stale image.
+      One-time VPS setup (runner registration + `COMPOSE_FILE` so bare `docker compose` calls there
+      keep applying the prod overlay): `infra/github-runner/README.md`.
     ✔ Database backups (#306) — nightly pg_dump -> Cloudflare R2 via an encrypting rclone crypt
       remote, 7 daily + 4 weekly GFS retention, healthchecks.io dead-man's-switch alerting. Live on
       the VPS: R2 bucket + scoped API token, `household-backup.timer` enabled (03:15 nightly). A
