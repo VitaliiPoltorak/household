@@ -1,0 +1,61 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  # Manual re-run for when a deploy failed and the fix is on the server side
+  # (e.g. the box was out of disk) rather than in a new commit.
+  workflow_dispatch:
+
+# One deploy at a time. `cancel-in-progress: false` on purpose: killing a job
+# mid-`docker compose build` on a 2-vCPU box leaves a half-updated stack, which
+# is worse than letting a superseded deploy finish and immediately be replaced
+# by the next one.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy to production
+    runs-on: self-hosted
+    # Deliberately runs on push, not on a green CI run: a PR is only merged
+    # after CI passed on it, so the main-branch CI run is a re-run of checks
+    # that already passed. Waiting for it would add ~6 min to every deploy.
+    steps:
+      # No actions/checkout — the job operates on the EXISTING /opt/household
+      # checkout. That is where the untracked docker-compose.prod.yml, the
+      # .env files and the compose project live; a fresh checkout in the
+      # runner's own workspace has none of them and would deploy nothing.
+      - name: Pull and rebuild touched services
+        working-directory: /opt/household
+        run: |
+          set -euo pipefail
+
+          before="$(git rev-parse HEAD)"
+
+          # Hooks are disabled for this pull on purpose. The server checkout
+          # has core.hooksPath=.githooks, so a plain `git pull` would fire
+          # post-merge -> rebuild-touched-services.sh in its best-effort mode,
+          # which always exits 0 — and git ignores a post-merge exit code
+          # anyway. A failed rebuild would land as a green deploy. Instead the
+          # same script is invoked explicitly below with REBUILD_STRICT=1, so
+          # there is still exactly one implementation of the rebuild logic and
+          # a build failure turns the job red.
+          git -c core.hooksPath=/dev/null pull --ff-only origin main
+
+          after="$(git rev-parse HEAD)"
+          echo "Deploying ${before:0:7} -> ${after:0:7}"
+
+          REBUILD_STRICT=1 scripts/rebuild-touched-services.sh "$before" "$after"
+
+      # The rebuild script only touches services that were already running, so
+      # it cannot tell us the stack as a whole is healthy — this can. It also
+      # brings back anything that was down (e.g. OOM-killed before the deploy).
+      # Requires COMPOSE_FILE in /opt/household/.env so the prod overlay
+      # applies; see infra/github-runner/README.md.
+      - name: Verify the stack is up and healthy
+        working-directory: /opt/household
+        # --wait-timeout so a service that never turns healthy fails the job
+        # instead of hanging the runner until the 6h Actions limit.
+        run: docker compose up -d --wait --wait-timeout 300
