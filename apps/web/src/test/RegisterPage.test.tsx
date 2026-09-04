@@ -58,6 +58,49 @@ describe('RegisterPage', () => {
     ).toBeInTheDocument();
   });
 
+  // #320 — a 409 is often the user's own unverified signup. /register can
+  // never move them forward, so the error offers the verify screen as a way
+  // out rather than leaving them stranded.
+  it('offers a route to /verify-email after a 409', async () => {
+    const user = userEvent.setup();
+    server.use(
+      http.post(`${BASE}/auth/register`, () =>
+        HttpResponse.json({ statusCode: 409, message: 'Email is already registered' }, { status: 409 }),
+      ),
+    );
+
+    renderWithProviders(<RegisterPage />, { preloadTokens: false });
+    await user.type(screen.getByLabelText('Email'), 'taken@example.com');
+    await user.type(screen.getByLabelText('Your name'), 'Alice');
+    await user.type(screen.getByLabelText('Password'), STRONG);
+    await user.click(screen.getByRole('button', { name: 'Create account' }));
+
+    const link = await screen.findByRole('link', {
+      name: 'Finish verifying this address',
+    });
+    expect(link).toHaveAttribute('href', '/verify-email');
+  });
+
+  it('offers no such route when registration fails for another reason', async () => {
+    const user = userEvent.setup();
+    server.use(
+      http.post(`${BASE}/auth/register`, () =>
+        HttpResponse.json({ code: 'PASSWORD_PWNED' }, { status: 400 }),
+      ),
+    );
+
+    renderWithProviders(<RegisterPage />, { preloadTokens: false });
+    await user.type(screen.getByLabelText('Email'), 'fresh@example.com');
+    await user.type(screen.getByLabelText('Your name'), 'Alice');
+    await user.type(screen.getByLabelText('Password'), STRONG);
+    await user.click(screen.getByRole('button', { name: 'Create account' }));
+
+    await screen.findByRole('alert');
+    expect(
+      screen.queryByRole('link', { name: 'Finish verifying this address' }),
+    ).not.toBeInTheDocument();
+  });
+
   it('surfaces WEAK_PASSWORD suggestions from the server', async () => {
     const user = userEvent.setup();
     server.use(

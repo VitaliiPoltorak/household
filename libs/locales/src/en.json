@@ -66,7 +66,12 @@
       "resendCooldown": "Resend in {{seconds}}s",
       "resendSent": "New code sent — check your inbox.",
       "attemptsLeft": "{{count}} attempt left",
-      "attemptsLeft_other": "{{count}} attempts left"
+      "attemptsLeft_other": "{{count}} attempts left",
+      "identifyBody": "Enter the email address you signed up with and we'll pick up where you left off.",
+      "identifySubmit": "Continue",
+      "identifyInvalid": "Enter a valid email address.",
+      "useDifferentEmail": "Use a different email address",
+      "finishVerifying": "Finish verifying this address"
     },
     "unlock": {
       "title": "Unlock your account",

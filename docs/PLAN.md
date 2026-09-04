@@ -864,6 +864,9 @@ pnpm test:postman                                            # API scenario coll
 ```
 ✔ React 18 + Vite 5 + TypeScript + TanStack Query + Tailwind
 ✔ Auth flow — Google OAuth (@react-oauth/google), email + password (register, verify-email, login, unlock, change-password) with react-hook-form + zod, HttpOnly cookie refresh, CSRF header
+    ✔ /verify-email survives a reload (#320) — the address is kept in sessionStorage rather than
+      react-router nav state alone, and when nothing can be recovered the screen asks for it
+      instead of redirecting to /register (which answers 409 for the very account being verified)
 ✔ Layout: sidebar, household switcher
 ✔ Responsive mobile nav (<768px) — Sidebar replaced by a fixed bottom tab bar (`MobileTabBar`, same 5 destinations via shared `usePrimaryNav`) plus an "account menu" bottom sheet (`MobileMenuSheet`: profile, Invites, Settings, theme, language, sign out) opened from a compact mobile Header; desktop chrome unchanged above the breakpoint
 ✔ Pages:

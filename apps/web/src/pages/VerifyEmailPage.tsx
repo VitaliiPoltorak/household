@@ -7,11 +7,18 @@ import { useAuth } from '../contexts/AuthContext';
 import { authApi } from '../api/auth';
 import {
   verifyEmailSchema,
+  verifyEmailIdentifySchema,
   type VerifyEmailFormValues,
+  type VerifyEmailIdentifyFormValues,
 } from '../lib/auth-schemas';
 import { mapAuthError, type MappedAuthError } from '../lib/auth-errors';
 import { td } from '../lib/i18n-dynamic';
 import { consumeReturnTo } from '../lib/auth-redirect';
+import {
+  clearPendingVerificationEmail,
+  readPendingVerificationEmail,
+  rememberPendingVerificationEmail,
+} from '../lib/pending-verification';
 
 const RESEND_COOLDOWN_SEC = 30;
 
@@ -24,7 +31,15 @@ export function VerifyEmailPage() {
   const { login, user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const email = (location.state as LocationState | null)?.email ?? '';
+  // Where the address comes from, in order: the navigation that brought us
+  // here (register / login), then the tab's own memory of a signup in
+  // progress. Both can be empty — a fresh tab, another device, or a browser
+  // that blocks storage — and that is no longer a dead end: the form below
+  // asks for the address instead (#320).
+  const navStateEmail = (location.state as LocationState | null)?.email ?? '';
+  const [email, setEmail] = useState(
+    () => navStateEmail || readPendingVerificationEmail(),
+  );
 
   const [globalError, setGlobalError] = useState<MappedAuthError | null>(null);
   const [resendCooldown, setResendCooldown] = useState(0);
@@ -36,11 +51,19 @@ export function VerifyEmailPage() {
     defaultValues: { code: '' },
   });
 
-  // If the user arrived at /verify-email without an email (e.g. deep-link or
-  // page refresh that dropped the nav state), send them back to register.
+  // Shown only when we couldn't recover an address. Declared unconditionally
+  // so the hook order stays stable across both renders of this page.
+  const identifyForm = useForm<VerifyEmailIdentifyFormValues>({
+    resolver: zodResolver(verifyEmailIdentifySchema),
+    defaultValues: { email: '' },
+  });
+
+  // Keep the address across a reload. Deliberately NOT a redirect to
+  // /register any more: that address is already taken by an unverified row,
+  // so /register answers 409 and the user is stuck with nowhere to go.
   useEffect(() => {
-    if (!email) navigate('/register', { replace: true });
-  }, [email, navigate]);
+    if (email) rememberPendingVerificationEmail(email);
+  }, [email]);
 
   // Already signed in? Bounce to the dashboard. Runs as an effect so we don't
   // early-return between hooks (would violate the Rules of Hooks with the
@@ -65,6 +88,9 @@ export function VerifyEmailPage() {
     setResendSuccess(false);
     try {
       const tokens = await authApi.verifyEmail({ email, code: values.code });
+      // Signup is done — drop the tab's memory of it so a later visit to
+      // /verify-email starts clean rather than resurrecting a stale address.
+      clearPendingVerificationEmail();
       // Server returned a full LoginResponse — the fresh cookies are already
       // set on this response, and login() will pick up /auth/me + hydrate
       // AuthContext.
@@ -99,6 +125,23 @@ export function VerifyEmailPage() {
     }
   }, [codeValue, form.formState.isSubmitting, submit]);
 
+  // Adopting a typed address is purely local — no request, so this reveals
+  // nothing about whether the account exists. The user's next action
+  // (enter a code, or resend) hits the same uniform endpoints as always.
+  const onIdentify = identifyForm.handleSubmit((values) => {
+    setGlobalError(null);
+    setEmail(values.email);
+  });
+
+  const onUseDifferentEmail = () => {
+    clearPendingVerificationEmail();
+    setGlobalError(null);
+    setResendSuccess(false);
+    form.reset({ code: '' });
+    identifyForm.reset({ email: '' });
+    setEmail('');
+  };
+
   const onResend = async () => {
     if (resendCooldown > 0) return;
     setGlobalError(null);
@@ -111,6 +154,60 @@ export function VerifyEmailPage() {
       setGlobalError(mapAuthError(err));
     }
   };
+
+  // No address to verify against — ask for it rather than redirecting to
+  // /register, which would answer 409 for the very account being verified.
+  if (!email) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-gray-50 p-4 dark:bg-gray-950">
+        <div className="w-full max-w-sm rounded-2xl bg-white p-8 shadow-lg dark:bg-gray-900 dark:shadow-black/40">
+          <h1 className="mb-2 text-2xl font-bold text-gray-900 dark:text-gray-100">
+            {t('auth.verifyEmail.title')}
+          </h1>
+          <p className="mb-6 text-sm text-gray-500 dark:text-gray-400">
+            {t('auth.verifyEmail.identifyBody')}
+          </p>
+
+          <form onSubmit={onIdentify} className="space-y-3" noValidate>
+            <label htmlFor="verify-email-address" className="block text-sm">
+              <span className="mb-1 block font-medium text-gray-700 dark:text-gray-300">
+                {t('auth.email')}
+              </span>
+              <input
+                id="verify-email-address"
+                type="email"
+                autoComplete="email"
+                autoFocus
+                {...identifyForm.register('email')}
+                className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-gray-900 shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+              />
+              {identifyForm.formState.errors.email && (
+                <span className="mt-1 block text-xs text-red-600 dark:text-red-400">
+                  {t('auth.verifyEmail.identifyInvalid')}
+                </span>
+              )}
+            </label>
+
+            <button
+              type="submit"
+              className="w-full rounded-md bg-primary-600 px-3 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-primary-700"
+            >
+              {t('auth.verifyEmail.identifySubmit')}
+            </button>
+          </form>
+
+          <div className="mt-6 text-center text-sm">
+            <Link
+              to="/login"
+              className="text-gray-500 hover:underline dark:text-gray-400"
+            >
+              {t('auth.backToLogin')}
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gray-50 p-4 dark:bg-gray-950">
@@ -192,10 +289,17 @@ export function VerifyEmailPage() {
             : t('auth.verifyEmail.resend')}
         </button>
 
-        <div className="mt-6 text-center text-sm">
+        <div className="mt-6 space-y-2 text-center text-sm">
+          <button
+            type="button"
+            onClick={onUseDifferentEmail}
+            className="block w-full text-gray-500 hover:underline dark:text-gray-400"
+          >
+            {t('auth.verifyEmail.useDifferentEmail')}
+          </button>
           <Link
             to="/login"
-            className="text-gray-500 hover:underline dark:text-gray-400"
+            className="block text-gray-500 hover:underline dark:text-gray-400"
           >
             {t('auth.backToLogin')}
           </Link>

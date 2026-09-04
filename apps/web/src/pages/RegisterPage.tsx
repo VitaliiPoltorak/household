@@ -8,12 +8,16 @@ import { authApi } from '../api/auth';
 import { registerSchema, type RegisterFormValues } from '../lib/auth-schemas';
 import { mapAuthError, type MappedAuthError } from '../lib/auth-errors';
 import { td } from '../lib/i18n-dynamic';
+import { rememberPendingVerificationEmail } from '../lib/pending-verification';
 
 export function RegisterPage() {
   const { t } = useTranslation();
   const { user } = useAuth();
   const navigate = useNavigate();
   const [globalError, setGlobalError] = useState<MappedAuthError | null>(null);
+  // Set when registration failed with 409 — drives the "finish verifying"
+  // recovery link below.
+  const [stuckEmail, setStuckEmail] = useState('');
 
   const form = useForm<RegisterFormValues>({
     resolver: zodResolver(registerSchema),
@@ -30,13 +34,22 @@ export function RegisterPage() {
       const res = await authApi.register(values);
       // No access token on 202 — bounce to the verify screen with the
       // server-normalised email in nav state so we don't ask the user to
-      // retype it.
+      // retype it. Also persisted, so a reload of /verify-email doesn't lose
+      // it (#320).
+      rememberPendingVerificationEmail(res.email);
       navigate('/verify-email', {
         replace: true,
         state: { email: res.email },
       });
     } catch (err) {
-      setGlobalError(mapAuthError(err));
+      const mapped = mapAuthError(err);
+      setGlobalError(mapped);
+      // 409 means the row exists — but it may well be *this* user's own
+      // half-finished signup, and /register can never move them forward.
+      // Offer the verify screen as the way out. The address was typed into
+      // this form, and the 409 already told the user it is taken, so the
+      // link discloses nothing further.
+      setStuckEmail(mapped.key === 'auth.errors.emailTaken' ? values.email : '');
     }
   });
 
@@ -62,6 +75,17 @@ export function RegisterPage() {
                   <li key={i}>{s}</li>
                 ))}
               </ul>
+            )}
+            {stuckEmail && (
+              <p className="mt-2 text-xs">
+                <Link
+                  to="/verify-email"
+                  state={{ email: stuckEmail }}
+                  className="font-medium underline"
+                >
+                  {t('auth.verifyEmail.finishVerifying')}
+                </Link>
+              </p>
             )}
           </div>
         )}

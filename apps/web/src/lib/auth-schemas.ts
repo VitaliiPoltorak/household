@@ -43,6 +43,15 @@ export const verifyEmailSchema = z.object({
 });
 export type VerifyEmailFormValues = z.infer<typeof verifyEmailSchema>;
 
+// #320 — /verify-email asks for the address when it can't recover one (fresh
+// tab, another device, storage blocked) instead of redirecting to /register.
+export const verifyEmailIdentifySchema = z.object({
+  email: emailSchema,
+});
+export type VerifyEmailIdentifyFormValues = z.infer<
+  typeof verifyEmailIdentifySchema
+>;
+
 /**
  * Confirm-password is not sent to the server — it's a client-only guard to
  * catch typos before the request. Using `superRefine` (rather than `refine`)
