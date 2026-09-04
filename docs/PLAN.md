@@ -951,6 +951,27 @@ pnpm test:postman                                            # API scenario coll
       `household_restore_check` DB -> schema/table/row counts confirmed identical to the live DB ->
       a real auth-service container booted against the restored DB and served real data over HTTP.
 
+□ Transactional email provider (#323) — the code path exists (#321) but production has no SMTP
+  server behind it, so verification codes are composed and then dropped by NoopMailTransport.
+  Local dev is solved: `docker-compose.override.yml` (auto-loaded only when COMPOSE_FILE is
+  unset, so it never reaches the VPS) runs a Mailpit catcher (SMTP 1025, UI :8025) and points
+  auth-service at it, so register -> verify is exercisable through the UI with no external
+  provider. Production still needs, in this order:
+    □ An account with an SMTP provider (Resend, Postmark, Mailgun, SES or a relay), with the
+      h-holds.com sending domain verified — SPF + DKIM records in Cloudflare DNS. Skipping domain
+      verification means mail is either rejected or filed as spam.
+    □ SMTP_HOST / SMTP_PORT / SMTP_SECURE / SMTP_USER / SMTP_PASSWORD, MAIL_FROM
+      (`Household <no-reply@h-holds.com>`) and WEB_APP_URL (`https://app.h-holds.com`) added to the
+      VPS environment. WEB_APP_URL matters on its own: its default builds the account-unlock link
+      against localhost, so without it a locked-out user gets a dead link. Leave SMTP_REQUIRE_TLS
+      at its default — `false` is for the local catcher only.
+    □ Restart auth-service and confirm the boot log no longer carries
+      "No SMTP transport configured (SMTP_HOST is empty)".
+    □ A real register -> verify -> signed-in run on app.h-holds.com against a real mailbox.
+      Disposable/temp-mail domains are not a valid test target — most providers block them.
+  These are credential and DNS steps on infrastructure outside this repo; nothing in the codebase
+  can complete them.
+
 □ Monitoring — Sentry (#231)
     □ @sentry/nestjs in every NestJS service
         □ SentryModule.forRoot({ dsn, environment, release })

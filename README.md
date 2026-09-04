@@ -30,6 +30,7 @@ Shared libraries in `libs/`: `common` (config, filters, JWT verify, gateway sign
 | shopping-service | 3004 | Stores, products, shopping lists |
 | integration-service | 3005 | Monobank connection, statement sync (mapping to accounts — #21) |
 | realtime-gateway | 3010 | Socket.IO, presence, live updates |
+| mailpit *(dev only)* | 1025 / 8025 | Local mail catcher — receives the verification codes and unlock links `auth-service` sends, readable at http://localhost:8025 |
 | **web** | **5173** | **React SPA — dashboard, finance, shopping, household, email/password auth (register + verify + login + unlock + password change)** |
 
 ## Prerequisites
@@ -60,7 +61,7 @@ Open `.env` and fill in the required values (see [Environment variables](#enviro
 **3. Start infrastructure**
 
 ```bash
-docker compose up -d                          # postgres + redis + kafka + all app services
+docker compose up -d                          # postgres + redis + kafka + mailpit + all app services
 docker compose --profile tools up -d          # also start Adminer (:8080) + Kafka UI (:8081)
 ```
 
@@ -103,6 +104,19 @@ The web app uses a Vite proxy — all `/api` requests are forwarded to the API G
 | Household Service | http://localhost:3002/docs |
 | Finance Service | http://localhost:3003/docs |
 | Integration Service | http://localhost:3005/docs |
+
+| Mailpit (sent mail) | http://localhost:8025 |
+
+Mailpit comes from `docker-compose.override.yml`, which Compose loads automatically
+on top of `docker-compose.yml` — it is not behind `--profile tools`, because
+`auth-service` is pointed at it and a stack without it would silently drop every
+verification code. Production pins `COMPOSE_FILE`, which disables override
+auto-loading, so none of this reaches the VPS.
+
+**Signing up locally: register in the web app, then open http://localhost:8025 and
+read the 6-digit code out of the message.** Mailpit never forwards anything, so no
+test message can escape to a real mailbox. To run without it:
+`docker compose -f docker-compose.yml up -d`.
 
 Dev tools (only available with `--profile tools`):
 
@@ -158,7 +172,8 @@ Copy `.env.example` to `.env`. Full annotated reference lives in [`.env.example`
 | `ZXCVBN_MIN_SCORE` | `3` | zxcvbn strength threshold for new passwords (0–4). Score 3 = "safely unguessable — moderate protection". |
 | `HIBP_ENABLED` / `HIBP_BASE_URL` / `HIBP_TIMEOUT_MS` | `true` / `https://api.pwnedpasswords.com/range` / `500` | Have-I-Been-Pwned Range API check on signup. Fails open on outage. Tests set `HIBP_ENABLED=false`. |
 | `LOGIN_MAX_FAILS` / `LOGIN_FAILS_WINDOW_SEC` / `LOGIN_LOCK_TTL_SEC` / `UNLOCK_TOKEN_TTL_SEC` | `5` / `900` / `3600` / `3600` | Per-account soft-lock after 5 failed password attempts in 15 min; unlock link valid for 1 h. |
-| `SMTP_HOST` / `SMTP_PORT` / `SMTP_SECURE` / `SMTP_USER` / `SMTP_PASSWORD` | — / `587` / `false` / — / — | Outbound mail for `auth-service` (#319): verification codes and unlock links. Any SMTP provider (Resend, Postmark, Mailgun, SES, a relay). With `SMTP_HOST` empty nothing is delivered — the service still boots and logs a warning, but email/password signup cannot be completed. |
+| `SMTP_HOST` / `SMTP_PORT` / `SMTP_SECURE` / `SMTP_USER` / `SMTP_PASSWORD` | — / `587` / `false` / — / — | Outbound mail for `auth-service` (#319): verification codes and unlock links. Any SMTP provider (Resend, Postmark, Mailgun, SES, a relay). With `SMTP_HOST` empty nothing is delivered — the service still boots and logs a warning, but email/password signup cannot be completed. Under `docker compose` these already point at the Mailpit catcher via `docker-compose.override.yml`, so local dev needs no provider (#323). |
+| `SMTP_REQUIRE_TLS` | `true` | Whether the STARTTLS upgrade is mandatory on a non-`SMTP_SECURE` connection. Keep it `true` for anything leaving the machine — `false` puts codes and SMTP credentials on the wire in plaintext. Set `false` only for the local Mailpit catcher (as `docker-compose.override.yml` does) or a relay on loopback. |
 | `MAIL_FROM` | `Household <no-reply@localhost>` | Envelope sender. Must be an address the SMTP provider allows. |
 | `WEB_APP_URL` | `http://localhost:5173` | Public origin of the web app; used to build the `…/unlock?token=…` link in the account-locked email. |
 

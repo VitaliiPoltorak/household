@@ -1,0 +1,51 @@
+# Local development overlay (#323).
+#
+# Compose loads this file automatically on top of docker-compose.yml — but
+# ONLY when COMPOSE_FILE is unset. Production pins
+# `COMPOSE_FILE=docker-compose.yml:docker-compose.prod.yml` in
+# /opt/household/.env (see infra/github-runner/README.md), so nothing here
+# reaches the VPS. That separation is the point: these settings would be
+# actively harmful in production, where they would divert real verification
+# mail into a throwaway catcher and drop the TLS requirement.
+#
+# To opt out locally: `docker compose -f docker-compose.yml up -d`.
+
+services:
+  # Catches every message auth-service sends and shows it at
+  # http://localhost:8025, so register -> verify is exercisable end-to-end
+  # through the UI with no external provider and no AUTH_DEV_LOG_SECRETS.
+  # Mailpit never forwards, so a stray test message cannot reach a real
+  # mailbox.
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: household-mailpit
+    restart: unless-stopped
+    ports:
+      # 1025 = SMTP (services reach it as mailpit:1025 on the compose
+      # network), 8025 = the web UI where you read the delivered mail.
+      - "127.0.0.1:1025:1025"
+      - "127.0.0.1:8025:8025"
+    environment:
+      # Accept whatever credentials a client offers rather than rejecting
+      # unauthenticated dev traffic.
+      MP_SMTP_AUTH_ACCEPT_ANY: 'true'
+      MP_SMTP_AUTH_ALLOW_INSECURE: 'true'
+    healthcheck:
+      test: ["CMD", "/mailpit", "readyz"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
+  auth-service:
+    environment:
+      SMTP_HOST: mailpit
+      SMTP_PORT: '1025'
+      SMTP_SECURE: 'false'
+      # Mailpit speaks plaintext SMTP on the compose network. Clearing the
+      # mandatory-STARTTLS default is safe HERE ONLY — the traffic never
+      # leaves the Docker bridge. Production keeps the default of true.
+      SMTP_REQUIRE_TLS: 'false'
+    depends_on:
+      mailpit:
+        condition: service_healthy

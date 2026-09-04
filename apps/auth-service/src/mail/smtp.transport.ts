@@ -7,6 +7,13 @@ export interface SmtpOptions {
   host: string;
   port: number;
   secure: boolean;
+  /**
+   * Demand a TLS upgrade on a non-`secure` connection. Defaults to true and
+   * must stay true against any real provider. The one legitimate reason to
+   * turn it off is a local mail catcher (Mailpit) that speaks plaintext SMTP
+   * on the loopback/compose network and never sees a real address.
+   */
+  requireTls: boolean;
   user?: string;
   password?: string;
   from: string;
@@ -30,14 +37,20 @@ export class SmtpMailTransport implements MailTransport {
       // `secure: true` means implicit TLS (port 465). On 587 nodemailer
       // upgrades via STARTTLS, which `requireTLS` makes mandatory rather
       // than opportunistic — without it a downgrade leaves the credentials
-      // and the verification code on the wire in plaintext.
+      // and the verification code on the wire in plaintext. Only a local
+      // catcher should ever clear it (see SMTP_REQUIRE_TLS).
       secure: options.secure,
-      requireTLS: !options.secure,
+      requireTLS: !options.secure && options.requireTls,
       auth:
         options.user && options.password
           ? { user: options.user, pass: options.password }
           : undefined,
     });
+  }
+
+  /** True when this transport will put messages on the wire unencrypted. */
+  get isPlaintext(): boolean {
+    return !this.options.secure && !this.options.requireTls;
   }
 
   async send(message: MailMessage): Promise<void> {
