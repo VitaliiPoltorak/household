@@ -12,6 +12,7 @@ import { mapAuthError } from '../lib/auth-errors';
 import { td } from '../lib/i18n-dynamic';
 import { Logo } from '../components/brand/Logo';
 import { consumeReturnTo } from '../lib/auth-redirect';
+import { rememberPendingVerificationEmail } from '../lib/pending-verification';
 
 export function LoginPage() {
   const { t } = useTranslation();
@@ -47,9 +48,12 @@ export function LoginPage() {
       // EMAIL_NOT_VERIFIED → send the user straight to the verify screen,
       // carrying the email over so they don't retype it.
       if (mapped.code === 'EMAIL_NOT_VERIFIED') {
+        const pending = mapped.email ?? values.email;
+        // Persisted too, so reloading /verify-email keeps the address (#320).
+        rememberPendingVerificationEmail(pending);
         navigate('/verify-email', {
           replace: true,
-          state: { email: mapped.email ?? values.email },
+          state: { email: pending },
         });
         return;
       }

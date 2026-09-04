@@ -66,7 +66,12 @@
       "resendCooldown": "Reenviar en {{seconds}} s",
       "resendSent": "Nuevo código enviado — revisa tu bandeja.",
       "attemptsLeft": "Queda {{count}} intento",
-      "attemptsLeft_other": "Quedan {{count}} intentos"
+      "attemptsLeft_other": "Quedan {{count}} intentos",
+      "identifyBody": "Introduce el correo con el que te registraste y seguiremos donde lo dejaste.",
+      "identifySubmit": "Continuar",
+      "identifyInvalid": "Introduce un correo electrónico válido.",
+      "useDifferentEmail": "Usar otro correo electrónico",
+      "finishVerifying": "Terminar de verificar esta dirección"
     },
     "unlock": {
       "title": "Desbloquear cuenta",
