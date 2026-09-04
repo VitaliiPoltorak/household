@@ -183,4 +183,34 @@ describe('mail transport selection', () => {
     expect(transport).toBeInstanceOf(SmtpMailTransport);
     expect(transport.name).toBe('smtp');
   });
+
+  // #323 — the local Mailpit catcher speaks plaintext SMTP, so the mandatory
+  // STARTTLS default has to be clearable. It must stay an explicit opt-out:
+  // a typo or an unset value has to leave TLS required, or a production
+  // misconfiguration would silently send codes in the clear.
+  describe('SMTP_REQUIRE_TLS', () => {
+    const build = (overrides: Record<string, string | undefined>) =>
+      createMailTransport(
+        makeConfig({ SMTP_HOST: 'smtp.example.com', ...overrides }),
+      ) as SmtpMailTransport;
+
+    it('demands TLS by default', () => {
+      expect(build({}).isPlaintext).toBe(false);
+    });
+
+    it('allows plaintext only for the exact string "false"', () => {
+      expect(build({ SMTP_REQUIRE_TLS: 'false' }).isPlaintext).toBe(true);
+      expect(build({ SMTP_REQUIRE_TLS: 'true' }).isPlaintext).toBe(false);
+      // Anything else — a typo, a stray capital — keeps TLS required.
+      expect(build({ SMTP_REQUIRE_TLS: 'FALSE' }).isPlaintext).toBe(false);
+      expect(build({ SMTP_REQUIRE_TLS: '0' }).isPlaintext).toBe(false);
+      expect(build({ SMTP_REQUIRE_TLS: '' }).isPlaintext).toBe(false);
+    });
+
+    it('is moot under implicit TLS — port 465 is already encrypted', () => {
+      expect(
+        build({ SMTP_SECURE: 'true', SMTP_REQUIRE_TLS: 'false' }).isPlaintext,
+      ).toBe(false);
+    });
+  });
 });

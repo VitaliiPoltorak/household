@@ -21,8 +21,10 @@ pnpm --filter @household/auth-service migration:run
 # Replace auth-service with: household-service, finance-service, shopping-service, integration-service
 
 # Infrastructure
-docker compose up -d                          # Start postgres, redis, kafka + app services
+docker compose up -d                          # Start postgres, redis, kafka, mailpit + app services
 docker compose --profile tools up -d          # Also start adminer (:8080) + kafka-ui (:8081)
+# Mailpit (docker-compose.override.yml) catches the mail auth-service sends —
+# read verification codes at http://localhost:8025 instead of the service log.
 docker compose down                           # Stop all infrastructure
 
 # Git hooks (auto-rebuild Docker services when their sources change)
