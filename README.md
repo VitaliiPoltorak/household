@@ -158,6 +158,9 @@ Copy `.env.example` to `.env`. Full annotated reference lives in [`.env.example`
 | `ZXCVBN_MIN_SCORE` | `3` | zxcvbn strength threshold for new passwords (0–4). Score 3 = "safely unguessable — moderate protection". |
 | `HIBP_ENABLED` / `HIBP_BASE_URL` / `HIBP_TIMEOUT_MS` | `true` / `https://api.pwnedpasswords.com/range` / `500` | Have-I-Been-Pwned Range API check on signup. Fails open on outage. Tests set `HIBP_ENABLED=false`. |
 | `LOGIN_MAX_FAILS` / `LOGIN_FAILS_WINDOW_SEC` / `LOGIN_LOCK_TTL_SEC` / `UNLOCK_TOKEN_TTL_SEC` | `5` / `900` / `3600` / `3600` | Per-account soft-lock after 5 failed password attempts in 15 min; unlock link valid for 1 h. |
+| `SMTP_HOST` / `SMTP_PORT` / `SMTP_SECURE` / `SMTP_USER` / `SMTP_PASSWORD` | — / `587` / `false` / — / — | Outbound mail for `auth-service` (#319): verification codes and unlock links. Any SMTP provider (Resend, Postmark, Mailgun, SES, a relay). With `SMTP_HOST` empty nothing is delivered — the service still boots and logs a warning, but email/password signup cannot be completed. |
+| `MAIL_FROM` | `Household <no-reply@localhost>` | Envelope sender. Must be an address the SMTP provider allows. |
+| `WEB_APP_URL` | `http://localhost:5173` | Public origin of the web app; used to build the `…/unlock?token=…` link in the account-locked email. |
 
 ## Development commands
 
@@ -246,7 +249,7 @@ Real OAuth consent is verified manually, not by the automated collection above �
 
 > The `id_token` expires in ~1 hour. Repeat this when it expires.
 
-Every completed feature is covered by the automated API scenario collection above (`pnpm test:postman`) and/or the integration test suite — not a manual checklist. The only things that stay deliberately manual are real OAuth consent (above) and the register/verify-email flow (the 6-digit code only exists in Redis and a service log line — see `CLAUDE.md`). Swagger (`/docs` on each service) is available for quick endpoint reference during development.
+Every completed feature is covered by the automated API scenario collection above (`pnpm test:postman`) and/or the integration test suite — not a manual checklist. The only thing that stays deliberately manual is real OAuth consent (above). The register/verify-email flow is covered end-to-end: the integration suite asserts at the mail transport that the delivered message carries the code (`apps/auth-service/test/mail-delivery.integration.spec.ts`). For local dev without an SMTP host, set `AUTH_DEV_LOG_SECRETS=true` to read the code from the service log. Swagger (`/docs` on each service) is available for quick endpoint reference during development.
 
 ### Web — Vitest
 

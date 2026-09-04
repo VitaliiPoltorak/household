@@ -9,6 +9,7 @@ import {
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { UsersModule } from '../users/users.module';
+import { MailModule } from '../mail/mail.module';
 import { GoogleStrategy } from './strategies/google.strategy';
 import { AppleStrategy } from './strategies/apple.strategy';
 import { FacebookStrategy } from './strategies/facebook.strategy';
@@ -23,6 +24,7 @@ import { LoginAttemptTrackerService } from './login-attempt-tracker.service';
 @Module({
   imports: [
     UsersModule,
+    MailModule,
     ConfigModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],

@@ -22,6 +22,7 @@ import { shouldLogDevSecrets } from './dev-secret-logging';
 import { HibpService } from './hibp.service';
 import { PasswordComplexityService } from './password-complexity.service';
 import { LoginAttemptTrackerService } from './login-attempt-tracker.service';
+import { MailService } from '../mail/mail.service';
 
 export interface TokenPair {
   accessToken: string;
@@ -55,6 +56,7 @@ export class AuthService {
     private readonly complexity: PasswordComplexityService,
     private readonly hibp: HibpService,
     private readonly loginTracker: LoginAttemptTrackerService,
+    private readonly mail: MailService,
   ) {
     this.accessExpiresIn = getAccessTtlSeconds(config);
   }
@@ -137,6 +139,11 @@ export class AuthService {
     });
 
     const code = await this.verification.issueCode(user.email);
+    await this.mail.sendVerificationCode({
+      email: user.email,
+      displayName: user.displayName,
+      code,
+    });
     await this.events.emit('auth.email.verification_requested', {
       userId: user.id,
       email: user.email,
@@ -247,6 +254,11 @@ export class AuthService {
     }
 
     const code = await this.verification.issueCode(user.email);
+    await this.mail.sendVerificationCode({
+      email: user.email,
+      displayName: user.displayName,
+      code,
+    });
     await this.events.emit('auth.email.verification_requested', {
       userId: user.id,
       email: user.email,
@@ -305,6 +317,13 @@ export class AuthService {
         user.id,
       );
       if (result.status === 'lockedNow') {
+        // The unlock token exists only here and in Redis — auth.account.locked
+        // deliberately carries no token, so the mail must go out on this path.
+        await this.mail.sendAccountUnlockLink({
+          email: user.email,
+          displayName: user.displayName,
+          token: result.unlockToken,
+        });
         await this.events.emit('auth.account.locked', {
           userId: user.id,
           email: user.email,

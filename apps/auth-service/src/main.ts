@@ -12,6 +12,7 @@ import {
 } from '@household/common';
 import { AppModule } from './app.module';
 import { requireNoDevSecretLoggingInProduction } from './auth/dev-secret-logging';
+import { warnIfMailTransportMissing } from './mail/mail.config';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -19,6 +20,7 @@ async function bootstrap() {
   requireSigningSecret(config);
   requireStrongJwtSecret(config);
   requireNoDevSecretLoggingInProduction(config);
+  warnIfMailTransportMissing(config);
   const port = config.get<number>('AUTH_SERVICE_PORT', 3001);
   // Internal service — bind to loopback by default so it isn't reachable
   // from the LAN. Set LISTEN_HOST=0.0.0.0 in containerized deploys.

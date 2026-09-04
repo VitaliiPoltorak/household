@@ -906,6 +906,11 @@ pnpm test:postman                                            # API scenario coll
 
 ```
 □ Notification Service (email + push) — #30
+    ✔ Interim: auth-service sends its own transactional mail over SMTP (#319) — verification
+      code (register + resend) and account-unlock link, via a MailTransport seam
+      (`apps/auth-service/src/mail/`). The Kafka events (`auth.email.verification_requested`,
+      `auth.account.locked`) are still published, so notification-service can take the job over
+      later by swapping in the no-op transport. Push notifications remain unbuilt.
 ✔ Recurring payment cron + Kafka publish (#31) — auto-fires due payments, publishes `finance.recurring.triggered`
 ✔ CI/CD — GitHub Actions (#32): lint + build + unit + integration on every PR
     ✔ migration:run as part of the deploy pipeline — automatic via `migrationsRun: true` at each service's bootstrap, no separate pipeline step needed
@@ -1061,6 +1066,10 @@ TOKEN_ENCRYPTION_KEY (+ _PREV)            # AES-256-GCM for bank tokens
 CORS_ORIGIN, WS_CORS_ORIGINS              # the web origin, not the API origin
 AUTH_COOKIE_SECURE=true
 AUTH_DEV_LOG_SECRETS=false                # logs verification codes when true
+
+SMTP_HOST/PORT/SECURE/USER/PASSWORD       # outbound mail for auth-service (#319)
+MAIL_FROM                                 # envelope sender
+WEB_APP_URL                               # origin used to build the unlock link
 
 GOOGLE_CLIENT_ID                          # no client secret: the flow verifies a Google ID token
 APPLE_CLIENT_ID
