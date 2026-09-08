@@ -187,7 +187,11 @@
       "unavailable": "Tipos de cambio no disponibles",
       "unavailableDesc": "No se pudieron obtener los tipos de PrivatBank. El total estimado está oculto para no mostrar una cifra incorrecta.",
       "cached": "en caché"
-    }
+    },
+    "initialBalance": "Saldo inicial",
+    "initialBalanceHint": "Lo que ya tiene esta cuenta. Déjalo vacío para empezar en cero.",
+    "allowNegative": "Permitir saldo negativo",
+    "allowNegativeHint": "Para una tarjeta de crédito o un descubierto acordado. Si está desactivado, se rechaza un pago mayor que el saldo."
   },
   "transactions": {
     "title": "Transacciones",
@@ -227,7 +231,8 @@
     "transferRecalcTitle": "Recalcular con la tasa actual",
     "transferEffectiveRate": "1 {{from}} ≈ {{rate}} {{to}}",
     "transferYourRate": "tu tasa: {{rate}}",
-    "transferRateUnavailable": "Tasas no disponibles — ingresa ambos montos manualmente"
+    "transferRateUnavailable": "Tasas no disponibles — ingresa ambos montos manualmente",
+    "insufficientFunds": "No hay suficiente en esta cuenta: tiene {{available}} {{currency}}."
   },
   "categories": {
     "title": "Categorías",

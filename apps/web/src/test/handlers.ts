@@ -38,6 +38,8 @@ export const MOCK_ACCOUNT = {
   currency: 'UAH',
   balance: 5000,
   isArchived: false,
+  // #326 — mirrors the column default: strict unless the account opts in.
+  allowsNegativeBalance: false,
 };
 
 // Default-enabled account types (#227) — mirrors finance-service's

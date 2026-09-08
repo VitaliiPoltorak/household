@@ -187,7 +187,11 @@
       "unavailable": "Wechselkurse nicht verfügbar",
       "unavailableDesc": "PrivatBank-Kurse konnten nicht geladen werden. Die geschätzte Summe ist ausgeblendet, um keine falsche Zahl anzuzeigen.",
       "cached": "aus Cache"
-    }
+    },
+    "initialBalance": "Anfangssaldo",
+    "initialBalanceHint": "Was sich bereits auf diesem Konto befindet. Leer lassen, um bei null zu beginnen.",
+    "allowNegative": "Negativen Saldo zulassen",
+    "allowNegativeHint": "Für eine Kreditkarte oder einen vereinbarten Dispokredit. Ist die Option aus, wird eine Zahlung über dem Saldo abgelehnt."
   },
   "transactions": {
     "title": "Transaktionen",
@@ -227,7 +231,8 @@
     "transferRecalcTitle": "Mit aktuellem Kurs neu berechnen",
     "transferEffectiveRate": "1 {{from}} ≈ {{rate}} {{to}}",
     "transferYourRate": "Ihr Kurs: {{rate}}",
-    "transferRateUnavailable": "Kurse nicht verfügbar — beide Beträge manuell eingeben"
+    "transferRateUnavailable": "Kurse nicht verfügbar — beide Beträge manuell eingeben",
+    "insufficientFunds": "Nicht genug auf diesem Konto — es enthält {{available}} {{currency}}."
   },
   "categories": {
     "title": "Kategorien",

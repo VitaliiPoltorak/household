@@ -770,6 +770,34 @@ function AddAccountTypeModal({
 // ──────────────────────────────────────────────
 // Create modal
 // ──────────────────────────────────────────────
+// Shared by the create and edit modals so the wording and the explanation of
+// what the toggle does can only ever be defined once (#326).
+function AllowNegativeBalanceField({
+  checked,
+  onChange,
+}: {
+  checked: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  const { t } = useTranslation();
+  return (
+    <label className="flex items-start gap-2">
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        className="mt-0.5 h-4 w-4 rounded border-gray-300 text-primary-600 dark:border-gray-600 dark:bg-gray-800"
+      />
+      <span className="text-sm text-gray-700 dark:text-gray-300">
+        {t('accounts.allowNegative')}
+        <span className="block text-xs text-gray-500 dark:text-gray-400">
+          {t('accounts.allowNegativeHint')}
+        </span>
+      </span>
+    </label>
+  );
+}
+
 function CreateAccountModal({
   hid,
   enabledTypes,
@@ -787,6 +815,8 @@ function CreateAccountModal({
   const [name, setName] = useState('');
   const [type, setType] = useState<AccountType>('bank');
   const [currency, setCurrency] = useState('UAH');
+  const [initialBalance, setInitialBalance] = useState('');
+  const [allowsNegativeBalance, setAllowsNegativeBalance] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -796,10 +826,15 @@ function CreateAccountModal({
     setSaving(true);
     setError(null);
     try {
+      const parsedBalance = parseFloat(initialBalance);
       await financeApi.createAccount(hid, {
         name: name.trim(),
         type,
         currency,
+        // Omitted rather than sent as 0 when the field is left blank, so the
+        // server's own default is what applies (#326).
+        ...(Number.isFinite(parsedBalance) ? { initialBalance: parsedBalance } : {}),
+        allowsNegativeBalance,
       });
       onCreated();
     } catch (err) {
@@ -838,6 +873,21 @@ function CreateAccountModal({
             </option>
           ))}
         </Select>
+        <Input
+          label={`${t('accounts.initialBalance')} (${t('common.optional')})`}
+          type="number"
+          step="0.01"
+          value={initialBalance}
+          onChange={(e) => setInitialBalance(e.target.value)}
+          placeholder="0.00"
+        />
+        <p className="-mt-2 text-xs text-gray-500 dark:text-gray-400">
+          {t('accounts.initialBalanceHint')}
+        </p>
+        <AllowNegativeBalanceField
+          checked={allowsNegativeBalance}
+          onChange={setAllowsNegativeBalance}
+        />
         {error && (
           <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600 dark:bg-red-900/30 dark:text-red-300">
             {error}
@@ -883,6 +933,9 @@ function EditAccountModal({
   const [name, setName] = useState(account.name);
   const [type, setType] = useState(account.type);
   const [currency, setCurrency] = useState(account.currency);
+  const [allowsNegativeBalance, setAllowsNegativeBalance] = useState(
+    account.allowsNegativeBalance,
+  );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -895,6 +948,7 @@ function EditAccountModal({
         name: name.trim(),
         type,
         currency,
+        allowsNegativeBalance,
       });
       onSaved();
     } catch (err) {
@@ -932,6 +986,10 @@ function EditAccountModal({
             </option>
           ))}
         </Select>
+        <AllowNegativeBalanceField
+          checked={allowsNegativeBalance}
+          onChange={setAllowsNegativeBalance}
+        />
         {error && (
           <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600 dark:bg-red-900/30 dark:text-red-300">
             {error}

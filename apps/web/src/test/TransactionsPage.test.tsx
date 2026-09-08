@@ -53,6 +53,97 @@ describe('TransactionsPage', () => {
     await waitFor(() => expect(screen.queryByText('New transaction')).not.toBeInTheDocument(), { timeout: 3000 });
   });
 
+  // #326: the guard is server-side, so what the UI owes the user is a clear
+  // explanation attached to the field they got wrong — not a silent no-op,
+  // which is what these handlers used to produce (no catch at all).
+  describe('insufficient funds (#326)', () => {
+    const insufficientFunds = () =>
+      HttpResponse.json(
+        {
+          statusCode: 409,
+          code: 'INSUFFICIENT_FUNDS',
+          message: '"Mono Card" holds 22.65 UAH, which does not cover a withdrawal of 999999 UAH.',
+          accountId: 'acc-1',
+          available: 22.65,
+          requested: 999999,
+          currency: 'UAH',
+        },
+        { status: 409 },
+      );
+
+    it('shows the available balance against the amount field and keeps the modal open', async () => {
+      server.use(
+        http.get('/api/v1/accounts', () => HttpResponse.json([MOCK_ACCOUNT])),
+        http.post('/api/v1/transactions', insufficientFunds),
+      );
+      renderWithProviders(<TransactionsPage />);
+      await waitFor(() => screen.getByText('+ New'), { timeout: 3000 });
+      await userEvent.click(screen.getByText('+ New'));
+
+      await userEvent.selectOptions(screen.getByLabelText('Type'), 'expense');
+      await userEvent.type(screen.getByLabelText('Amount'), '999999');
+      await userEvent.click(screen.getByRole('button', { name: 'Add' }));
+
+      await waitFor(
+        () =>
+          expect(
+            screen.getByText('Not enough in this account — it holds 22.65 UAH.'),
+          ).toBeInTheDocument(),
+        { timeout: 3000 },
+      );
+      // Still open, with the typed amount intact, so the user can correct it
+      // rather than retype the whole transaction.
+      expect(screen.getByText('New transaction')).toBeInTheDocument();
+      expect(screen.getByLabelText('Amount')).toHaveValue(999999);
+    });
+
+    it('clears the message once the amount is edited', async () => {
+      server.use(
+        http.get('/api/v1/accounts', () => HttpResponse.json([MOCK_ACCOUNT])),
+        http.post('/api/v1/transactions', insufficientFunds),
+      );
+      renderWithProviders(<TransactionsPage />);
+      await waitFor(() => screen.getByText('+ New'), { timeout: 3000 });
+      await userEvent.click(screen.getByText('+ New'));
+
+      await userEvent.selectOptions(screen.getByLabelText('Type'), 'expense');
+      await userEvent.type(screen.getByLabelText('Amount'), '999999');
+      await userEvent.click(screen.getByRole('button', { name: 'Add' }));
+      await waitFor(
+        () =>
+          expect(
+            screen.getByText('Not enough in this account — it holds 22.65 UAH.'),
+          ).toBeInTheDocument(),
+        { timeout: 3000 },
+      );
+
+      await userEvent.type(screen.getByLabelText('Amount'), '1');
+      expect(
+        screen.queryByText('Not enough in this account — it holds 22.65 UAH.'),
+      ).not.toBeInTheDocument();
+    });
+
+    it('falls back to the generic banner for an unrelated failure', async () => {
+      server.use(
+        http.get('/api/v1/accounts', () => HttpResponse.json([MOCK_ACCOUNT])),
+        http.post('/api/v1/transactions', () =>
+          HttpResponse.json({ statusCode: 500, message: 'Boom' }, { status: 500 }),
+        ),
+      );
+      renderWithProviders(<TransactionsPage />);
+      await waitFor(() => screen.getByText('+ New'), { timeout: 3000 });
+      await userEvent.click(screen.getByText('+ New'));
+
+      await userEvent.selectOptions(screen.getByLabelText('Type'), 'expense');
+      await userEvent.type(screen.getByLabelText('Amount'), '10');
+      await userEvent.click(screen.getByRole('button', { name: 'Add' }));
+
+      await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Boom'), {
+        timeout: 3000,
+      });
+    });
+  });
+
   it('deletes a transaction on ✕ click', async () => {
     let deleted = false;
     server.use(

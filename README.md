@@ -26,7 +26,7 @@ Shared libraries in `libs/`: `common` (config, filters, JWT verify, gateway sign
 | api-gateway | 3000 | Single REST entry point, JWT auth, proxy, Swagger |
 | auth-service | 3001 | Google / Apple / Facebook OAuth, email + password (with mailbox verification + authenticated password change), JWT, Redis sessions, public user directory |
 | household-service | 3002 | Households, members, roles, invites |
-| finance-service | 3003 | Accounts, transactions (incl. cross-currency transfers), categories, recurring payments |
+| finance-service | 3003 | Accounts (opening balance, opt-in overdraft), transactions (incl. cross-currency transfers), categories, recurring payments |
 | shopping-service | 3004 | Stores, products, shopping lists |
 | integration-service | 3005 | Monobank connection, statement sync (mapping to accounts — #21) |
 | realtime-gateway | 3010 | Socket.IO, presence, live updates |

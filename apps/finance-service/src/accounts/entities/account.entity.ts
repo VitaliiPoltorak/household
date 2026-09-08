@@ -53,14 +53,35 @@ export class Account extends BaseEntity {
   @Column({ name: 'is_archived', default: false })
   isArchived: boolean;
 
+  // Whether this account may be driven below zero (#326). Defaults to false,
+  // so a typo in an amount field is refused rather than silently booked.
+  //
+  // Not derived from `type`: account types are household-editable data since
+  // #227 (a household can coin its own codes), so a hardcoded
+  // "cash and deposit are the strict ones" table would be wrong the moment
+  // someone adds "credit card" or "overdraft". The allowance is a property of
+  // the individual account, which is also where the user's knowledge lives —
+  // one of their two bank accounts may have an arranged overdraft and the
+  // other may not.
+  @Column({ name: 'allows_negative_balance', default: false })
+  allowsNegativeBalance: boolean;
+
   // ─────────────────────────────────────────────────────────────────────
   // Domain methods (Info Expert per #90). Balance is a decimal column and
-  // pg returns it as a string; convert at the boundary. Not currently used
-  // by any call site — an overdraft-check hook other services can adopt.
+  // pg returns it as a string; convert at the boundary.
   // ─────────────────────────────────────────────────────────────────────
 
-  /** True if this account can cover a withdrawal of `amount` in its currency. */
+  /**
+   * True if this account can cover a withdrawal of `amount` in its currency.
+   *
+   * This is the readable statement of the rule, and what the unit tests pin.
+   * It is NOT the enforcement point: a read-then-write against a loaded entity
+   * would race a concurrent withdrawal between the check and the balance
+   * update. AccountsService.adjustBalance enforces the same predicate as a
+   * WHERE clause on the balance-mutating UPDATE itself — see the comment
+   * there. Keep the two in step.
+   */
   canWithdraw(amount: number): boolean {
-    return Number(this.balance) >= amount;
+    return this.allowsNegativeBalance || Number(this.balance) >= amount;
   }
 }

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { financeApi, type CreateTransferPayload } from '../../api/finance';
+import { asInsufficientFunds } from '../../lib/finance-errors';
 import type { Account } from '../../types/api';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
@@ -43,6 +44,10 @@ export function TransferModal({ hid, accounts, onClose, onCreated }: Props) {
   const [description, setDescription] = useState('');
   const [date, setDate] = useState(today());
   const [saving, setSaving] = useState(false);
+  // The guard only ever refuses the SOURCE leg, so the message belongs on the
+  // "sent" amount, never on the received one (#326).
+  const [fromAmountError, setFromAmountError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const fromAcc = accounts.find((a) => a.id === fromId) ?? null;
   const toAcc = accounts.find((a) => a.id === toId) ?? null;
@@ -104,6 +109,8 @@ export function TransferModal({ hid, accounts, onClose, onCreated }: Props) {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
+    setFromAmountError(null);
+    setError(null);
     try {
       const payload: CreateTransferPayload = isCrossCurrency
         ? {
@@ -130,6 +137,21 @@ export function TransferModal({ hid, accounts, onClose, onCreated }: Props) {
           };
       await financeApi.createTransfer(hid, payload);
       onCreated();
+    } catch (err) {
+      // This is the exact shape of the bug #326 was filed for: $999,999 typed
+      // into a transfer out of an account holding $22.65. Both legs are rolled
+      // back server-side, so there is nothing to undo here — only to explain.
+      const funds = asInsufficientFunds(err);
+      if (funds) {
+        setFromAmountError(
+          t('transactions.insufficientFunds', {
+            available: funds.available,
+            currency: funds.currency,
+          }),
+        );
+      } else {
+        setError(err instanceof Error ? err.message : String(err));
+      }
     } finally {
       setSaving(false);
     }
@@ -176,7 +198,8 @@ export function TransferModal({ hid, accounts, onClose, onCreated }: Props) {
           label={`${t('transactions.transferSent')} (${fromCcy})`}
           type="number" step="0.01" min="0.01"
           value={fromAmount}
-          onChange={(e) => setFromAmount(e.target.value)}
+          onChange={(e) => { setFromAmount(e.target.value); setFromAmountError(null); }}
+          error={fromAmountError ?? undefined}
           required
           placeholder="0.00"
           autoFocus
@@ -242,6 +265,12 @@ export function TransferModal({ hid, accounts, onClose, onCreated }: Props) {
           value={description}
           onChange={(e) => setDescription(e.target.value)}
         />
+
+        {error && (
+          <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600 dark:bg-red-900/30 dark:text-red-300">
+            {error}
+          </p>
+        )}
 
         <div className="flex gap-2 pt-2">
           <Button type="button" variant="secondary" className="flex-1" onClick={onClose}>
