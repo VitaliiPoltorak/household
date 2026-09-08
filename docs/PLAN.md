@@ -921,7 +921,7 @@ pnpm test:postman                                            # API scenario coll
 ✔ Migrations in production — no longer blocks NODE_ENV=production on the 5 schema-owning services (#304)
     ✔ synchronize: false in every service (removed from code, not only env)
     ✔ migrations run before each service starts serving requests (`migrationsRun: true`, runs inside `TypeOrmModule` bootstrap rather than a separate Dockerfile CMD step)
-    □ Ensure the rollback strategy is understood (down migrations exist per-service but haven't been exercised against a real rollback)
+    □ Ensure the rollback strategy is understood (down migrations exist per-service but haven't been exercised against a real rollback). Note this is the DATABASE half only — the application half is #318 above, and the two are separate problems: an image rollback that crosses a destructive migration needs both.
 
 ✔ Backend deployment (#33) — netcup VPS, docker compose + docker-compose.prod.yml overlay, Caddy/TLS
 ✔ Web deployment (#33) — Cloudflare Pages, auto-deploy on push to main
@@ -944,6 +944,37 @@ pnpm test:postman                                            # API scenario coll
       so a failed build turns the Actions job red instead of deploying green over a stale image.
       One-time VPS setup (runner registration + `COMPOSE_FILE` so bare `docker compose` calls there
       keep applying the prod overlay): `infra/github-runner/README.md`.
+    ✔ Deploy rollback (#318) — automating the deploy removed the human who used to watch the stack
+      come back up, and `docker compose build` overwrites `household/<svc>:latest` in place, so
+      there was nothing to roll back TO by tag. The failure mode that matters is not a deploy that
+      fails (that one is safe — the job goes red, the old container keeps serving) but a deploy
+      that succeeds with a broken build: the healthchecks are TCP-connect / `/health` probes, not
+      functional ones, so it passes them and goes live.
+        ✔ `rebuild-touched-services.sh` retags `:latest` -> `:previous` before every build. A tag
+          is a second name for the same layers, so it costs no disk — but it does keep them out of
+          `docker image prune`, which is the point. Done unconditionally, not only under
+          REBUILD_STRICT, so a rollback can be rehearsed locally against the same tags.
+        ✔ `scripts/rollback.sh [--list] [--yes] [service...]` — tag swap + `up -d --no-deps
+          --force-recreate --wait`, seconds instead of a full rebuild cycle. Reuses ALL_SERVICES
+          from `lib/changed-services.sh` so the rollable set cannot drift from the rebuildable one.
+          Keeps the replaced image as `:rolled-back` so rolling forward is a one-liner when the new
+          version turns out not to have been the fault.
+        ✔ `.github/workflows/rollback.yml` — one click from the Actions tab, optional service list,
+          requires typing `rollback` to confirm, shares the deploy job's concurrency group so a
+          rollback and a push-triggered deploy can never fight over the same tags.
+        ✔ Migration interaction documented (README -> Rolling back a deploy, and the header of
+          rollback.sh): rolling the image back does NOT roll the schema back, because
+          `migrationsRun: true` only ever runs *pending* migrations. Additive migrations are safe
+          to roll back under; destructive or tightening ones need a database restore (#306) or a
+          down-migration first. The workflow prints which case the last deploy was.
+        ✔ Drilled locally against real Docker on auth-service: rebuild (retag fires) -> a second
+          build from changed source so :latest and :previous genuinely differ -> rollback.sh ->
+          container recreated on the old image and reported healthy -> roll forward via the
+          :rolled-back tag the script prints. The no-op paths (no :previous tag, :latest already
+          == :previous) were confirmed to skip rather than error.
+        □ Exercised against production at least once. Until that run, the previous-image tags only
+          exist for services rebuilt since this landed — the first production deploy after this
+          creates them, and only for the services that deploy touches.
     ✔ Database backups (#306) — nightly pg_dump -> Cloudflare R2 via an encrypting rclone crypt
       remote, 7 daily + 4 weekly GFS retention, healthchecks.io dead-man's-switch alerting. Live on
       the VPS: R2 bucket + scoped API token, `household-backup.timer` enabled (03:15 nightly). A

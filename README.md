@@ -494,6 +494,51 @@ in `/opt/household/.env`. Every bare `docker compose` call on the server (the de
 `post-merge` hook's alike) otherwise resolves to `docker-compose.yml` alone and restarts production
 services without the prod overlay.
 
+### Rolling back a deploy
+
+A deploy that *fails* is safe — the job goes red and production keeps serving the old container. The
+case worth preparing for is a deploy that *succeeds* while shipping a broken build: the healthchecks
+are TCP-connect / `/health` probes rather than functional ones, so the bad version passes them and
+goes live ([#318](https://github.com/VitaliiPoltorak/household/issues/318)).
+
+`scripts/rebuild-touched-services.sh` retags `household/<svc>:latest` as `household/<svc>:previous`
+before every build. Without that the old image is left dangling and unnamed, and the only way back
+is `git revert` plus a full rebuild — minutes of broken production on a 2-vCPU box. A tag costs no
+disk (it is a second name for the same layers) and it keeps them out of `docker image prune`.
+
+Rolling back is then a tag swap plus a container recreate, and takes seconds:
+
+```bash
+scripts/rollback.sh --list                       # what would change, and to which image
+scripts/rollback.sh                              # all services, with a confirmation prompt
+scripts/rollback.sh auth-service finance-service # just these two
+```
+
+Or run the **Rollback** workflow from the Actions tab (`.github/workflows/rollback.yml`) — it takes
+an optional service list, requires typing `rollback` to confirm, and shares the deploy job's
+concurrency group so the two can never interleave. Nothing is rebuilt or pulled either way.
+
+The script prints how to roll *forward* again when it turns out the new version was not the fault:
+the image it replaced is kept as `household/<svc>:rolled-back`. A rollback is not permanent by
+itself — the next push to `main` rebuilds the same code straight back over `:latest`, so revert the
+offending commit as well.
+
+**Rolling back does not roll the database back.** Every service runs `migrationsRun: true` at boot,
+so the deploy migrated the schema on the way up, and TypeORM only ever runs *pending* migrations —
+it will not undo one. The rolled-back image therefore meets a schema newer than itself:
+
+| Migration in the bad deploy | Image rollback alone |
+|---|---|
+| Additive (new table, new nullable column, new index) | Safe — the old code ignores what it does not know about. |
+| Destructive or tightening (dropped or renamed column, a column made `NOT NULL`, narrowed type, changed enum) | **Not safe** — restore the database too ([Database backups](#database-backups)) or write a down-migration first. |
+
+Check which case you are in before rolling back — the Rollback workflow prints this as a warning,
+and locally it is:
+
+```bash
+git diff --name-only HEAD~1 HEAD -- '*/migrations/*'
+```
+
 ## Architecture overview
 
 Clients (web / mobile) communicate only with the API Gateway over HTTPS/REST and WebSocket (Socket.IO, Phase 2). The Gateway validates JWT, extracts `userId` from the token, reads `X-Household-Id` from the request header, and proxies both as `X-User-Id` / `X-Household-Id` headers to downstream services. Services trust these headers and do not re-validate the JWT.

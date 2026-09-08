@@ -102,6 +102,8 @@ Every completed feature must have both before the issue is closed: automated int
 
 The compose services are built into `household/<service>` images — a pulled/merged code change is invisible until the image is rebuilt. `.githooks/post-merge` and `.githooks/post-checkout` handle this automatically; see `scripts/rebuild-touched-services.sh` and `scripts/api-scenarios.sh` for the rebuild mechanics (one-service-at-a-time, `COMPOSE_BAKE=false`) and the Docker healthcheck design rationale — both are documented in those scripts' own comments.
 
+That rebuild also retags the outgoing image as `household/<service>:previous`, which is what `scripts/rollback.sh` restores — see README -> Rolling back a deploy. Rolling an image back does not roll a migration back; the script's header explains when that matters.
+
 **Activation is opt-in** (git hooks are not auto-linked to `.githooks/` on clone): run `pnpm hooks:enable` once per clone. `pnpm hooks:disable` reverts.
 
 ## Language policy

@@ -1,0 +1,83 @@
+name: Rollback
+
+# One-click undo for a deploy that succeeded while shipping a broken build
+# (#318). The dangerous case is precisely that one: a deploy that FAILS is
+# safe — the job goes red and production keeps serving the old container —
+# whereas a deploy that succeeds with a bad build passes the healthchecks
+# (TCP-connect / /health probes, not functional ones) and goes live.
+#
+# This restores household/<svc>:previous, the tag
+# scripts/rebuild-touched-services.sh writes before every build. Nothing is
+# rebuilt or pulled, so it takes seconds instead of the minutes a rebuild
+# costs on a 2-vCPU box.
+on:
+  workflow_dispatch:
+    inputs:
+      services:
+        description: 'Services to roll back, space-separated (e.g. "auth-service finance-service"). Leave empty to roll back every service that has a previous image.'
+        required: false
+        default: ''
+      confirm:
+        description: 'Type "rollback" to confirm. This changes what production is serving.'
+        required: true
+        default: ''
+
+# Shares the deploy job's concurrency group so a rollback can never interleave
+# with a push-triggered deploy — the two would fight over the same image tags.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  rollback:
+    name: Roll production back to the previous images
+    runs-on: self-hosted
+    steps:
+      # No actions/checkout, for the same reason as deploy.yml: the job
+      # operates on the EXISTING /opt/household checkout, which is where the
+      # untracked docker-compose.prod.yml, the .env files and the compose
+      # project live. A fresh checkout in the runner workspace has none of it.
+      - name: Check the confirmation phrase
+        env:
+          CONFIRM: ${{ inputs.confirm }}
+        run: |
+          if [ "$CONFIRM" != "rollback" ]; then
+            echo "::error::Type 'rollback' in the confirm field to proceed. Got: '$CONFIRM'"
+            exit 1
+          fi
+
+      # Read this before the rollback lands, not after. Rolling the image back
+      # does not roll the schema back — see the header of scripts/rollback.sh.
+      - name: Report migrations carried by the last deploy
+        working-directory: /opt/household
+        run: |
+          echo "HEAD is now: $(git log --oneline -1)"
+          migrations="$(git diff --name-only HEAD~1 HEAD -- '*/migrations/*' || true)"
+          if [ -n "$migrations" ]; then
+            echo "::warning::The last commit carried migrations. An image rollback does NOT undo them — if any are destructive (dropped/renamed column, a column made NOT NULL) the old image will meet a schema it does not expect, and the database needs restoring too (scripts/restore-database.sh)."
+            echo "$migrations"
+          else
+            echo "No migrations in the last commit — an image rollback is self-contained."
+          fi
+
+      - name: Show what would change
+        working-directory: /opt/household
+        env:
+          SERVICES: ${{ inputs.services }}
+        # Unquoted on purpose: the input is a space-separated list and must
+        # word-split. It is a shell variable rather than a `${{ }}` expansion
+        # inlined into the script, so it cannot inject commands, and
+        # rollback.sh validates every name against its known service list.
+        # shellcheck disable=SC2086
+        run: scripts/rollback.sh --list $SERVICES
+
+      - name: Roll back
+        working-directory: /opt/household
+        env:
+          SERVICES: ${{ inputs.services }}
+        # shellcheck disable=SC2086
+        run: scripts/rollback.sh --yes $SERVICES
+
+      - name: Confirm the stack is healthy
+        working-directory: /opt/household
+        run: docker compose ps
