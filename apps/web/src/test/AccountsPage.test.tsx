@@ -78,6 +78,107 @@ describe('AccountsPage', () => {
     );
   });
 
+  // #326: the opening balance and the overdraft allowance are what make the
+  // withdrawal guard usable — without an opening balance every account starts
+  // at 0 and the user's first expense is refused.
+  describe('opening balance + overdraft allowance (#326)', () => {
+    it('offers both fields on the create form', async () => {
+      renderWithProviders(<AccountsPage />);
+      await waitFor(() => screen.getByText('+ New account'), { timeout: 3000 });
+      await userEvent.click(screen.getByText('+ New account'));
+
+      expect(screen.getByLabelText(/Opening balance/)).toBeInTheDocument();
+      expect(
+        screen.getByRole('checkbox', { name: /Allow a negative balance/ }),
+      ).toBeInTheDocument();
+    });
+
+    it('sends both values when the form is submitted', async () => {
+      let posted: Record<string, unknown> | null = null;
+      server.use(
+        http.post('/api/v1/accounts', async ({ request }) => {
+          posted = (await request.json()) as Record<string, unknown>;
+          return HttpResponse.json({ ...MOCK_ACCOUNT, id: 'acc-new', name: 'Cash Wallet' });
+        }),
+      );
+
+      renderWithProviders(<AccountsPage />);
+      await waitFor(() => screen.getByText('+ New account'), { timeout: 3000 });
+      await userEvent.click(screen.getByText('+ New account'));
+      await userEvent.type(screen.getByLabelText('Name'), 'Cash Wallet');
+      await userEvent.type(screen.getByLabelText(/Opening balance/), '250.50');
+      await userEvent.click(
+        screen.getByRole('checkbox', { name: /Allow a negative balance/ }),
+      );
+      await userEvent.click(screen.getByRole('button', { name: 'Create' }));
+
+      await waitFor(() => expect(posted).not.toBeNull(), { timeout: 3000 });
+      expect(posted).toMatchObject({
+        name: 'Cash Wallet',
+        initialBalance: 250.5,
+        allowsNegativeBalance: true,
+      });
+    });
+
+    it('omits the opening balance entirely when the field is left blank', async () => {
+      let posted: Record<string, unknown> | null = null;
+      server.use(
+        http.post('/api/v1/accounts', async ({ request }) => {
+          posted = (await request.json()) as Record<string, unknown>;
+          return HttpResponse.json({ ...MOCK_ACCOUNT, id: 'acc-new', name: 'Plain' });
+        }),
+      );
+
+      renderWithProviders(<AccountsPage />);
+      await waitFor(() => screen.getByText('+ New account'), { timeout: 3000 });
+      await userEvent.click(screen.getByText('+ New account'));
+      await userEvent.type(screen.getByLabelText('Name'), 'Plain');
+      await userEvent.click(screen.getByRole('button', { name: 'Create' }));
+
+      await waitFor(() => expect(posted).not.toBeNull(), { timeout: 3000 });
+      // Absent rather than 0, so the server's own default is what applies.
+      expect(posted).not.toHaveProperty('initialBalance');
+    });
+
+    it('offers the allowance but NOT the opening balance on the edit form', async () => {
+      // The two modals share the currency/type markup, and an earlier draft of
+      // this change duplicated the opening-balance field into edit — where the
+      // endpoint rejects it, because it describes creation only.
+      renderWithProviders(<AccountsPage />);
+      await waitFor(() => screen.getByTitle('Edit'), { timeout: 3000 });
+      await userEvent.click(screen.getAllByTitle('Edit')[0]);
+
+      await waitFor(() => screen.getByText('Edit account'), { timeout: 3000 });
+      expect(
+        screen.getByRole('checkbox', { name: /Allow a negative balance/ }),
+      ).toBeInTheDocument();
+      expect(screen.queryByLabelText(/Opening balance/)).not.toBeInTheDocument();
+    });
+
+    it('sends the changed allowance from the edit form', async () => {
+      let patched: Record<string, unknown> | null = null;
+      server.use(
+        http.patch('/api/v1/accounts/:id', async ({ request }) => {
+          patched = (await request.json()) as Record<string, unknown>;
+          return HttpResponse.json({ ...MOCK_ACCOUNT, allowsNegativeBalance: true });
+        }),
+      );
+
+      renderWithProviders(<AccountsPage />);
+      await waitFor(() => screen.getByTitle('Edit'), { timeout: 3000 });
+      await userEvent.click(screen.getAllByTitle('Edit')[0]);
+      await waitFor(() => screen.getByText('Edit account'), { timeout: 3000 });
+
+      await userEvent.click(
+        screen.getByRole('checkbox', { name: /Allow a negative balance/ }),
+      );
+      await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+      await waitFor(() => expect(patched).not.toBeNull(), { timeout: 3000 });
+      expect(patched).toMatchObject({ allowsNegativeBalance: true });
+    });
+  });
+
   it('archives account on archive button click', async () => {
     let archived = false;
     server.use(
