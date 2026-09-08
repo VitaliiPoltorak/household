@@ -232,7 +232,10 @@
     "transferEffectiveRate": "1 {{from}} ≈ {{rate}} {{to}}",
     "transferYourRate": "Ihr Kurs: {{rate}}",
     "transferRateUnavailable": "Kurse nicht verfügbar — beide Beträge manuell eingeben",
-    "insufficientFunds": "Nicht genug auf diesem Konto — es enthält {{available}} {{currency}}."
+    "insufficientFunds": "Nicht genug auf diesem Konto — es enthält {{available}} {{currency}}.",
+    "deleteTitle": "Diese Buchung löschen?",
+    "deleteBody": "Der Eintrag wird endgültig entfernt und der Kontostand angepasst. Das lässt sich nicht rückgängig machen.",
+    "deleteTransferNote": "Das ist eine Umbuchung — beide Seiten werden zurückgesetzt und beide Einträge entfernt."
   },
   "categories": {
     "title": "Kategorien",
@@ -287,7 +290,11 @@
     "noItemsYet": "Noch keine Artikel.",
     "editLink": "Link bearbeiten",
     "editLinkTitle": "Produktlink",
-    "linkUrl": "Link"
+    "linkUrl": "Link",
+    "deleteListTitle": "Diese Liste löschen?",
+    "deleteListBody": "„{{name}}“ und alle Einträge werden endgültig entfernt. Das lässt sich nicht rückgängig machen.",
+    "deleteStoreTitle": "Diesen Laden löschen?",
+    "deleteStoreBody": "„{{name}}“ wird endgültig entfernt. Das lässt sich nicht rückgängig machen."
   },
   "household": {
     "title": "Haushalt",

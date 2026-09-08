@@ -17,6 +17,7 @@ import type {
 import { Modal } from '../components/ui/Modal';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
+import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { PasteIcon } from '../components/brand/icons';
 import { formatDate } from '../lib/date-format';
 
@@ -34,6 +35,8 @@ export function ShoppingPage() {
   const [selectedList, setSelectedList] = useState<ShoppingList | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [showRename, setShowRename] = useState(false);
+  // #327: deleting a list takes its items with it, so it asks first.
+  const [confirmDeleteList, setConfirmDeleteList] = useState<ShoppingList | null>(null);
 
   const { data: lists = [], isLoading } = useQuery({
     queryKey: ['shopping-lists', hid, statusFilter],
@@ -109,6 +112,7 @@ export function ShoppingPage() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['shopping-lists', hid] });
       setSelectedList(null);
+      setConfirmDeleteList(null);
     },
   });
 
@@ -352,7 +356,7 @@ export function ShoppingPage() {
             onComplete={() => completeList.mutate(selectedList.id)}
             onArchive={() => archiveList.mutate(selectedList.id)}
             onRenameClick={() => setShowRename(true)}
-            onDelete={() => deleteList.mutate(selectedList.id)}
+            onDelete={() => setConfirmDeleteList(selectedList)}
             onAddItem={(name, quantity, preferredStoreId, productId, linkUrl) =>
               void addItemWithLink(
                 name,
@@ -421,6 +425,17 @@ export function ShoppingPage() {
             renameList.mutate({ id: selectedList.id, name });
             setShowRename(false);
           }}
+        />
+      )}
+
+      {confirmDeleteList && (
+        <ConfirmDialog
+          title={t('shopping.deleteListTitle')}
+          body={t('shopping.deleteListBody', { name: confirmDeleteList.name })}
+          confirmLabel={t('common.delete')}
+          confirming={deleteList.isPending}
+          onCancel={() => setConfirmDeleteList(null)}
+          onConfirm={() => deleteList.mutate(confirmDeleteList.id)}
         />
       )}
     </div>
@@ -1177,11 +1192,15 @@ function StoresColumn({
     },
   });
 
+  // #327: same treatment as lists and transactions.
+  const [confirmDeleteStore, setConfirmDeleteStore] = useState<Store | null>(null);
+
   const deleteStore = useMutation({
     mutationFn: (id: string) => shoppingApi.deleteStore(id, hid),
     onSuccess: (_data, id) => {
       qc.invalidateQueries({ queryKey: ['stores', hid] });
       setBlocked((b) => (b?.id === id ? null : b));
+      setConfirmDeleteStore(null);
     },
     onError: (err: unknown, id) => {
       if (
@@ -1191,6 +1210,9 @@ function StoresColumn({
       ) {
         setBlocked({ id, impact: err.data['impact'] as StoreImpact });
       }
+      // The 409 explains itself in the panel behind the dialog, so close it
+      // rather than leaving a confirm sitting over its own error message.
+      setConfirmDeleteStore(null);
     },
   });
 
@@ -1274,7 +1296,7 @@ function StoresColumn({
                       <Button
                         size="sm"
                         variant="danger"
-                        onClick={() => deleteStore.mutate(s.id)}
+                        onClick={() => setConfirmDeleteStore(s)}
                         disabled={
                           deleteStore.isPending &&
                           deleteStore.variables === s.id
@@ -1298,6 +1320,17 @@ function StoresColumn({
             </div>
           ))}
         </div>
+      )}
+
+      {confirmDeleteStore && (
+        <ConfirmDialog
+          title={t('shopping.deleteStoreTitle')}
+          body={t('shopping.deleteStoreBody', { name: confirmDeleteStore.name })}
+          confirmLabel={t('common.delete')}
+          confirming={deleteStore.isPending}
+          onCancel={() => setConfirmDeleteStore(null)}
+          onConfirm={() => deleteStore.mutate(confirmDeleteStore.id)}
+        />
       )}
     </div>
   );

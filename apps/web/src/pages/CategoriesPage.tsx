@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { financeApi } from '../api/finance';
 import { useHousehold } from '../contexts/HouseholdContext';
 import { Button } from '../components/ui/Button';
+import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { PermanentDeleteModal } from '../components/categories/PermanentDeleteModal';
 import { CategoryFormModal } from '../components/categories/CategoryFormModal';
 import type { Category } from '../types/api';
@@ -276,39 +277,5 @@ function ArchivedSection({
         )
       )}
     </section>
-  );
-}
-
-// ────────────────────────────────────────────────
-// Confirm dialog
-// ────────────────────────────────────────────────
-function ConfirmDialog({
-  title, body, confirmLabel, onCancel, onConfirm, confirming,
-}: {
-  title: string;
-  body: string;
-  confirmLabel: string;
-  onCancel: () => void;
-  onConfirm: () => void;
-  confirming: boolean;
-}) {
-  const { t } = useTranslation();
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 dark:bg-black/60">
-      <div className="w-full max-w-md rounded-xl bg-white shadow-xl dark:bg-gray-900">
-        <div className="border-b border-gray-200 px-6 py-4 dark:border-gray-800">
-          <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">{title}</h2>
-        </div>
-        <div className="px-6 py-4 text-sm text-gray-700 dark:text-gray-200">{body}</div>
-        <div className="flex justify-end gap-2 border-t border-gray-100 px-6 py-3 dark:border-gray-800">
-          <Button variant="secondary" size="sm" onClick={onCancel} disabled={confirming}>
-            {t('common.cancel')}
-          </Button>
-          <Button size="sm" onClick={onConfirm} disabled={confirming}>
-            {confirming ? t('common.saving') : confirmLabel}
-          </Button>
-        </div>
-      </div>
-    </div>
   );
 }
