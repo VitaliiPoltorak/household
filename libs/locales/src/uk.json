@@ -233,7 +233,10 @@
     "transferEffectiveRate": "1 {{from}} ≈ {{rate}} {{to}}",
     "transferYourRate": "ваш курс: {{rate}}",
     "transferRateUnavailable": "Курси недоступні — введіть обидві суми вручну",
-    "insufficientFunds": "Недостатньо коштів на рахунку — на ньому {{available}} {{currency}}."
+    "insufficientFunds": "Недостатньо коштів на рахунку — на ньому {{available}} {{currency}}.",
+    "deleteTitle": "Видалити цю операцію?",
+    "deleteBody": "Запис буде видалено назавжди, а баланс рахунку скориговано. Цю дію не можна скасувати.",
+    "deleteTransferNote": "Це переказ — обидві сторони буде відкочено, обидва записи видалено."
   },
   "categories": {
     "title": "Категорії",
@@ -290,7 +293,11 @@
     "noItemsYet": "Поки немає товарів.",
     "editLink": "Редагувати посилання",
     "editLinkTitle": "Посилання на товар",
-    "linkUrl": "Посилання"
+    "linkUrl": "Посилання",
+    "deleteListTitle": "Видалити цей список?",
+    "deleteListBody": "«{{name}}» та всі його позиції буде видалено назавжди. Цю дію не можна скасувати.",
+    "deleteStoreTitle": "Видалити цей магазин?",
+    "deleteStoreBody": "«{{name}}» буде видалено назавжди. Цю дію не можна скасувати."
   },
   "household": {
     "title": "Дім",

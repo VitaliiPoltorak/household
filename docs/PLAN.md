@@ -790,6 +790,18 @@ Finance Service → Kafka: finance.transaction.created
       first expense would be refused.
     ✔ Transactions CRUD + transfer (paired) + reverse-delta on delete
     ✔ Categories (archive/impact/permanent-delete flow), income sources
+    ✔ Destructive actions are confirmed (#327) — a transaction was deleted by a bare ✕ sitting
+      next to the edit pencil in a compact row: one mis-click permanently destroyed a financial
+      record and silently rewrote the account balance, with no confirmation, no undo and no audit
+      trail to reconstruct what went. Categories — the labels — had more protection than the
+      records they label. Transaction, shopping-list and store deletes now go through one shared
+      `ui/ConfirmDialog` (lifted out of CategoriesPage, where it had been private), and the
+      transaction dialog restates the record — type, amount, account, date, description — rather
+      than only asking "are you sure?", since a confirmation nobody can check is one they learn to
+      click through. For a transfer it says explicitly that both legs are reversed, which the
+      single collapsed row does not otherwise convey. Individual shopping-list items are
+      deliberately left unguarded: they are cheap to re-add, and a prompt per item would be the
+      kind of friction that teaches people to dismiss prompts.
     ✔ Categories are reachable (#325) — three things had combined into a closed loop: nothing in
       the UI could create a category, `household.created` seeded none, and the transaction dialogs
       hid the category selector precisely because the list was empty. So categorisation, the

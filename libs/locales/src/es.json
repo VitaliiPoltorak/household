@@ -232,7 +232,10 @@
     "transferEffectiveRate": "1 {{from}} ≈ {{rate}} {{to}}",
     "transferYourRate": "tu tasa: {{rate}}",
     "transferRateUnavailable": "Tasas no disponibles — ingresa ambos montos manualmente",
-    "insufficientFunds": "No hay suficiente en esta cuenta: tiene {{available}} {{currency}}."
+    "insufficientFunds": "No hay suficiente en esta cuenta: tiene {{available}} {{currency}}.",
+    "deleteTitle": "¿Eliminar esta transacción?",
+    "deleteBody": "El registro se elimina de forma permanente y se ajusta el saldo de la cuenta. Esto no se puede deshacer.",
+    "deleteTransferNote": "Es una transferencia: se revierten ambos lados y se eliminan ambos registros."
   },
   "categories": {
     "title": "Categorías",
@@ -287,7 +290,11 @@
     "noItemsYet": "Aún no hay artículos.",
     "editLink": "Editar enlace",
     "editLinkTitle": "Enlace del producto",
-    "linkUrl": "Enlace"
+    "linkUrl": "Enlace",
+    "deleteListTitle": "¿Eliminar esta lista?",
+    "deleteListBody": "«{{name}}» y todos sus artículos se eliminan de forma permanente. Esto no se puede deshacer.",
+    "deleteStoreTitle": "¿Eliminar esta tienda?",
+    "deleteStoreBody": "«{{name}}» se elimina de forma permanente. Esto no se puede deshacer."
   },
   "household": {
     "title": "Hogar",

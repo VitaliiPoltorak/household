@@ -232,7 +232,10 @@
     "transferEffectiveRate": "1 {{from}} ≈ {{rate}} {{to}}",
     "transferYourRate": "your rate: {{rate}}",
     "transferRateUnavailable": "Rates unavailable — enter both amounts manually",
-    "insufficientFunds": "Not enough in this account — it holds {{available}} {{currency}}."
+    "insufficientFunds": "Not enough in this account — it holds {{available}} {{currency}}.",
+    "deleteTitle": "Delete this transaction?",
+    "deleteBody": "The record is removed permanently and the account balance is adjusted. This cannot be undone.",
+    "deleteTransferNote": "This is a transfer — both sides are reversed and both records are removed."
   },
   "categories": {
     "title": "Categories",
@@ -287,7 +290,11 @@
     "noItemsYet": "No items yet.",
     "editLink": "Edit link",
     "editLinkTitle": "Product link",
-    "linkUrl": "Link"
+    "linkUrl": "Link",
+    "deleteListTitle": "Delete this list?",
+    "deleteListBody": "\"{{name}}\" and all of its items are removed permanently. This cannot be undone.",
+    "deleteStoreTitle": "Delete this store?",
+    "deleteStoreBody": "\"{{name}}\" is removed permanently. This cannot be undone."
   },
   "household": {
     "title": "Household",

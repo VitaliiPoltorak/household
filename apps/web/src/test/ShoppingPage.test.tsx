@@ -307,6 +307,10 @@ describe('ShoppingPage', () => {
     await waitFor(() => screen.getByText('Silpo'), { timeout: 3000 });
     await userEvent.click(screen.getByRole('button', { name: 'Delete' }));
 
+    // Store deletion is confirmed first now (#327).
+    const dialog = await screen.findByRole('dialog', { name: 'Delete this store?' });
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Delete' }));
+
     await waitFor(
       () =>
         expect(
@@ -644,6 +648,93 @@ describe('ShoppingPage', () => {
       expect(
         screen.queryByRole('button', { name: 'Archive' }),
       ).not.toBeInTheDocument();
+    });
+  });
+
+  // #327: list and store deletes had the same bare-button shape as the
+  // transaction ✕ — one click, no confirmation, no undo.
+  describe('delete confirmation (#327)', () => {
+    const openList = async () => {
+      renderWithProviders(<ShoppingPage />);
+      await waitFor(() => screen.getByText('Weekly Groceries'), { timeout: 3000 });
+      await userEvent.click(screen.getByText('Weekly Groceries'));
+      await waitFor(() => screen.getByText('Milk'), { timeout: 3000 });
+    };
+
+    it('confirms before deleting a list, naming it', async () => {
+      const calls: string[] = [];
+      server.use(
+        http.get('/api/v1/shopping-lists', () => HttpResponse.json([MOCK_LIST])),
+        http.get('/api/v1/shopping-lists/:id', () => HttpResponse.json(MOCK_LIST)),
+        http.delete('/api/v1/shopping-lists/:id', ({ params }) => {
+          calls.push(params.id as string);
+          return new HttpResponse(null, { status: 204 });
+        }),
+      );
+
+      await openList();
+      // The list panel's Delete, not a store's.
+      await userEvent.click(screen.getAllByRole('button', { name: 'Delete' })[0]);
+
+      const dialog = await screen.findByRole('dialog', { name: 'Delete this list?' });
+      expect(within(dialog).getByText(/Weekly Groceries/)).toBeInTheDocument();
+      // Items go with it, which the button alone does not say.
+      expect(within(dialog).getByText(/all of its items/i)).toBeInTheDocument();
+      expect(calls).toHaveLength(0);
+
+      await userEvent.click(within(dialog).getByRole('button', { name: 'Delete' }));
+      await waitFor(() => expect(calls).toEqual(['list-1']), { timeout: 3000 });
+    });
+
+    it('cancelling leaves the list alone', async () => {
+      const calls: string[] = [];
+      server.use(
+        http.get('/api/v1/shopping-lists', () => HttpResponse.json([MOCK_LIST])),
+        http.get('/api/v1/shopping-lists/:id', () => HttpResponse.json(MOCK_LIST)),
+        http.delete('/api/v1/shopping-lists/:id', ({ params }) => {
+          calls.push(params.id as string);
+          return new HttpResponse(null, { status: 204 });
+        }),
+      );
+
+      await openList();
+      await userEvent.click(screen.getAllByRole('button', { name: 'Delete' })[0]);
+
+      const dialog = await screen.findByRole('dialog', { name: 'Delete this list?' });
+      await userEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+
+      await waitFor(() =>
+        expect(screen.queryByRole('dialog', { name: 'Delete this list?' })).not.toBeInTheDocument(),
+      );
+      expect(calls).toHaveLength(0);
+      // The name shows in both the sidebar card and the detail header.
+      expect(screen.getAllByText('Weekly Groceries').length).toBeGreaterThan(0);
+      expect(screen.getByText('Milk')).toBeInTheDocument();
+    });
+
+    it('confirms before deleting a store, and cancelling fires nothing', async () => {
+      const calls: string[] = [];
+      server.use(
+        http.get('/api/v1/stores', () => HttpResponse.json([MOCK_STORE])),
+        http.delete('/api/v1/stores/:id', ({ params }) => {
+          calls.push(params.id as string);
+          return new HttpResponse(null, { status: 204 });
+        }),
+      );
+
+      renderWithProviders(<ShoppingPage />);
+      await waitFor(() => screen.getByText('Silpo'), { timeout: 3000 });
+      await userEvent.click(screen.getByRole('button', { name: 'Delete' }));
+
+      const dialog = await screen.findByRole('dialog', { name: 'Delete this store?' });
+      expect(within(dialog).getByText(/Silpo/)).toBeInTheDocument();
+      await userEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+
+      await waitFor(() =>
+        expect(screen.queryByRole('dialog', { name: 'Delete this store?' })).not.toBeInTheDocument(),
+      );
+      expect(calls).toHaveLength(0);
+      expect(screen.getByText('Silpo')).toBeInTheDocument();
     });
   });
 

@@ -1,4 +1,4 @@
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { renderWithProviders } from './wrapper';
@@ -246,7 +246,81 @@ describe('TransactionsPage', () => {
     });
   });
 
-  it('deletes a transaction on ✕ click', async () => {
+  // #327: the row's ✕ used to call the mutation directly — one mis-click
+  // destroyed a financial record and silently rewrote the account balance,
+  // with the ✕ sitting next to the edit pencil in a compact row.
+  describe('delete confirmation (#327)', () => {
+    const withDeleteSpy = () => {
+      const calls: string[] = [];
+      server.use(
+        http.get('/api/v1/transactions', () => HttpResponse.json([MOCK_TRANSACTION])),
+        http.delete('/api/v1/transactions/:id', ({ params }) => {
+          calls.push(params.id as string);
+          return new HttpResponse(null, { status: 204 });
+        }),
+      );
+      return calls;
+    };
+
+    it('fires no request until the user confirms', async () => {
+      const calls = withDeleteSpy();
+
+      renderWithProviders(<TransactionsPage />);
+      await waitFor(() => screen.getByText('Salary'), { timeout: 3000 });
+      await userEvent.click(screen.getByText('✕'));
+
+      await screen.findByRole('dialog', { name: 'Delete this transaction?' });
+      expect(calls).toHaveLength(0);
+    });
+
+    it('names the record so the user can check it before destroying it', async () => {
+      withDeleteSpy();
+      renderWithProviders(<TransactionsPage />);
+      await waitFor(() => screen.getByText('Salary'), { timeout: 3000 });
+      await userEvent.click(screen.getByText('✕'));
+
+      const dialog = await screen.findByRole('dialog', { name: 'Delete this transaction?' });
+      // Amount, account, date and description are what tell one grocery
+      // expense from another; "are you sure?" alone gets clicked through.
+      expect(within(dialog).getByText('Income')).toBeInTheDocument();
+      expect(within(dialog).getByText(/5[,\s]?000/)).toBeInTheDocument();
+      expect(within(dialog).getByText('Mono Card')).toBeInTheDocument();
+      expect(within(dialog).getByText('Salary')).toBeInTheDocument();
+    });
+
+    it('cancelling leaves the transaction alone', async () => {
+      const calls = withDeleteSpy();
+
+      renderWithProviders(<TransactionsPage />);
+      await waitFor(() => screen.getByText('Salary'), { timeout: 3000 });
+      await userEvent.click(screen.getByText('✕'));
+
+      const dialog = await screen.findByRole('dialog', { name: 'Delete this transaction?' });
+      await userEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+
+      await waitFor(() =>
+        expect(
+          screen.queryByRole('dialog', { name: 'Delete this transaction?' }),
+        ).not.toBeInTheDocument(),
+      );
+      expect(calls).toHaveLength(0);
+      expect(screen.getByText('Salary')).toBeInTheDocument();
+    });
+
+    it('does not mention transfer legs for a plain transaction', async () => {
+      withDeleteSpy();
+      renderWithProviders(<TransactionsPage />);
+      await waitFor(() => screen.getByText('Salary'), { timeout: 3000 });
+      await userEvent.click(screen.getByText('✕'));
+
+      const dialog = await screen.findByRole('dialog', { name: 'Delete this transaction?' });
+      expect(
+        within(dialog).queryByText(/both sides are reversed/i),
+      ).not.toBeInTheDocument();
+    });
+  });
+
+  it('deletes a transaction after confirming (#327)', async () => {
     let deleted = false;
     server.use(
       http.get('/api/v1/transactions', () => HttpResponse.json(deleted ? [] : [MOCK_TRANSACTION])),
@@ -259,6 +333,12 @@ describe('TransactionsPage', () => {
     renderWithProviders(<TransactionsPage />);
     await waitFor(() => screen.getByText('Salary'), { timeout: 3000 });
     await userEvent.click(screen.getByText('✕'));
+
+    // The ✕ opens a confirmation now; it no longer deletes on its own.
+    await waitFor(() =>
+      expect(screen.getByRole('dialog', { name: 'Delete this transaction?' })).toBeInTheDocument(),
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Delete' }));
 
     await waitFor(() => expect(screen.queryByText('Salary')).not.toBeInTheDocument(), { timeout: 3000 });
   });
@@ -536,6 +616,14 @@ describe('TransactionsPage', () => {
     renderWithProviders(<TransactionsPage />);
     await waitFor(() => screen.getByText('Rent transfer'), { timeout: 3000 });
     await userEvent.click(screen.getByText('✕'));
+
+    const dialog = await screen.findByRole('dialog', { name: 'Delete this transaction?' });
+    // A collapsed transfer row does not make it obvious that one delete takes
+    // both legs, so the dialog has to say so (#327).
+    expect(
+      within(dialog).getByText(/both sides are reversed and both records are removed/i),
+    ).toBeInTheDocument();
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Delete' }));
 
     // Row disappears after refetch (accounts + transactions invalidated together).
     await waitFor(() => expect(screen.queryByText('Rent transfer')).not.toBeInTheDocument(), { timeout: 3000 });

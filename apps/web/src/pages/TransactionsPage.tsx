@@ -10,6 +10,7 @@ import { TxFilters } from '../components/transactions/TxFilters';
 import { CreateTxModal } from '../components/transactions/CreateTxModal';
 import { EditTxModal } from '../components/transactions/EditTxModal';
 import { TransferModal } from '../components/transactions/TransferModal';
+import { DeleteTxConfirm } from '../components/transactions/DeleteTxConfirm';
 import { useTransactions } from '../hooks/useTransactions';
 import { useTransactionFilters } from '../hooks/useTransactionFilters';
 import { useAccounts } from '../hooks/useAccounts';
@@ -29,12 +30,15 @@ export function TransactionsPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [showTransfer, setShowTransfer] = useState(false);
   const [editTx, setEditTx] = useState<Transaction | null>(null);
+  // #327: the row's ✕ opens this instead of firing the mutation.
+  const [confirmDelete, setConfirmDelete] = useState<Transaction | null>(null);
 
   const remove = useMutation({
     mutationFn: (id: string) => financeApi.deleteTransaction(id, hid),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['transactions', hid] });
       qc.invalidateQueries({ queryKey: ['accounts', hid] });
+      setConfirmDelete(null);
     },
   });
 
@@ -95,7 +99,7 @@ export function TransactionsPage() {
                   : null
               }
               categoryName={tx.categoryId ? (categoryMap[tx.categoryId]?.name ?? null) : null}
-              onDelete={() => remove.mutate(tx.id)}
+              onDelete={() => setConfirmDelete(tx)}
               onEdit={() => setEditTx(tx)}
               onDescriptionSave={(desc) =>
                 updateTx.mutate({ id: tx.id, data: { description: desc || undefined } })
@@ -119,6 +123,21 @@ export function TransactionsPage() {
           onCreated={() => { invalidateAll(); setShowTransfer(false); }}
         />
       )}
+      {confirmDelete && (
+        <DeleteTxConfirm
+          tx={confirmDelete}
+          accountName={accountMap[confirmDelete.accountId]?.name ?? confirmDelete.accountId}
+          counterAccountName={
+            confirmDelete.counterAccountId
+              ? (accountMap[confirmDelete.counterAccountId]?.name ?? confirmDelete.counterAccountId)
+              : null
+          }
+          deleting={remove.isPending}
+          onCancel={() => setConfirmDelete(null)}
+          onConfirm={() => remove.mutate(confirmDelete.id)}
+        />
+      )}
+
       {editTx && (
         <EditTxModal
           tx={editTx} hid={hid} categories={categories}
