@@ -87,6 +87,20 @@ echo "→ Docker: rebuilding ${targets[*]} (changed files trigger auto-rebuild)"
 # service must not skip rebuilding the rest.
 failed=()
 for svc in "${targets[@]}"; do
+  # Retag the running image before it is overwritten (#318). `docker compose
+  # build` writes household/<svc>:latest in place, leaving the old image
+  # dangling and unnamed — nothing to roll back TO by tag. A tag costs no
+  # disk (it is a second name for the same layers, not a copy) but it does
+  # keep those layers out of `docker image prune`, which is the entire point:
+  # scripts/rollback.sh restores :previous without a rebuild.
+  #
+  # Done unconditionally rather than only under REBUILD_STRICT, so a rollback
+  # can be rehearsed locally against the same tags production uses. If the
+  # build below fails, :previous simply equals the still-running :latest and
+  # a rollback is a no-op — the safe direction to be wrong in.
+  if docker image inspect "household/$svc:latest" >/dev/null 2>&1; then
+    docker image tag "household/$svc:latest" "household/$svc:previous" 2>/dev/null || true
+  fi
   if ! docker compose build "$svc" 1>&2 || ! docker compose up -d "$svc" 1>&2; then
     failed+=("$svc")
   fi
