@@ -378,7 +378,8 @@
     "actions": {
       "archive": "Archivar",
       "unarchive": "Restaurar",
-      "deletePermanent": "Eliminar permanentemente"
+      "deletePermanent": "Eliminar permanentemente",
+      "edit": "Editar"
     },
     "confirm": {
       "archiveTitle": "¿Archivar categoría?",
@@ -402,7 +403,15 @@
         "close": "Cerrar"
       },
       "reassignSoonHint": "Reasignar / fusionar estará disponible en una próxima versión."
-    }
+    },
+    "new": "+ Nueva categoría",
+    "newTitle": "Nueva categoría",
+    "editTitle": "Editar categoría",
+    "namePlaceholder": "Comestibles",
+    "icon": "Icono",
+    "parent": "Categoría principal",
+    "noParent": "Sin categoría principal (nivel superior)",
+    "seededHint": "Se creó un conjunto inicial con este hogar. Renómbralas, archívalas o añade las tuyas."
   },
   "invites": {
     "title": "Invitaciones",

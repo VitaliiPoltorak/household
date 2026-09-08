@@ -378,7 +378,8 @@
     "actions": {
       "archive": "Archive",
       "unarchive": "Restore",
-      "deletePermanent": "Delete permanently"
+      "deletePermanent": "Delete permanently",
+      "edit": "Edit"
     },
     "confirm": {
       "archiveTitle": "Archive category?",
@@ -402,7 +403,15 @@
         "close": "Close"
       },
       "reassignSoonHint": "Reassign / merge is coming in a future release."
-    }
+    },
+    "new": "+ New category",
+    "newTitle": "New category",
+    "editTitle": "Edit category",
+    "namePlaceholder": "Groceries",
+    "icon": "Icon",
+    "parent": "Parent category",
+    "noParent": "No parent (top level)",
+    "seededHint": "A starter set was created with this home. Rename, archive or add your own."
   },
   "invites": {
     "title": "Invites",

@@ -980,6 +980,44 @@
       "name": "Finance — Categories",
       "item": [
         {
+          "name": "Household starts with default categories",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const cats = pm.response.json();",
+                  "// #325: a brand-new household used to have none, and no way to make any.",
+                  "pm.test('Seeded, not empty', () => pm.expect(cats.length).to.be.above(0));",
+                  "const types = new Set(cats.map(c => c.type));",
+                  "// Both directions, or half the reports stay empty for a new household.",
+                  "pm.test('Covers income and expense', () => {",
+                  "  pm.expect(types.has('expense')).to.be.true;",
+                  "  pm.expect(types.has('income')).to.be.true;",
+                  "});",
+                  "pm.test('All active', () => pm.expect(cats.every(c => !c.isArchived)).to.be.true);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Household-Id",
+                "value": "{{householdId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/categories"
+          }
+        },
+        {
           "name": "Create expense category",
           "event": [
             {
@@ -1093,6 +1131,157 @@
                   "value": "expense"
                 }
               ]
+            }
+          }
+        },
+        {
+          "name": "Reject a duplicate category name",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Same name as 'Create expense category' above, different casing.",
+                  "pm.test('Status 409', () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Household-Id",
+                "value": "{{householdId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/categories",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"food {{runId}}\",\n  \"type\": \"expense\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Allow the same name for the other type",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// 'Gifts' as both income and expense are different things.",
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Household-Id",
+                "value": "{{householdId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/categories",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Food {{runId}}\",\n  \"type\": \"income\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Reject a parent of the wrong type",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Household-Id",
+                "value": "{{householdId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/categories",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Mismatched {{runId}}\",\n  \"type\": \"income\",\n  \"parentId\": \"{{categoryId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Rename a category",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Name updated', () => pm.expect(pm.response.json().name).to.include('Food and drink'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Household-Id",
+                "value": "{{householdId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/categories/{{categoryId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Food and drink {{runId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             }
           }
         }
@@ -1675,6 +1864,45 @@
               }
             ],
             "url": "{{baseUrl}}/accounts/{{odAccountId}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Finance — Reports",
+      "description": "Closes the loop on #325: categories exist, transactions carry them, and the by-category report is therefore non-empty. Before that fix the report was permanently empty for every household because no category could be created.",
+      "item": [
+        {
+          "name": "By-category report reflects categorised spend",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const rows = pm.response.json();",
+                  "pm.test('Not empty', () => pm.expect(rows.length).to.be.above(0));",
+                  "const ours = rows.find(r => r.categoryId === pm.environment.get('categoryId'));",
+                  "pm.test('Includes the category the expense was filed under', () => pm.expect(ours).to.not.be.undefined);",
+                  "pm.test('Totals the expense', () => pm.expect(Number(ours.total)).to.be.above(0));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Household-Id",
+                "value": "{{householdId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/reports/by-category?from={{todayDate}}&to={{todayDate}}&type=expense"
           }
         }
       ]

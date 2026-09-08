@@ -5,6 +5,7 @@ import { financeApi } from '../api/finance';
 import { useHousehold } from '../contexts/HouseholdContext';
 import { Button } from '../components/ui/Button';
 import { PermanentDeleteModal } from '../components/categories/PermanentDeleteModal';
+import { CategoryFormModal } from '../components/categories/CategoryFormModal';
 import type { Category } from '../types/api';
 
 const EMPTY: Category[] = [];
@@ -18,6 +19,8 @@ export function CategoriesPage() {
   const [confirmArchive, setConfirmArchive] = useState<Category | null>(null);
   const [permanentTarget, setPermanentTarget] = useState<Category | null>(null);
   const [showArchived, setShowArchived] = useState(false);
+  // null = closed, 'new' = creating, Category = editing that one.
+  const [formTarget, setFormTarget] = useState<Category | 'new' | null>(null);
 
   // Single request fetches everything; toggle only controls what we render.
   // Keeps invalidation trivial and avoids two parallel queries drifting.
@@ -63,7 +66,12 @@ export function CategoriesPage() {
 
   return (
     <div className="max-w-3xl space-y-8">
-      <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{t('categoryMgmt.title')}</h1>
+      <div className="flex items-center justify-between gap-4">
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{t('categoryMgmt.title')}</h1>
+        <Button size="sm" onClick={() => setFormTarget('new')}>
+          {t('categoryMgmt.new')}
+        </Button>
+      </div>
 
       {isLoading ? (
         <div className="text-sm text-gray-500 dark:text-gray-400">{t('common.loading')}</div>
@@ -74,6 +82,8 @@ export function CategoriesPage() {
             expense={activeByType.expense}
             income={activeByType.income}
             onArchive={(cat) => setConfirmArchive(cat)}
+            onEdit={(cat) => setFormTarget(cat)}
+            onCreate={() => setFormTarget('new')}
             emptyLabel={t('categoryMgmt.empty.active')}
           />
 
@@ -100,6 +110,18 @@ export function CategoriesPage() {
         />
       )}
 
+      {formTarget && (
+        <CategoryFormModal
+          hid={hid}
+          category={formTarget === 'new' ? undefined : formTarget}
+          // Sub-categories cannot themselves be parents; the modal filters by
+          // type, this passes the whole active set.
+          parents={active}
+          onClose={() => setFormTarget(null)}
+          onSaved={() => setFormTarget(null)}
+        />
+      )}
+
       {permanentTarget && (
         <PermanentDeleteModal
           category={permanentTarget}
@@ -115,12 +137,14 @@ export function CategoriesPage() {
 // Sections
 // ────────────────────────────────────────────────
 function ActiveSection({
-  title, expense, income, onArchive, emptyLabel,
+  title, expense, income, onArchive, onEdit, onCreate, emptyLabel,
 }: {
   title: string;
   expense: Category[];
   income: Category[];
   onArchive: (cat: Category) => void;
+  onEdit: (cat: Category) => void;
+  onCreate: () => void;
   emptyLabel: string;
 }) {
   const { t } = useTranslation();
@@ -133,16 +157,21 @@ function ActiveSection({
       </h2>
 
       {total === 0 ? (
-        <div className="rounded-xl border border-dashed border-gray-200 px-4 py-8 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
-          {emptyLabel}
+        <div className="rounded-xl border border-dashed border-gray-200 px-4 py-8 text-center dark:border-gray-700">
+          <p className="text-sm text-gray-500 dark:text-gray-400">{emptyLabel}</p>
+          {/* The empty state is where a user actually stands when they need
+              this, so the way out belongs here and not only in the header. */}
+          <Button size="sm" className="mt-3" onClick={onCreate}>
+            {t('categoryMgmt.new')}
+          </Button>
         </div>
       ) : (
         <div className="space-y-4">
           {expense.length > 0 && (
-            <TypeGroup label={t('categories.expense')} items={expense} onArchive={onArchive} />
+            <TypeGroup label={t('categories.expense')} items={expense} onArchive={onArchive} onEdit={onEdit} />
           )}
           {income.length > 0 && (
-            <TypeGroup label={t('categories.income')} items={income} onArchive={onArchive} />
+            <TypeGroup label={t('categories.income')} items={income} onArchive={onArchive} onEdit={onEdit} />
           )}
         </div>
       )}
@@ -151,11 +180,12 @@ function ActiveSection({
 }
 
 function TypeGroup({
-  label, items, onArchive,
+  label, items, onArchive, onEdit,
 }: {
   label: string;
   items: Category[];
   onArchive: (cat: Category) => void;
+  onEdit: (cat: Category) => void;
 }) {
   const { t } = useTranslation();
   return (
@@ -169,6 +199,9 @@ function TypeGroup({
               <span className="text-sm text-gray-900 dark:text-gray-100">{cat.name}</span>
             </div>
             <div className="flex items-center gap-2">
+              <Button size="sm" variant="ghost" onClick={() => onEdit(cat)}>
+                {t('categoryMgmt.actions.edit')}
+              </Button>
               <Button size="sm" variant="ghost" onClick={() => onArchive(cat)}>
                 {t('categoryMgmt.actions.archive')}
               </Button>

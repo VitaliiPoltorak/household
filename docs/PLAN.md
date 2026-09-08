@@ -790,6 +790,22 @@ Finance Service → Kafka: finance.transaction.created
       first expense would be refused.
     ✔ Transactions CRUD + transfer (paired) + reverse-delta on delete
     ✔ Categories (archive/impact/permanent-delete flow), income sources
+    ✔ Categories are reachable (#325) — three things had combined into a closed loop: nothing in
+      the UI could create a category, `household.created` seeded none, and the transaction dialogs
+      hid the category selector precisely because the list was empty. So categorisation, the
+      by-category report, the `categoryId` column and the whole archive/impact machinery were built
+      and unusable for every household. Fixed on all three fronts: `household.created` now seeds a
+      starter set alongside currencies and account types; the Categories screen has create/edit;
+      and the selector is always rendered, with a "+ New category" option that creates one without
+      leaving the transaction dialog. Seeded names are English — `household.created` carries only a
+      householdId, so the creator's locale is not knowable at seed time, and renaming is one click.
+      Idempotency comes from a new unique index on (household_id, type, lower(name)) for
+      non-archived rows, which `.orIgnore()` conflicts against — without it an at-least-once
+      redelivery would hand the household a second full set. The same index stops a user creating
+      two "Groceries" now that creation is reachable. `parentId` is validated against the household
+      (it was written straight through from the DTO — an IDOR that only became reachable once the
+      UI could create categories), and rejected when the parent is a different type, already a
+      sub-category, or the category itself.
     ✔ Recurring payments with cron scheduler
     ✔ Kafka: finance.transaction.created + household.deleted consumer
 
