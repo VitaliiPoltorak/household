@@ -188,7 +188,11 @@
       "unavailable": "Курси недоступні",
       "unavailableDesc": "Не вдалося отримати курси ПриватБанку. Оцінковий підсумок приховано, щоб не показувати неправильну суму.",
       "cached": "з кешу"
-    }
+    },
+    "initialBalance": "Початковий баланс",
+    "initialBalanceHint": "Скільки вже є на цьому рахунку. Залиште порожнім, щоб почати з нуля.",
+    "allowNegative": "Дозволити від’ємний баланс",
+    "allowNegativeHint": "Для кредитної картки або узгодженого овердрафту. Якщо вимкнено, платіж більший за баланс буде відхилено."
   },
   "transactions": {
     "title": "Транзакції",
@@ -228,7 +232,8 @@
     "transferRecalcTitle": "Перерахувати за поточним курсом",
     "transferEffectiveRate": "1 {{from}} ≈ {{rate}} {{to}}",
     "transferYourRate": "ваш курс: {{rate}}",
-    "transferRateUnavailable": "Курси недоступні — введіть обидві суми вручну"
+    "transferRateUnavailable": "Курси недоступні — введіть обидві суми вручну",
+    "insufficientFunds": "Недостатньо коштів на рахунку — на ньому {{available}} {{currency}}."
   },
   "categories": {
     "title": "Категорії",

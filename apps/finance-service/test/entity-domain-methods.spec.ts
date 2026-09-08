@@ -24,10 +24,11 @@ function makeTx(overrides: Partial<Transaction> = {}): Transaction {
   return tx;
 }
 
-function makeAccount(balance: number): Account {
+function makeAccount(balance: number, allowsNegativeBalance = false): Account {
   const acc = new Account();
   // pg driver returns decimal columns as strings; simulate that.
   acc.balance = String(balance) as unknown as number;
+  acc.allowsNegativeBalance = allowsNegativeBalance;
   return acc;
 }
 
@@ -128,5 +129,25 @@ describe('Account.canWithdraw', () => {
     acc.balance = '123.45' as unknown as number;
     expect(acc.canWithdraw(100)).toBe(true);
     expect(acc.canWithdraw(200)).toBe(false);
+  });
+
+  // #326: the allowance is what makes a credit card or an arranged overdraft
+  // expressible. Without it the guard would be a blanket "never below zero",
+  // which is wrong for those accounts.
+  it('true regardless of balance when the account allows a negative balance', () => {
+    expect(makeAccount(50, true).canWithdraw(100)).toBe(true);
+    expect(makeAccount(0, true).canWithdraw(1_000_000)).toBe(true);
+  });
+
+  it('an already-negative account still refuses a withdrawal when not allowed', () => {
+    expect(makeAccount(-20).canWithdraw(1)).toBe(false);
+  });
+
+  // The predicate is duplicated as SQL in AccountsService.adjustBalance
+  // (`allows_negative_balance = true OR balance >= :amount`). These cases pin
+  // the boundary both sides must agree on.
+  it('a zero-balance account can withdraw nothing but zero', () => {
+    expect(makeAccount(0).canWithdraw(0)).toBe(true);
+    expect(makeAccount(0).canWithdraw(0.01)).toBe(false);
   });
 });

@@ -41,6 +41,77 @@ describe('Accounts (integration)', () => {
       expect(res.body.householdId).toBe(H);
     });
 
+    // #326: without an opening balance every account necessarily starts at 0,
+    // and the withdrawal guard would refuse the user's first expense on it.
+    it('accepts an opening balance and starts the account there', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/accounts')
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
+        .send({ name: 'Cash Wallet', type: 'cash', currency: 'UAH', initialBalance: 1500.5 })
+        .expect(201);
+
+      expect(Number(res.body.balance)).toBe(1500.5);
+    });
+
+    it('records no transaction for the opening balance', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/accounts')
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
+        .send({ name: 'Cash Wallet', type: 'cash', currency: 'UAH', initialBalance: 900 })
+        .expect(201);
+
+      // An opening balance is the account's starting state, not something that
+      // happened to it — booking it as a transaction would show up as income
+      // in every report.
+      const txs = await request(app.getHttpServer())
+        .get('/transactions')
+        .query({ accountId: res.body.id })
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H);
+      expect(txs.body).toHaveLength(0);
+    });
+
+    it('accepts a negative opening balance for an account added already in the red', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/accounts')
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
+        .send({
+          name: 'Credit Card',
+          type: 'bank',
+          currency: 'UAH',
+          initialBalance: -500,
+          allowsNegativeBalance: true,
+        })
+        .expect(201);
+
+      expect(Number(res.body.balance)).toBe(-500);
+      expect(res.body.allowsNegativeBalance).toBe(true);
+    });
+
+    it('defaults the opening balance and the overdraft allowance when omitted', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/accounts')
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
+        .send({ name: 'Plain', type: 'bank', currency: 'UAH' })
+        .expect(201);
+
+      expect(Number(res.body.balance)).toBe(0);
+      expect(res.body.allowsNegativeBalance).toBe(false);
+    });
+
+    it('rejects a non-numeric opening balance', async () => {
+      await request(app.getHttpServer())
+        .post('/accounts')
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
+        .send({ name: 'Bad', type: 'bank', currency: 'UAH', initialBalance: 'lots' })
+        .expect(400);
+    });
+
     it('emits finance.account.created to Kafka', async () => {
       await request(app.getHttpServer())
         .post('/accounts')

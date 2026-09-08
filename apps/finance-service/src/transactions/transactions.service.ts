@@ -406,11 +406,17 @@ export class TransactionsService {
           transferDirection: null,
         }),
       );
+      // Unguarded (#326). An adjustment is the user stating what the balance
+      // actually IS, not spending money — it is the escape hatch for
+      // reconciling against a real statement, including one that is genuinely
+      // overdrawn. Guarding it would leave an account whose real balance went
+      // negative with no way to record the truth.
       await this.balances.apply(
         accountId,
         TransactionType.ADJUSTMENT,
         delta,
         manager,
+        { allowOverdraft: true },
       );
       return saved;
     });

@@ -23,7 +23,15 @@ export const financeApi = {
 
   createAccount: (
     hid: string,
-    data: { name: string; type: string; currency?: string },
+    data: {
+      name: string;
+      type: string;
+      currency?: string;
+      // Both optional and both default to the strict/empty case server-side
+      // (#326): no opening balance, no overdraft allowance.
+      initialBalance?: number;
+      allowsNegativeBalance?: boolean;
+    },
   ) => api.post<Account>('/accounts', data, cfg(hid)),
 
   updateAccount: (id: string, hid: string, data: object) =>

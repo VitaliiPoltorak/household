@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { financeApi } from '../../api/finance';
+import { asInsufficientFunds } from '../../lib/finance-errors';
 import type { Account, Category, TransactionType } from '../../types/api';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
@@ -30,6 +31,9 @@ export function CreateTxModal({ hid, accounts, categories, onClose, onCreated }:
   const [date, setDate] = useState(today());
   const [categoryId, setCategoryId] = useState('');
   const [saving, setSaving] = useState(false);
+  // Rendered against the amount field, which is where the mistake was made.
+  const [amountError, setAmountError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const filteredCategories = categories.filter((c) => c.type === type);
   const canSubmit = !!type && !!amount && parseFloat(amount) > 0;
@@ -38,6 +42,8 @@ export function CreateTxModal({ hid, accounts, categories, onClose, onCreated }:
     e.preventDefault();
     if (!canSubmit || !type) return;
     setSaving(true);
+    setAmountError(null);
+    setError(null);
     try {
       await financeApi.createTransaction(hid, {
         accountId,
@@ -49,6 +55,22 @@ export function CreateTxModal({ hid, accounts, categories, onClose, onCreated }:
         categoryId: categoryId || undefined,
       });
       onCreated();
+    } catch (err) {
+      // The withdrawal guard (#326) is the one failure the user can act on
+      // directly, so it lands on the amount field with the balance spelled
+      // out. Everything else keeps the generic banner — previously this
+      // handler had no catch at all and a failed create looked like a no-op.
+      const funds = asInsufficientFunds(err);
+      if (funds) {
+        setAmountError(
+          t('transactions.insufficientFunds', {
+            available: funds.available,
+            currency: funds.currency,
+          }),
+        );
+      } else {
+        setError(err instanceof Error ? err.message : String(err));
+      }
     } finally {
       setSaving(false);
     }
@@ -80,7 +102,10 @@ export function CreateTxModal({ hid, accounts, categories, onClose, onCreated }:
         </Select>
 
         <Input label={t('transactions.amount')} type="number" step="0.01" min="0.01"
-          value={amount} onChange={(e) => setAmount(e.target.value)} required placeholder="0.00" />
+          value={amount}
+          onChange={(e) => { setAmount(e.target.value); setAmountError(null); }}
+          error={amountError ?? undefined}
+          required placeholder="0.00" />
 
         <Input label={t('transactions.date')} type="date" value={date}
           onChange={(e) => setDate(e.target.value)} required />
@@ -100,6 +125,12 @@ export function CreateTxModal({ hid, accounts, categories, onClose, onCreated }:
             <option value="">{t('transactions.noCategory')}</option>
             {filteredCategories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </Select>
+        )}
+
+        {error && (
+          <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600 dark:bg-red-900/30 dark:text-red-300">
+            {error}
+          </p>
         )}
 
         <div className="flex gap-2 pt-2">

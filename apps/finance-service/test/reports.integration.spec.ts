@@ -23,8 +23,10 @@ describe('Reports (integration)', () => {
   beforeEach(async () => {
     await cleanDatabase(app);
     resetKafkaMocks();
-    // Create account
-    const acct = await post(app, '/accounts', { name: 'Bank', type: 'bank', currency: 'UAH' });
+    // Create account. allowsNegativeBalance because these fixtures post
+    // expenses without funding the account first, which #326 now refuses;
+    // the guard has its own spec (overdraft.integration.spec.ts).
+    const acct = await post(app, '/accounts', { name: 'Bank', type: 'bank', currency: 'UAH', allowsNegativeBalance: true });
     accountId = acct.body.id;
     // Create categories
     cat1Id = (await post(app, '/categories', { name: 'Food', type: 'expense' })).body.id;
@@ -79,7 +81,7 @@ describe('Reports (integration)', () => {
     // in multiple currencies must not see 100 UAH + 100 USD summed to 200.
     // Each currency gets its own bucket; the client converts.
     it('splits income and expense per currency for multi-currency households', async () => {
-      const usdAcct = await post(app, '/accounts', { name: 'USD Savings', type: 'bank', currency: 'USD' });
+      const usdAcct = await post(app, '/accounts', { name: 'USD Savings', type: 'bank', currency: 'USD', allowsNegativeBalance: true });
       // Distinct dates for each leg so byDay produces 4 (date, currency) rows.
       await post(app, '/transactions', { accountId, type: 'income', amount: 5000, currency: 'UAH', date: '2026-07-10' });
       await post(app, '/transactions', { accountId, type: 'expense', amount: 800, currency: 'UAH', date: '2026-07-11' });
@@ -131,7 +133,7 @@ describe('Reports (integration)', () => {
     // #175 — a category used across accounts of two currencies must return
     // two rows so the client can either display them separately or convert.
     it('splits per (category, currency) for cross-currency spend', async () => {
-      const usdAcct = await post(app, '/accounts', { name: 'USD Card', type: 'bank', currency: 'USD' });
+      const usdAcct = await post(app, '/accounts', { name: 'USD Card', type: 'bank', currency: 'USD', allowsNegativeBalance: true });
       await post(app, '/transactions', {
         accountId, type: 'expense', amount: 300, currency: 'UAH', date: '2026-07-05', categoryId: cat1Id,
       });
@@ -187,7 +189,7 @@ describe('Reports (integration)', () => {
 
   describe('GET /reports/net-worth', () => {
     it('sums balances across all accounts', async () => {
-      const acct2 = await post(app, '/accounts', { name: 'Cash', type: 'cash', currency: 'UAH' });
+      const acct2 = await post(app, '/accounts', { name: 'Cash', type: 'cash', currency: 'UAH', allowsNegativeBalance: true });
       await post(app, '/transactions', { accountId, type: 'income', amount: 3000, currency: 'UAH', date: '2026-07-01' });
       await post(app, '/transactions', { accountId: acct2.body.id, type: 'income', amount: 500, currency: 'UAH', date: '2026-07-01' });
 
@@ -202,7 +204,7 @@ describe('Reports (integration)', () => {
     });
 
     it('groups by currency', async () => {
-      const usdAcct = await post(app, '/accounts', { name: 'USD Savings', type: 'bank', currency: 'USD' });
+      const usdAcct = await post(app, '/accounts', { name: 'USD Savings', type: 'bank', currency: 'USD', allowsNegativeBalance: true });
       await post(app, '/transactions', { accountId, type: 'income', amount: 1000, currency: 'UAH', date: '2026-07-01' });
       await post(app, '/transactions', { accountId: usdAcct.body.id, type: 'income', amount: 100, currency: 'USD', date: '2026-07-01' });
 

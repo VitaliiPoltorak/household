@@ -64,7 +64,11 @@ describe('Recurring Payments (integration)', () => {
       const res = await request(app.getHttpServer())
         .post('/accounts')
         .set('X-User-Id', U).set('X-Household-Id', H)
-        .send({ name, type: 'bank', currency: 'UAH' });
+        // A recurring payment fires as an expense, and since #326 an expense
+        // that would overdraw the account is refused — which is the intended
+        // production behaviour (see the comment on the scheduler's catch), but
+        // here it would only obscure what these cases are actually testing.
+        .send({ name, type: 'bank', currency: 'UAH', allowsNegativeBalance: true });
       return res.body.id as string;
     }
 

@@ -187,7 +187,11 @@
       "unavailable": "Exchange rates unavailable",
       "unavailableDesc": "PrivatBank rates couldn't be fetched. The estimated total is hidden to avoid showing a wrong number.",
       "cached": "cached"
-    }
+    },
+    "initialBalance": "Opening balance",
+    "initialBalanceHint": "What this account already holds. Leave blank to start at zero.",
+    "allowNegative": "Allow a negative balance",
+    "allowNegativeHint": "For a credit card or an arranged overdraft. When off, a payment larger than the balance is rejected."
   },
   "transactions": {
     "title": "Transactions",
@@ -227,7 +231,8 @@
     "transferRecalcTitle": "Recalculate from live rate",
     "transferEffectiveRate": "1 {{from}} ≈ {{rate}} {{to}}",
     "transferYourRate": "your rate: {{rate}}",
-    "transferRateUnavailable": "Rates unavailable — enter both amounts manually"
+    "transferRateUnavailable": "Rates unavailable — enter both amounts manually",
+    "insufficientFunds": "Not enough in this account — it holds {{available}} {{currency}}."
   },
   "categories": {
     "title": "Categories",

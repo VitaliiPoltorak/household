@@ -117,7 +117,15 @@ export interface Account {
   currency: string;
   balance: number;
   isArchived: boolean;
+  // #326: when false, a withdrawal that would take this account below zero is
+  // rejected with INSUFFICIENT_FUNDS.
+  allowsNegativeBalance: boolean;
 }
+
+// Machine-readable codes finance-service attaches to error bodies, mirroring
+// how AuthErrorCode works. Kept as a union so a new backend code has to be
+// added here before the UI can branch on it.
+export type FinanceErrorCode = 'INSUFFICIENT_FUNDS';
 
 // GET /account-types — household-agnostic catalog entry (#227).
 export interface AccountTypeCatalogEntry {

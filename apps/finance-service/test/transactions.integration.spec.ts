@@ -16,12 +16,13 @@ async function createAccount(
   name: string,
   type = 'bank',
   currency = 'UAH',
+  initialBalance?: number,
 ): Promise<string> {
   const res = await request(app.getHttpServer())
     .post('/accounts')
     .set('X-User-Id', U)
     .set('X-Household-Id', H)
-    .send({ name, type, currency });
+    .send({ name, type, currency, ...(initialBalance !== undefined ? { initialBalance } : {}) });
   return res.body.id as string;
 }
 
@@ -723,7 +724,9 @@ describe('Transactions (integration)', () => {
     });
 
     it('rejects PATCH /transactions/:id that swaps in a foreign category', async () => {
-      const accountId = await createAccount(app, 'Bank');
+      // Funded so the expense below is not refused by the #326 withdrawal
+      // guard before this case gets to the reference check it is about.
+      const accountId = await createAccount(app, 'Bank', 'bank', 'UAH', 1000);
       const tx = await request(app.getHttpServer())
         .post('/transactions')
         .set('X-User-Id', U)

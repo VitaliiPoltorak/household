@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { financeApi } from '../../api/finance';
+import { asInsufficientFunds } from '../../lib/finance-errors';
 import type { Category, Transaction, TransactionType } from '../../types/api';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
@@ -28,12 +29,16 @@ export function EditTxModal({ tx, hid, categories, accountName, onClose, onSaved
   const [date, setDate] = useState(tx.date);
   const [categoryId, setCategoryId] = useState(tx.categoryId ?? '');
   const [saving, setSaving] = useState(false);
+  const [amountError, setAmountError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const filteredCategories = categories.filter((c) => c.type === type);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
+    setAmountError(null);
+    setError(null);
     try {
       await financeApi.updateTransaction(tx.id, hid, {
         ...(isTransfer
@@ -44,6 +49,21 @@ export function EditTxModal({ tx, hid, categories, accountName, onClose, onSaved
         categoryId: categoryId || undefined,
       });
       onSaved();
+    } catch (err) {
+      // Raising an expense past what the account holds is refused server-side
+      // (#326) and is the same mistake as typing it wrong on create, so it
+      // gets the same treatment: on the amount field, with the balance named.
+      const funds = asInsufficientFunds(err);
+      if (funds) {
+        setAmountError(
+          t('transactions.insufficientFunds', {
+            available: funds.available,
+            currency: funds.currency,
+          }),
+        );
+      } else {
+        setError(err instanceof Error ? err.message : String(err));
+      }
     } finally {
       setSaving(false);
     }
@@ -80,7 +100,8 @@ export function EditTxModal({ tx, hid, categories, accountName, onClose, onSaved
           label={t('transactions.amount')}
           type="number" step="0.01" min="0.01"
           value={amount}
-          onChange={(e) => setAmount(e.target.value)}
+          onChange={(e) => { setAmount(e.target.value); setAmountError(null); }}
+          error={amountError ?? undefined}
           disabled={isTransfer}
           required
         />
@@ -103,6 +124,12 @@ export function EditTxModal({ tx, hid, categories, accountName, onClose, onSaved
             <option value="">{t('transactions.noCategory')}</option>
             {filteredCategories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </Select>
+        )}
+
+        {error && (
+          <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600 dark:bg-red-900/30 dark:text-red-300">
+            {error}
+          </p>
         )}
 
         <div className="flex gap-2 pt-2">

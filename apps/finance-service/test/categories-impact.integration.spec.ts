@@ -26,7 +26,7 @@ async function createAccount(app: INestApplication, householdId = H): Promise<st
   const res = await request(app.getHttpServer())
     .post('/accounts')
     .set('X-User-Id', U).set('X-Household-Id', householdId)
-    .send({ name: 'Bank', type: 'bank', currency: 'UAH' });
+    .send({ name: 'Bank', type: 'bank', currency: 'UAH', allowsNegativeBalance: true });
   return res.body.id as string;
 }
 

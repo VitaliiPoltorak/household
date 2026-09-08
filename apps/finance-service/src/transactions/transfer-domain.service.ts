@@ -93,6 +93,10 @@ export class TransferDomainService {
       // the destination account's USD balance gains toAmount USD. Whatever
       // effective rate the user chose is materialised as the ratio of the two
       // amounts on the two legs.
+      // The source leg is a withdrawal and is overdraft-guarded (#326); it
+      // runs FIRST so a refusal rolls the whole pair back before the
+      // destination has been credited. The destination leg is a credit and
+      // needs no guard.
       await this.accountsService.adjustBalance(dto.fromAccountId, -fromAmount, manager);
       await this.accountsService.adjustBalance(dto.toAccountId, toAmount, manager);
 
@@ -198,7 +202,13 @@ export class TransferDomainService {
         // older leg = DEBIT (originally -amount), newer = CREDIT (+amount).
         const applied = leg.getTransferLegSignedAmount()
           ?? (i === 0 ? -Number(leg.amount) : Number(leg.amount));
-        await this.accountsService.adjustBalance(leg.accountId, -applied, manager);
+        // Unguarded (#326): undoing a transfer must always be possible, and
+        // reversing the CREDIT leg necessarily debits the destination — which
+        // can legitimately put it back below zero if it was overdrawn before
+        // the transfer arrived.
+        await this.accountsService.adjustBalance(leg.accountId, -applied, manager, {
+          allowOverdraft: true,
+        });
       }
 
       await txRepo.delete({ transferPairId });

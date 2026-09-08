@@ -43,6 +43,14 @@ export class RecurringPaymentScheduler {
       } catch (err) {
         // One bad payment must not abort the batch. The row keeps its
         // nextDueDate, so tomorrow's cron will retry it naturally.
+        //
+        // Since #326 this also covers INSUFFICIENT_FUNDS: a recurring expense
+        // on an account that cannot cover it no longer overdraws the account,
+        // it fails here and retries daily. That is the intended behaviour —
+        // paying rent out of an empty account on autopilot is precisely the
+        // harm the guard exists to stop — but it does mean a chronically
+        // underfunded payment logs an error every day until the account is
+        // topped up or the account is marked as allowing a negative balance.
         this.logger.error(
           `Failed to fire recurring payment ${payment.id}: ${err instanceof Error ? err.message : String(err)}`,
         );

@@ -118,7 +118,7 @@ describe('Categories (integration)', () => {
       const categoryId = await createCategory(app, 'Groceries');
       const accountRes = await request(app.getHttpServer())
         .post('/accounts').set('X-User-Id', U).set('X-Household-Id', H)
-        .send({ name: 'Bank', type: 'bank', currency: 'UAH' });
+        .send({ name: 'Bank', type: 'bank', currency: 'UAH', allowsNegativeBalance: true });
       await request(app.getHttpServer())
         .post('/transactions').set('X-User-Id', U).set('X-Household-Id', H)
         .send({ accountId: accountRes.body.id, categoryId, type: 'expense', amount: 100, currency: 'UAH', date: '2026-07-30' });
@@ -149,7 +149,7 @@ describe('Categories (integration)', () => {
       const categoryId = await createCategory(app, 'Groceries');
       const accountRes = await request(app.getHttpServer())
         .post('/accounts').set('X-User-Id', U).set('X-Household-Id', H)
-        .send({ name: 'Bank', type: 'bank', currency: 'UAH' });
+        .send({ name: 'Bank', type: 'bank', currency: 'UAH', allowsNegativeBalance: true });
       await request(app.getHttpServer())
         .post('/transactions').set('X-User-Id', U).set('X-Household-Id', H)
         .send({ accountId: accountRes.body.id, categoryId, type: 'expense', amount: 100, currency: 'UAH', date: '2026-07-30' });
@@ -166,7 +166,7 @@ describe('Categories (integration)', () => {
       const categoryId = await createCategory(app, 'Groceries');
       const accountRes = await request(app.getHttpServer())
         .post('/accounts').set('X-User-Id', U).set('X-Household-Id', H)
-        .send({ name: 'Bank', type: 'bank', currency: 'UAH' });
+        .send({ name: 'Bank', type: 'bank', currency: 'UAH', allowsNegativeBalance: true });
       await request(app.getHttpServer())
         .post('/transactions').set('X-User-Id', U).set('X-Household-Id', H)
         .send({ accountId: accountRes.body.id, categoryId, type: 'expense', amount: 100, currency: 'UAH', date: '2026-07-30' });

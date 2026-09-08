@@ -1348,6 +1348,338 @@
       ]
     },
     {
+      "name": "Finance — Overdraft guard",
+      "description": "#326: a withdrawal that would take an account below zero is refused unless the account opts into a negative balance. Uses its own accounts so it cannot disturb the balances the Transactions folder asserts on.",
+      "item": [
+        {
+          "name": "Create a funded cash account",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "const r = pm.response.json();",
+                  "pm.environment.set('odAccountId', r.id);",
+                  "// Opening balance applies directly — no funding transaction needed.",
+                  "pm.test('Opens at the stated balance', () => pm.expect(Number(r.balance)).to.equal(22.65));",
+                  "pm.test('Strict by default', () => pm.expect(r.allowsNegativeBalance).to.equal(false));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Household-Id",
+                "value": "{{householdId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/accounts",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Overdraft Wallet {{runId}}\",\n  \"type\": \"cash\",\n  \"currency\": \"UAH\",\n  \"initialBalance\": 22.65\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Create a transfer destination account",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "pm.environment.set('odTargetId', pm.response.json().id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Household-Id",
+                "value": "{{householdId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/accounts",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Overdraft Target {{runId}}\",\n  \"type\": \"bank\",\n  \"currency\": \"UAH\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Reject an expense larger than the balance",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 409', () => pm.response.to.have.status(409));",
+                  "const r = pm.response.json();",
+                  "pm.test('Typed error code', () => pm.expect(r.code).to.equal('INSUFFICIENT_FUNDS'));",
+                  "// The body has to carry the numbers the UI puts on the amount field.",
+                  "pm.test('Reports what is available', () => pm.expect(Number(r.available)).to.equal(22.65));",
+                  "pm.test('Reports what was requested', () => pm.expect(Number(r.requested)).to.equal(999999));",
+                  "pm.test('Reports the currency', () => pm.expect(r.currency).to.equal('UAH'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Household-Id",
+                "value": "{{householdId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/transactions",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"accountId\": \"{{odAccountId}}\",\n  \"type\": \"expense\",\n  \"amount\": 999999,\n  \"currency\": \"UAH\",\n  \"date\": \"2026-09-02\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Balance is untouched after the refusal",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Balance unchanged', () => pm.expect(Number(pm.response.json().balance)).to.equal(22.65));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Household-Id",
+                "value": "{{householdId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/accounts/{{odAccountId}}"
+          }
+        },
+        {
+          "name": "Reject a transfer the source cannot cover",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 409', () => pm.response.to.have.status(409));",
+                  "pm.test('Typed error code', () => pm.expect(pm.response.json().code).to.equal('INSUFFICIENT_FUNDS'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Household-Id",
+                "value": "{{householdId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/transactions/transfer",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fromAccountId\": \"{{odAccountId}}\",\n  \"toAccountId\": \"{{odTargetId}}\",\n  \"amount\": 999999,\n  \"currency\": \"UAH\",\n  \"date\": \"2026-09-02\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Destination did not receive the refused transfer",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "// Both legs roll back together — a credit without its debit would",
+                  "// invent money out of a failed request.",
+                  "pm.test('Still zero', () => pm.expect(Number(pm.response.json().balance)).to.equal(0));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Household-Id",
+                "value": "{{householdId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/accounts/{{odTargetId}}"
+          }
+        },
+        {
+          "name": "Allow a negative balance on the account",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Allowance is on', () => pm.expect(pm.response.json().allowsNegativeBalance).to.equal(true));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Household-Id",
+                "value": "{{householdId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/accounts/{{odAccountId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"allowsNegativeBalance\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "The same expense now succeeds",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "pm.environment.set('odTxId', pm.response.json().id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Household-Id",
+                "value": "{{householdId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/transactions",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"accountId\": \"{{odAccountId}}\",\n  \"type\": \"expense\",\n  \"amount\": 999999,\n  \"currency\": \"UAH\",\n  \"date\": \"2026-09-02\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Account is now overdrawn",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Went negative as permitted', () => pm.expect(Number(pm.response.json().balance)).to.be.below(0));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Household-Id",
+                "value": "{{householdId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/accounts/{{odAccountId}}"
+          }
+        }
+      ]
+    },
+    {
       "name": "Finance — Recurring Payments",
       "item": [
         {

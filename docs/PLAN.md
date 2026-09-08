@@ -776,7 +776,18 @@ Finance Service → Kafka: finance.transaction.created
     ✔ Kafka: household.member.invited/joined/removed + household.deleted
 
 ✔ Finance Service (without bank)
-    ✔ Accounts CRUD + adjust-balance
+    ✔ Accounts CRUD + adjust-balance + opening balance on create
+    ✔ Withdrawal guard (#326) — an expense, a transfer's source leg, or an edit that raises an
+      outgoing amount is refused when it would take the account below zero, unless the account
+      has `allowsNegativeBalance` set (credit card, arranged overdraft). Enforced as the WHERE
+      clause of the balance-mutating UPDATE, so it cannot race a concurrent withdrawal, and
+      returned as a 409 carrying `code: INSUFFICIENT_FUNDS` plus the available balance, which the
+      web app renders against the amount field. Reversals and corrections — deleting a
+      transaction, undoing a transfer, a manual adjust-balance — are deliberately exempt: the
+      guard exists to stop bad money going out, not to trap records in the ledger or block
+      reconciliation against a genuinely overdrawn statement. `initialBalance` on account
+      creation exists because of this guard: without it every account starts at 0 and the user's
+      first expense would be refused.
     ✔ Transactions CRUD + transfer (paired) + reverse-delta on delete
     ✔ Categories (archive/impact/permanent-delete flow), income sources
     ✔ Recurring payments with cron scheduler
