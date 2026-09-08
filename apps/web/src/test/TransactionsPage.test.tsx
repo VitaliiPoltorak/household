@@ -53,6 +53,108 @@ describe('TransactionsPage', () => {
     await waitFor(() => expect(screen.queryByText('New transaction')).not.toBeInTheDocument(), { timeout: 3000 });
   });
 
+  // #325: the category selector used to be gated on a non-empty list, so a
+  // household with no categories never saw the field — and nothing anywhere in
+  // the product hinted that categories existed.
+  describe('category selector (#325)', () => {
+    const CATEGORIES = [
+      { id: 'c-1', householdId: 'hh-1', name: 'Groceries', type: 'expense', icon: '🛒', parentId: null, isArchived: false },
+      { id: 'c-2', householdId: 'hh-1', name: 'Salary', type: 'income', icon: null, parentId: null, isArchived: false },
+    ];
+
+    const openCreateModal = async () => {
+      renderWithProviders(<TransactionsPage />);
+      await waitFor(() => screen.getByText('+ New'), { timeout: 3000 });
+      await userEvent.click(screen.getByText('+ New'));
+    };
+
+    it('renders the field even when the household has no categories', async () => {
+      server.use(
+        http.get('/api/v1/accounts', () => HttpResponse.json([MOCK_ACCOUNT])),
+        http.get('/api/v1/categories', () => HttpResponse.json([])),
+      );
+      await openCreateModal();
+      await userEvent.selectOptions(screen.getByLabelText('Type'), 'expense');
+
+      expect(screen.getByLabelText(/Category/)).toBeInTheDocument();
+      // And the empty case offers the way out, right where it is noticed.
+      expect(
+        screen.getByRole('option', { name: '+ New category' }),
+      ).toBeInTheDocument();
+    });
+
+    it('offers only categories matching the chosen transaction type', async () => {
+      server.use(
+        http.get('/api/v1/accounts', () => HttpResponse.json([MOCK_ACCOUNT])),
+        http.get('/api/v1/categories', () => HttpResponse.json(CATEGORIES)),
+      );
+      await openCreateModal();
+
+      await userEvent.selectOptions(screen.getByLabelText('Type'), 'expense');
+      expect(screen.getByRole('option', { name: /Groceries/ })).toBeInTheDocument();
+      expect(screen.queryByRole('option', { name: /Salary/ })).not.toBeInTheDocument();
+
+      await userEvent.selectOptions(screen.getByLabelText('Type'), 'income');
+      expect(screen.getByRole('option', { name: /Salary/ })).toBeInTheDocument();
+      expect(screen.queryByRole('option', { name: /Groceries/ })).not.toBeInTheDocument();
+    });
+
+    it('persists the chosen categoryId on the created transaction', async () => {
+      let posted: Record<string, unknown> | null = null;
+      server.use(
+        http.get('/api/v1/accounts', () => HttpResponse.json([MOCK_ACCOUNT])),
+        http.get('/api/v1/categories', () => HttpResponse.json(CATEGORIES)),
+        http.post('/api/v1/transactions', async ({ request }) => {
+          posted = (await request.json()) as Record<string, unknown>;
+          return HttpResponse.json({ ...MOCK_TRANSACTION, id: 'tx-new' });
+        }),
+      );
+      await openCreateModal();
+
+      await userEvent.selectOptions(screen.getByLabelText('Type'), 'expense');
+      await userEvent.type(screen.getByLabelText('Amount'), '25');
+      await userEvent.selectOptions(screen.getByLabelText(/Category/), 'c-1');
+      await userEvent.click(screen.getByRole('button', { name: 'Add' }));
+
+      await waitFor(() => expect(posted).not.toBeNull(), { timeout: 3000 });
+      expect(posted).toMatchObject({ categoryId: 'c-1' });
+    });
+
+    it('creates a category inline and selects it without leaving the dialog', async () => {
+      server.use(
+        http.get('/api/v1/accounts', () => HttpResponse.json([MOCK_ACCOUNT])),
+        http.get('/api/v1/categories', () => HttpResponse.json([])),
+        http.post('/api/v1/categories', () =>
+          HttpResponse.json({
+            id: 'c-new', householdId: 'hh-1', name: 'Transport',
+            type: 'expense', icon: null, parentId: null, isArchived: false,
+          }),
+        ),
+      );
+      await openCreateModal();
+      await userEvent.selectOptions(screen.getByLabelText('Type'), 'expense');
+
+      await userEvent.selectOptions(screen.getByLabelText(/Category/), '__add_category__');
+      await waitFor(() => expect(screen.getByText('New category')).toBeInTheDocument());
+
+      await userEvent.type(screen.getByLabelText('Name'), 'Transport');
+      await userEvent.click(screen.getByRole('button', { name: 'Create' }));
+
+      // Back in the transaction dialog with the new category already chosen —
+      // the user made it in order to use it. The categories GET deliberately
+      // still returns [] here, so this also pins that the selection survives
+      // before the parent's refetch has landed.
+      await waitFor(
+        () => expect(screen.queryByText('New category')).not.toBeInTheDocument(),
+        { timeout: 3000 },
+      );
+      expect(screen.getByText('New transaction')).toBeInTheDocument();
+      await waitFor(() => expect(screen.getByLabelText(/Category/)).toHaveValue('c-new'), {
+        timeout: 3000,
+      });
+    });
+  });
+
   // #326: the guard is server-side, so what the UI owes the user is a clear
   // explanation attached to the field they got wrong — not a silent no-op,
   // which is what these handlers used to produce (no catch at all).

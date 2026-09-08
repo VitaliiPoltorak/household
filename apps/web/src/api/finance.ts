@@ -82,8 +82,26 @@ export const financeApi = {
       },
     }),
 
-  createCategory: (hid: string, data: object) =>
-    api.post<Category>('/categories', data, cfg(hid)),
+  createCategory: (
+    hid: string,
+    data: {
+      name: string;
+      type: 'income' | 'expense';
+      icon?: string | null;
+      parentId?: string | null;
+    },
+  ) => api.post<Category>('/categories', data, cfg(hid)),
+
+  updateCategory: (
+    id: string,
+    hid: string,
+    data: {
+      name?: string;
+      type?: 'income' | 'expense';
+      icon?: string | null;
+      parentId?: string | null;
+    },
+  ) => api.patch<Category>(`/categories/${id}`, data, cfg(hid)),
 
   // Archives the category (backend #111). Response stays 204.
   deleteCategory: (id: string, hid: string) =>

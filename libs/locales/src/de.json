@@ -378,7 +378,8 @@
     "actions": {
       "archive": "Archivieren",
       "unarchive": "Wiederherstellen",
-      "deletePermanent": "Endgültig löschen"
+      "deletePermanent": "Endgültig löschen",
+      "edit": "Bearbeiten"
     },
     "confirm": {
       "archiveTitle": "Kategorie archivieren?",
@@ -402,7 +403,15 @@
         "close": "Schließen"
       },
       "reassignSoonHint": "Neuzuweisen / Zusammenführen kommt in einer späteren Version."
-    }
+    },
+    "new": "+ Neue Kategorie",
+    "newTitle": "Neue Kategorie",
+    "editTitle": "Kategorie bearbeiten",
+    "namePlaceholder": "Lebensmittel",
+    "icon": "Symbol",
+    "parent": "Übergeordnete Kategorie",
+    "noParent": "Keine übergeordnete (oberste Ebene)",
+    "seededHint": "Mit diesem Zuhause wurde ein Startsatz angelegt. Umbenennen, archivieren oder eigene hinzufügen."
   },
   "invites": {
     "title": "Einladungen",

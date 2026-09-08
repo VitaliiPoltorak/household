@@ -6,6 +6,7 @@ import type { Account, Category, TransactionType } from '../../types/api';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { Input, Select } from '../ui/Input';
+import { CategoryField } from '../categories/CategoryField';
 
 const TX_TYPES: readonly Exclude<TransactionType, 'transfer'>[] = ['income', 'expense', 'adjustment'] as const;
 
@@ -35,7 +36,6 @@ export function CreateTxModal({ hid, accounts, categories, onClose, onCreated }:
   const [amountError, setAmountError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const filteredCategories = categories.filter((c) => c.type === type);
   const canSubmit = !!type && !!amount && parseFloat(amount) > 0;
 
   const submit = async (e: React.FormEvent) => {
@@ -116,16 +116,17 @@ export function CreateTxModal({ hid, accounts, categories, onClose, onCreated }:
           onChange={(e) => setDescription(e.target.value)}
         />
 
-        {filteredCategories.length > 0 && (
-          <Select
-            label={`${t('transactions.category')} (${t('common.optional')})`}
-            value={categoryId}
-            onChange={(e) => setCategoryId(e.target.value)}
-          >
-            <option value="">{t('transactions.noCategory')}</option>
-            {filteredCategories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </Select>
-        )}
+        {/* Always rendered (#325). Gating this on a non-empty list is half of
+            what made categories unreachable — an empty list hid the only place
+            the product ever mentioned them. */}
+        <CategoryField
+          hid={hid}
+          label={`${t('transactions.category')} (${t('common.optional')})`}
+          categories={categories}
+          type={type === 'adjustment' ? '' : type}
+          value={categoryId}
+          onChange={setCategoryId}
+        />
 
         {error && (
           <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600 dark:bg-red-900/30 dark:text-red-300">

@@ -38,6 +38,168 @@ describe('Categories (integration)', () => {
     });
   });
 
+  // #325: before this, a fresh household had zero categories, no UI could
+  // create one, and the transaction dialogs hid the category field precisely
+  // because the list was empty — a closed loop.
+  describe('default categories for a new household', () => {
+    const get = (hid = H, qs = '') =>
+      request(app.getHttpServer()).get(`/categories${qs}`).set('X-Household-Id', hid);
+
+    it('seeds a starter set on first read of an empty household', async () => {
+      const res = await get().expect(200);
+
+      expect(res.body.length).toBeGreaterThan(0);
+      const types = new Set(res.body.map((c: { type: string }) => c.type));
+      // Both directions must be covered or half the reports stay empty.
+      expect(types).toEqual(new Set(['expense', 'income']));
+      expect(res.body.every((c: { isArchived: boolean }) => !c.isArchived)).toBe(true);
+    });
+
+    it('does not seed twice', async () => {
+      const first = await get().expect(200);
+      const second = await get().expect(200);
+      expect(second.body).toHaveLength(first.body.length);
+    });
+
+    it('seeds each household separately', async () => {
+      const mine = await get().expect(200);
+      const theirs = await get('other-household').expect(200);
+
+      expect(theirs.body).toHaveLength(mine.body.length);
+      const mineIds = new Set(mine.body.map((c: { id: string }) => c.id));
+      expect(theirs.body.every((c: { id: string }) => !mineIds.has(c.id))).toBe(true);
+    });
+
+    it('does not resurrect defaults a household deliberately archived', async () => {
+      const seeded = await get().expect(200);
+      for (const cat of seeded.body as Array<{ id: string }>) {
+        await request(app.getHttpServer())
+          .delete(`/categories/${cat.id}`)
+          .set('X-Household-Id', H)
+          .expect(204);
+      }
+
+      // An empty ACTIVE list must not look like an unseeded household —
+      // otherwise the starter set comes back every time it is cleared.
+      const after = await get().expect(200);
+      expect(after.body).toHaveLength(0);
+    });
+  });
+
+  describe('name uniqueness', () => {
+    it('rejects a duplicate name regardless of casing', async () => {
+      await createCategory(app, 'Groceries');
+      await request(app.getHttpServer())
+        .post('/categories').set('X-Household-Id', H)
+        .send({ name: '  gRoCeRiEs ', type: 'expense' })
+        .expect(409);
+    });
+
+    it('allows the same name for the other type', async () => {
+      await createCategory(app, 'Gifts', 'expense');
+      await request(app.getHttpServer())
+        .post('/categories').set('X-Household-Id', H)
+        .send({ name: 'Gifts', type: 'income' })
+        .expect(201);
+    });
+
+    it('frees the name once the original is archived', async () => {
+      const id = await createCategory(app, 'Groceries');
+      await request(app.getHttpServer()).delete(`/categories/${id}`).set('X-Household-Id', H);
+
+      await request(app.getHttpServer())
+        .post('/categories').set('X-Household-Id', H)
+        .send({ name: 'Groceries', type: 'expense' })
+        .expect(201);
+    });
+
+    it('does not collide across households', async () => {
+      await createCategory(app, 'Groceries', 'expense', H);
+      await request(app.getHttpServer())
+        .post('/categories').set('X-Household-Id', 'other-household')
+        .send({ name: 'Groceries', type: 'expense' })
+        .expect(201);
+    });
+
+    it('rejects renaming onto an existing name', async () => {
+      await createCategory(app, 'Groceries');
+      const other = await createCategory(app, 'Transport');
+
+      await request(app.getHttpServer())
+        .patch(`/categories/${other}`).set('X-Household-Id', H)
+        .send({ name: 'groceries' })
+        .expect(409);
+    });
+  });
+
+  describe('parent validation', () => {
+    it('refuses a parent belonging to another household', async () => {
+      const foreign = await createCategory(app, 'Theirs', 'expense', 'other-household');
+
+      // 404, not a silent link: writing parentId straight through from the DTO
+      // was an IDOR that only became reachable once the UI could create
+      // categories at all.
+      await request(app.getHttpServer())
+        .post('/categories').set('X-Household-Id', H)
+        .send({ name: 'Mine', type: 'expense', parentId: foreign })
+        .expect(404);
+    });
+
+    it('refuses a parent of a different type', async () => {
+      const income = await createCategory(app, 'Salary', 'income');
+      await request(app.getHttpServer())
+        .post('/categories').set('X-Household-Id', H)
+        .send({ name: 'Bonus run', type: 'expense', parentId: income })
+        .expect(400);
+    });
+
+    it('refuses nesting more than one level deep', async () => {
+      const top = await createCategory(app, 'Food');
+      const sub = await request(app.getHttpServer())
+        .post('/categories').set('X-Household-Id', H)
+        .send({ name: 'Groceries', type: 'expense', parentId: top })
+        .expect(201);
+
+      await request(app.getHttpServer())
+        .post('/categories').set('X-Household-Id', H)
+        .send({ name: 'Fruit', type: 'expense', parentId: sub.body.id })
+        .expect(400);
+    });
+
+    it('refuses making a category its own parent', async () => {
+      const id = await createCategory(app, 'Food');
+      await request(app.getHttpServer())
+        .patch(`/categories/${id}`).set('X-Household-Id', H)
+        .send({ parentId: id })
+        .expect(400);
+    });
+
+    it('accepts a valid parent and stores the link', async () => {
+      const top = await createCategory(app, 'Food');
+      const res = await request(app.getHttpServer())
+        .post('/categories').set('X-Household-Id', H)
+        .send({ name: 'Groceries', type: 'expense', parentId: top })
+        .expect(201);
+
+      expect(res.body.parentId).toBe(top);
+    });
+
+    it('clears the parent when null is sent', async () => {
+      const top = await createCategory(app, 'Food');
+      const sub = await request(app.getHttpServer())
+        .post('/categories').set('X-Household-Id', H)
+        .send({ name: 'Groceries', type: 'expense', parentId: top })
+        .expect(201);
+
+      const res = await request(app.getHttpServer())
+        .patch(`/categories/${sub.body.id}`).set('X-Household-Id', H)
+        .send({ parentId: null })
+        .expect(200);
+
+      expect(res.body.parentId).toBeNull();
+    });
+  });
+
   describe('GET /categories', () => {
     it('returns only non-archived categories by default', async () => {
       const activeId = await createCategory(app, 'Active');
