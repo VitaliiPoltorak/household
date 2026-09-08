@@ -172,7 +172,7 @@ Copy `.env.example` to `.env`. Full annotated reference lives in [`.env.example`
 | `ZXCVBN_MIN_SCORE` | `3` | zxcvbn strength threshold for new passwords (0–4). Score 3 = "safely unguessable — moderate protection". |
 | `HIBP_ENABLED` / `HIBP_BASE_URL` / `HIBP_TIMEOUT_MS` | `true` / `https://api.pwnedpasswords.com/range` / `500` | Have-I-Been-Pwned Range API check on signup. Fails open on outage. Tests set `HIBP_ENABLED=false`. |
 | `LOGIN_MAX_FAILS` / `LOGIN_FAILS_WINDOW_SEC` / `LOGIN_LOCK_TTL_SEC` / `UNLOCK_TOKEN_TTL_SEC` | `5` / `900` / `3600` / `3600` | Per-account soft-lock after 5 failed password attempts in 15 min; unlock link valid for 1 h. |
-| `SMTP_HOST` / `SMTP_PORT` / `SMTP_SECURE` / `SMTP_USER` / `SMTP_PASSWORD` | — / `587` / `false` / — / — | Outbound mail for `auth-service` (#319): verification codes and unlock links. Any SMTP provider (Resend, Postmark, Mailgun, SES, a relay). With `SMTP_HOST` empty nothing is delivered — the service still boots and logs a warning, but email/password signup cannot be completed. Under `docker compose` these already point at the Mailpit catcher via `docker-compose.override.yml`, so local dev needs no provider (#323). |
+| `SMTP_HOST` / `SMTP_PORT` / `SMTP_SECURE` / `SMTP_USER` / `SMTP_PASSWORD` | — / `587` / `false` / — / — | Outbound mail for `auth-service` (#319): verification codes and unlock links. Any SMTP provider (Resend, Postmark, Mailgun, SES, a relay). If sends time out, the VPS is probably blocking outbound mail ports — see [Outbound mail](#outbound-mail). With `SMTP_HOST` empty nothing is delivered — the service still boots and logs a warning, but email/password signup cannot be completed. Under `docker compose` these already point at the Mailpit catcher via `docker-compose.override.yml`, so local dev needs no provider (#323). |
 | `SMTP_REQUIRE_TLS` | `true` | Whether the STARTTLS upgrade is mandatory on a non-`SMTP_SECURE` connection. Keep it `true` for anything leaving the machine — `false` puts codes and SMTP credentials on the wire in plaintext. Set `false` only for the local Mailpit catcher (as `docker-compose.override.yml` does) or a relay on loopback. |
 | `MAIL_FROM` | `Household <no-reply@localhost>` | Envelope sender. Must be an address the SMTP provider allows. |
 | `WEB_APP_URL` | `http://localhost:5173` | Public origin of the web app; used to build the `…/unlock?token=…` link in the account-locked email. |
@@ -389,6 +389,47 @@ backend's dependencies out of the build.
 `VITE_*` values are inlined at build time, so changing one requires a redeploy, not just a settings
 save. `apps/web/public/_headers` sets `Cross-Origin-Opener-Policy: same-origin-allow-popups` so
 Google's popup sign-in can `postMessage` back to the app.
+
+### Outbound mail
+
+`auth-service` sends the verification code and the account-unlock link itself over SMTP
+([#319](https://github.com/VitaliiPoltorak/household/issues/319)) until `notification-service`
+([#30](https://github.com/VitaliiPoltorak/household/issues/30)) exists. Production sends through
+Resend on the `mail.h-holds.com` sending domain (SPF + DKIM + a DMARC record in Cloudflare DNS).
+
+**The VPS blocks the standard mail ports.** netcup closes outbound `25`, `465` and `587` by default
+as an anti-spam measure, so the obvious `SMTP_PORT=587` fails with `Connection timeout` even though
+the credentials, the DNS records and the code are all correct
+([#323](https://github.com/VitaliiPoltorak/household/issues/323)). Resend also answers on `2465`
+(implicit TLS) and `2587` (STARTTLS); production uses `2465`:
+
+```bash
+SMTP_HOST=smtp.resend.com
+SMTP_PORT=2465
+SMTP_SECURE=true
+```
+
+This failure mode is worth recognising quickly, because it is indistinguishable from a
+misconfiguration in the log and mail delivery is deliberately best-effort — a transport error is
+logged and never rethrown, so the UI still reports "a code has been sent". Check which ports the box
+can actually reach before touching credentials:
+
+```bash
+for p in 587 465 2587 2465 25; do timeout 5 bash -c "</dev/tcp/smtp.resend.com/$p" 2>/dev/null && echo "$p OPEN" || echo "$p BLOCKED"; done
+```
+
+Then confirm the whole channel — TCP, TLS and authentication — without sending anything:
+
+```bash
+docker compose exec auth-service node -e "const n=require('nodemailer');n.createTransport({host:process.env.SMTP_HOST,port:+process.env.SMTP_PORT,secure:process.env.SMTP_SECURE==='true',auth:{user:process.env.SMTP_USER,pass:process.env.SMTP_PASSWORD}}).verify().then(()=>console.log('SMTP VERIFY OK')).catch(e=>console.log('SMTP VERIFY FAIL:',e.message))"
+```
+
+`SMTP_*` values live in `/opt/household/.env` on the VPS, not in this repo. `.env` is read at
+container creation, so apply a change with `docker compose up -d --force-recreate auth-service` —
+`docker compose restart` reuses the old environment and looks like the fix did nothing.
+
+Test with a real mailbox: Resend (like most providers) rejects known disposable domains, so a
+temp-mail address fails for a completely unrelated reason and muddies the diagnosis.
 
 ### Database backups
 
