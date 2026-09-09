@@ -35,8 +35,8 @@ jobs:
     steps:
       # No actions/checkout, for the same reason as deploy.yml: the job
       # operates on the EXISTING /opt/household checkout, which is where the
-      # untracked docker-compose.prod.yml, the .env files and the compose
-      # project live. A fresh checkout in the runner workspace has none of it.
+      # untracked .env files and the compose project live. A fresh checkout in
+      # the runner workspace has neither.
       - name: Check the confirmation phrase
         env:
           CONFIRM: ${{ inputs.confirm }}

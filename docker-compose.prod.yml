@@ -1,0 +1,54 @@
+# Production overlay. Applied on top of docker-compose.yml, never on its own:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --wait
+#
+# On the VPS that pair is set once as COMPOSE_FILE in /opt/household/.env, so a
+# bare `docker compose` there picks the overlay up too — see
+# infra/github-runner/README.md. Without it every bare call (the deploy job's
+# and the post-merge hook's alike) resolves to docker-compose.yml alone and
+# restarts production services in development mode.
+#
+# NO SECRETS IN THIS FILE. It is tracked in a public repository (#317). Every
+# value here is already observable from outside — the CORS allow-lists come
+# back in Access-Control-Allow-Origin, the cookie settings in Set-Cookie — so
+# tracking it exposes nothing while making production configuration
+# reviewable, diffable and restorable. Credentials and keys (JWT_SECRET,
+# TOKEN_ENCRYPTION_KEY, SMTP_*, POSTGRES_PASSWORD, ...) live only in
+# /opt/household/.env, which stays untracked and is not restorable from here.
+
+# NODE_ENV alone for the services that override nothing else. docker-compose.yml
+# sets `NODE_ENV: development` in its own x-service-env anchor, and an
+# `environment:` value always wins over env_file, so production cannot be
+# reached by putting NODE_ENV in .env — it has to be overridden here.
+x-prod-env: &prod-env
+  NODE_ENV: production
+
+services:
+  api-gateway:
+    environment:
+      <<: *prod-env
+      CORS_ORIGIN: https://app.h-holds.com
+  auth-service:
+    environment:
+      <<: *prod-env
+      AUTH_COOKIE_SECURE: 'true'
+      # Widens the CSRF cookie to the shared parent domain. Host-only to
+      # api.h-holds.com, document.cookie on app.h-holds.com can never read it
+      # and the "am I logged in?" probe always comes back empty (#301).
+      AUTH_COOKIE_DOMAIN: h-holds.com
+  household-service:
+    environment:
+      <<: *prod-env
+  finance-service:
+    environment:
+      <<: *prod-env
+  shopping-service:
+    environment:
+      <<: *prod-env
+  integration-service:
+    environment:
+      <<: *prod-env
+  realtime-gateway:
+    environment:
+      <<: *prod-env
+      WS_CORS_ORIGINS: https://app.h-holds.com
