@@ -1013,6 +1013,15 @@ pnpm test:postman                                            # API scenario coll
       so a failed build turns the Actions job red instead of deploying green over a stale image.
       One-time VPS setup (runner registration + `COMPOSE_FILE` so bare `docker compose` calls there
       keep applying the prod overlay): `infra/github-runner/README.md`.
+    ✔ Prod overlay under version control (#317) — `docker-compose.prod.yml` used to exist only as
+      `/opt/household/docker-compose.prod.yml` on the VPS: not in the repo, not in the nightly
+      backup (#306 dumps Postgres only), and its only written record was a hand-copied YAML block
+      in README that had drifted (it said `AUTH_COOKIE_DOMAIN: example.com` while production ran
+      `h-holds.com`, so rebuilding the box from the docs reproduced the #301 bug). The file is now
+      tracked and the README block is a pointer to it. It carries no secrets — every value in it
+      is already visible in `Access-Control-Allow-Origin` / `Set-Cookie` — and the boundary is
+      written down: `/opt/household/.env` and `.env.backup` stay untracked and off-box copies of
+      them are the operator's responsibility.
     ✔ Deploy rollback (#318) — automating the deploy removed the human who used to watch the stack
       come back up, and `docker compose build` overwrites `household/<svc>:latest` in place, so
       there was nothing to roll back TO by tag. The failure mode that matters is not a deploy that

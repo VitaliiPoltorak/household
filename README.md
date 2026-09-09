@@ -315,37 +315,29 @@ api.h-holds.com {
 
 ### The prod overlay
 
-`docker-compose.prod.yml` overrides `NODE_ENV` for every service, plus the CORS allow-lists and
-`AUTH_COOKIE_SECURE`:
+[`docker-compose.prod.yml`](docker-compose.prod.yml) overrides `NODE_ENV` for every service, plus the
+CORS allow-lists, `AUTH_COOKIE_SECURE` and `AUTH_COOKIE_DOMAIN`. It is tracked in this repository
+([#317](https://github.com/VitaliiPoltorak/household/issues/317)) — read the file itself, not a copy
+of it here. This section used to carry a hand-maintained copy of that YAML, and the copy drifted: it
+said `AUTH_COOKIE_DOMAIN: example.com` while production had been running `h-holds.com` ever since
+[#301](https://github.com/VitaliiPoltorak/household/issues/301), so rebuilding the box from the
+documentation reproduced a bug that had already been found and fixed once.
 
-```yaml
-services:
-  api-gateway:
-    environment:
-      NODE_ENV: production
-      CORS_ORIGIN: https://app.h-holds.com
-  auth-service:
-    environment:
-      NODE_ENV: production
-      AUTH_COOKIE_SECURE: 'true'
-      AUTH_COOKIE_DOMAIN: example.com
-  household-service:
-    environment:
-      NODE_ENV: production
-  finance-service:
-    environment:
-      NODE_ENV: production
-  shopping-service:
-    environment:
-      NODE_ENV: production
-  integration-service:
-    environment:
-      NODE_ENV: production
-  realtime-gateway:
-    environment:
-      NODE_ENV: production
-      WS_CORS_ORIGINS: https://app.h-holds.com
-```
+The overlay holds no secrets, and must not gain any. Every value in it is already observable from
+outside the box — the CORS allow-lists come back in `Access-Control-Allow-Origin`, the cookie
+settings in `Set-Cookie` — so tracking it exposes nothing, while making the one piece of production
+configuration the deploy depends on reviewable, diffable, and restorable from a fresh clone.
+
+Secrets stay on the VPS, in two files that are untracked on purpose and are **not** reconstructable
+from this repository:
+
+| File | Holds |
+|---|---|
+| `/opt/household/.env` | `JWT_SECRET`, `GATEWAY_SIGNING_SECRET`, `TOKEN_ENCRYPTION_KEY`, `POSTGRES_PASSWORD`, the `SMTP_*` credentials, the OAuth client secrets — plus `COMPOSE_FILE`, which is what makes a bare `docker compose` on the box apply this overlay |
+| `/opt/household/.env.backup` | The rclone/R2 credentials and passphrase for the nightly backup ([#306](https://github.com/VitaliiPoltorak/household/issues/306)) |
+
+Neither is covered by the nightly backup, which dumps Postgres only. They are the two files worth
+keeping a copy of off the box; everything else about the deployment is reconstructable from here.
 
 All five database-backed services now run their initial migration (`migrationsRun: true` in
 `apps/*/src/app.module.ts`) at bootstrap instead of relying on `synchronize`, so `NODE_ENV=production`
@@ -446,8 +438,9 @@ Nightly, off-box, encrypted Postgres backups ([#306](https://github.com/VitaliiP
    only when the script errors, which is the actual "silently broken for a month" failure mode a
    backup job usually dies to.
 
-**One-time setup on the VPS** (not automated — a deliberate manual step, same reasoning as the prod
-overlay above): follow `infra/rclone/README.md` (create the R2 bucket + crypt remote) and
+**One-time setup on the VPS** (not automated — a deliberate manual step, same reasoning as
+`/opt/household/.env`: the values are secrets, so they are placed by hand on the box and never
+tracked): follow `infra/rclone/README.md` (create the R2 bucket + crypt remote) and
 `infra/systemd/README.md` (install the timer). Both need a `/opt/household/.env.backup` populated
 per the "Database backups" section of `.env.example`.
 
@@ -473,7 +466,7 @@ The VPS is registered as a **self-hosted GitHub Actions runner** (systemd unit, 
 and `.github/workflows/deploy.yml` runs on it:
 
 1. `git pull --ff-only origin main` in the existing `/opt/household` checkout — no `actions/checkout`,
-   because that checkout is where the untracked `docker-compose.prod.yml` and `.env` files live.
+   because that checkout is where the untracked `.env` files and the compose project live.
 2. `scripts/rebuild-touched-services.sh` with `REBUILD_STRICT=1` — the same script the local
    `post-merge` hook uses, so "which services does this diff touch" has one implementation. A
    docs-only push therefore restarts nothing.
