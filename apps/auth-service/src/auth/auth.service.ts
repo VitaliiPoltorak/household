@@ -100,36 +100,10 @@ export class AuthService {
       throw new ConflictException('Email is already registered');
     }
 
-    // zxcvbn is primed with the user's own email + displayName so passwords
-    // derived from them (e.g. "alice@example.com" + "AliceExample123") drop
-    // in score. Server-side check — the client can also run zxcvbn for live
-    // feedback, but we must not trust the client verdict.
-    const complexity = this.complexity.check(input.password, [
+    await this.assertPasswordAcceptable(input.password, [
       input.email,
       input.displayName,
     ]);
-    if (!complexity.ok) {
-      throw new BadRequestException({
-        code: 'WEAK_PASSWORD',
-        message:
-          'Password is too easy to guess. Try a longer or less common phrase.',
-        score: complexity.score,
-        warning: complexity.warning,
-        suggestions: complexity.suggestions,
-      });
-    }
-
-    const breach = await this.hibp.check(input.password);
-    if (breach.breached) {
-      throw new BadRequestException({
-        code: 'PASSWORD_PWNED',
-        message:
-          'This password has appeared in a public breach and is unsafe to use. Please choose another.',
-        // We deliberately DO NOT expose the exact count — an attacker could
-        // use it to fingerprint which known-breached password a user picked.
-        // "appears in a breach" is the actionable signal.
-      });
-    }
 
     const passwordHash = await this.hasher.hash(input.password);
     const user = await this.users.createWithPassword({
@@ -425,29 +399,10 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    const complexity = this.complexity.check(input.newPassword, [
+    await this.assertPasswordAcceptable(input.newPassword, [
       user.email,
       user.displayName,
     ]);
-    if (!complexity.ok) {
-      throw new BadRequestException({
-        code: 'WEAK_PASSWORD',
-        message:
-          'New password is too easy to guess. Try a longer or less common phrase.',
-        score: complexity.score,
-        warning: complexity.warning,
-        suggestions: complexity.suggestions,
-      });
-    }
-
-    const breach = await this.hibp.check(input.newPassword);
-    if (breach.breached) {
-      throw new BadRequestException({
-        code: 'PASSWORD_PWNED',
-        message:
-          'This password has appeared in a public breach and is unsafe to use. Please choose another.',
-      });
-    }
 
     // Reuse check runs LAST — after we've paid for zxcvbn + HIBP — because
     // "same as current" is the least common case and Argon2 verify is
@@ -530,8 +485,102 @@ export class AuthService {
     await this.sessions.deleteAllUserSessions(userId);
   }
 
-  async getProfile(userId: string): Promise<User> {
+  /**
+   * The strength bar every new password must clear: zxcvbn (primed with the
+   * user's own identifiers, so a password derived from their email or name
+   * scores low) and the HIBP breach corpus.
+   *
+   * One implementation for register, change and set (#329). It was previously
+   * copy-pasted between register and changePassword with only the wording
+   * differing; a third copy for set-password would have been the third place
+   * to forget when the policy changes. The client can run zxcvbn too for live
+   * feedback, but its verdict is never trusted.
+   */
+  private async assertPasswordAcceptable(
+    password: string,
+    context: string[],
+  ): Promise<void> {
+    const complexity = this.complexity.check(password, context);
+    if (!complexity.ok) {
+      throw new BadRequestException({
+        code: 'WEAK_PASSWORD',
+        message:
+          'Password is too easy to guess. Try a longer or less common phrase.',
+        score: complexity.score,
+        warning: complexity.warning,
+        suggestions: complexity.suggestions,
+      });
+    }
+
+    const breach = await this.hibp.check(password);
+    if (breach.breached) {
+      throw new BadRequestException({
+        code: 'PASSWORD_PWNED',
+        message:
+          'This password has appeared in a public breach and is unsafe to use. Please choose another.',
+        // The exact count is deliberately withheld — it would let an attacker
+        // fingerprint which known-breached password a user picked. "Appears in
+        // a breach" is the actionable signal.
+      });
+    }
+  }
+
+  /**
+   * Gives an OAuth-only account its first password (#329).
+   *
+   * Without this an account created through Google / Apple / Facebook is
+   * permanently locked to that provider: `NO_PASSWORD_SET` named the state and
+   * nothing acted on it, so losing the provider account meant losing this one.
+   *
+   * Refused outright when a hash already exists. The two operations are
+   * deliberately separate endpoints rather than one that branches: changing
+   * requires proving the current password, setting requires the absence of one,
+   * and collapsing them would mean a single endpoint whose auth requirement
+   * depends on server state — the shape that produces auth bypasses.
+   *
+   * No session is revoked, and that is a considered difference from
+   * changePassword. A change may be a response to compromise, so every other
+   * device is signed out. Setting a first password invalidates nothing: the
+   * account gains a second way in, the existing one is untouched, and logging
+   * the user out of their phone because they added a password on their laptop
+   * would be friction with no security return.
+   */
+  async setPassword(
+    userId: string,
+    input: { newPassword: string },
+  ): Promise<void> {
     const user = await this.users.findById(userId);
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+
+    if (user.passwordHash) {
+      throw new BadRequestException({
+        code: 'PASSWORD_ALREADY_SET',
+        message:
+          'This account already has a password. Use the change-password flow, which requires the current one.',
+      });
+    }
+
+    // Same per-email limiter as login / register / password-change, in its own
+    // action bucket so a burst here cannot lock the user out of signing in.
+    await this.emailThrottler.consume('password-set', user.email);
+
+    await this.assertPasswordAcceptable(input.newPassword, [
+      user.email,
+      user.displayName,
+    ]);
+
+    const hash = await this.hasher.hash(input.newPassword);
+    await this.users.updatePasswordHash(user.id, hash);
+  }
+
+  /**
+   * Loads the profile with its linked OAuth providers, so the caller can tell
+   * whether the account has a password and how else it can be reached (#329).
+   */
+  async getProfile(userId: string): Promise<User> {
+    const user = await this.users.findByIdWithProviders(userId);
     if (!user) throw new UnauthorizedException('User not found');
     return user;
   }

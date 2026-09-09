@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { useForm } from 'react-hook-form';
+import { useForm, type UseFormRegisterReturn } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useAuth } from '../contexts/AuthContext';
 import { authApi } from '../api/auth';
@@ -21,7 +21,9 @@ import {
 } from '../lib/date-format';
 import {
   changePasswordSchema,
+  setPasswordSchema,
   type ChangePasswordFormValues,
+  type SetPasswordFormValues,
 } from '../lib/auth-schemas';
 import { mapAuthError, type MappedAuthError } from '../lib/auth-errors';
 import { td } from '../lib/i18n-dynamic';
@@ -56,7 +58,7 @@ export function SettingsPage() {
       <ProfileSection user={user} />
       <PreferencesSection i18n={i18n} />
       <ManageSection />
-      <ChangePasswordSection />
+      <PasswordSection />
       <SecuritySection logout={logout} navigate={navigate} />
       <DangerSection user={user} logout={logout} navigate={navigate} />
     </div>
@@ -130,6 +132,130 @@ function SecuritySection({
           </div>
         )}
       </div>
+    </Section>
+  );
+}
+
+// ──────────────────────────────────────────────
+// Password section — set vs change (#329)
+// ──────────────────────────────────────────────
+
+/**
+ * An account created through Google / Apple / Facebook has no password, so the
+ * change form is a dead end for it: there is nothing to type into "current
+ * password" and submitting can only fail with NO_PASSWORD_SET.
+ *
+ * Worse than the dead form was the absence behind it — such an account was
+ * permanently locked to its provider, with no way to add email + password as a
+ * second route in. This picks the right form for the account's actual state.
+ */
+function PasswordSection() {
+  const { user } = useAuth();
+  // While the profile is still loading, show nothing rather than guessing —
+  // rendering the change form and then swapping it is worse than a beat of
+  // blankness in the one place where guessing wrong is a dead end.
+  if (!user) return null;
+  return user.hasPassword ? <ChangePasswordSection /> : <SetPasswordSection />;
+}
+
+function SetPasswordSection() {
+  const { t } = useTranslation();
+  const { user, refreshUser } = useAuth();
+  const [globalError, setGlobalError] = useState<MappedAuthError | null>(null);
+  const [success, setSuccess] = useState(false);
+  const form = useForm<SetPasswordFormValues>({
+    resolver: zodResolver(setPasswordSchema),
+    defaultValues: { newPassword: '', confirmPassword: '' },
+  });
+
+  const providers = (user?.providers ?? []).map((p) =>
+    td(t, `auth.providerNames.${p}`, { defaultValue: p }),
+  );
+
+  const submit = form.handleSubmit(async (values) => {
+    setGlobalError(null);
+    setSuccess(false);
+    try {
+      await authApi.setPassword({ newPassword: values.newPassword });
+      setSuccess(true);
+      form.reset({ newPassword: '', confirmPassword: '' });
+      // No new tokens come back — the session is untouched. Re-read the
+      // profile so hasPassword flips and this section becomes the change form.
+      await refreshUser();
+    } catch (err) {
+      setGlobalError(mapAuthError(err));
+    }
+  });
+
+  return (
+    <Section title={t('auth.setPassword.title')}>
+      <form
+        onSubmit={submit}
+        className="space-y-3 rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900"
+        noValidate
+      >
+        <p className="text-sm text-gray-600 dark:text-gray-300">
+          {providers.length > 0
+            ? t('auth.setPassword.description', {
+                providers: providers.join(', '),
+              })
+            : t('auth.setPassword.descriptionNoProvider')}
+        </p>
+
+        {globalError && (
+          <div
+            role="alert"
+            className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-900/30 dark:text-red-300"
+          >
+            <p>{td(t, globalError.key)}</p>
+            {globalError.suggestions && globalError.suggestions.length > 0 && (
+              <ul className="mt-2 list-inside list-disc text-xs opacity-90">
+                {globalError.suggestions.map((s, i) => (
+                  <li key={i}>{s}</li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+
+        {success && (
+          <div
+            role="status"
+            className="rounded-md bg-green-50 px-3 py-2 text-sm text-green-700 dark:bg-green-900/30 dark:text-green-300"
+          >
+            {t('auth.setPassword.success')}
+          </div>
+        )}
+
+        <PasswordField
+          id="pw-set-new"
+          label={t('auth.newPassword')}
+          autoComplete="new-password"
+          register={form.register('newPassword')}
+          error={
+            form.formState.errors.newPassword?.message
+              ? td(t, form.formState.errors.newPassword.message)
+              : undefined
+          }
+        />
+        <PasswordField
+          id="pw-set-confirm"
+          label={t('auth.confirmPassword')}
+          autoComplete="new-password"
+          register={form.register('confirmPassword')}
+          error={
+            form.formState.errors.confirmPassword?.message
+              ? td(t, form.formState.errors.confirmPassword.message)
+              : undefined
+          }
+        />
+
+        <Button type="submit" size="sm" disabled={form.formState.isSubmitting}>
+          {form.formState.isSubmitting
+            ? t('auth.setPassword.submitting')
+            : t('auth.setPassword.submit')}
+        </Button>
+      </form>
     </Section>
   );
 }
@@ -244,18 +370,18 @@ function ChangePasswordSection() {
   );
 }
 
-// Native-input wrapper used by ChangePasswordSection. The shared <Input/>
+// Native-input wrapper used by both password forms. The shared <Input/>
 // component is a plain function (not forwardRef), so react-hook-form's
 // register() ref lands on the props object rather than the DOM node — the
-// form appears to render but never captures values. Kept inline because the
-// change-password form is the only caller.
+// form appears to render but never captures values.
+//
+// Typed on UseFormRegisterReturn rather than a specific form's values (#329),
+// so the set-password form reuses it instead of getting a near-identical copy.
 function PasswordField(props: {
   id: string;
   label: string;
   autoComplete: string;
-  register: ReturnType<
-    ReturnType<typeof useForm<ChangePasswordFormValues>>['register']
-  >;
+  register: UseFormRegisterReturn;
   error?: string;
 }) {
   return (

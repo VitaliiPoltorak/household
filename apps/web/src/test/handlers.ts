@@ -11,6 +11,17 @@ export const MOCK_USER = {
   avatarUrl: null,
   locale: 'en',
   createdAt: '2026-01-01T00:00:00Z',
+  // #329 — the default fixture is an email+password account, so the settings
+  // screen shows the change-password form. MOCK_OAUTH_USER is the other case.
+  hasPassword: true,
+  providers: [] as string[],
+};
+
+/** An account created through a provider: no password, hence no way in without it. */
+export const MOCK_OAUTH_USER = {
+  ...MOCK_USER,
+  hasPassword: false,
+  providers: ['google'],
 };
 
 // Post-#60 login response shape (LoginResponse in types/api.ts).

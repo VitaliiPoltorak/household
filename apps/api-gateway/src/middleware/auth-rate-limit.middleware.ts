@@ -93,6 +93,15 @@ function buildAuthRules(overrides: AuthRateLimitOverrides = {}): Rule[] {
       limit: 10,
       windowSeconds: 3600,
     },
+    // Same reasoning for setting a first password (#329). Listed separately
+    // rather than widening the prefix to /auth/password, so adding a third
+    // password route is a deliberate decision rather than silent inheritance.
+    {
+      method: 'POST',
+      pathPrefix: '/api/v1/auth/password/set',
+      limit: 10,
+      windowSeconds: 3600,
+    },
   ];
 }
 

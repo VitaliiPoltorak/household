@@ -26,6 +26,21 @@ export class UsersService {
   }
 
   /**
+   * Profile lookup that also loads the linked OAuth providers (#329).
+   *
+   * Separate from findById on purpose: findById is on the hot path (every
+   * refresh and every authenticated action goes through it) and does not need
+   * the join. Only the profile endpoint has to tell the user which providers
+   * their account is reachable through.
+   */
+  async findByIdWithProviders(id: string): Promise<User | null> {
+    return this.userRepo.findOne({
+      where: { id },
+      relations: { authProviders: true },
+    });
+  }
+
+  /**
    * Bulk lookup by ids. Missing users are silently omitted from the result —
    * callers (mainly the member-list UI in the web app) can render a fallback
    * for any id that doesn't come back.

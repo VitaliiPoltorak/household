@@ -28,6 +28,11 @@ export const authApi = {
   changePassword: (input: { currentPassword: string; newPassword: string }) =>
     api.post<LoginResponse>('/auth/password/change', { ...input, deviceInfo: 'Web' }),
 
+  // #329 — first password for an OAuth-only account. 204, no tokens: adding a
+  // password invalidates no session, so there is nothing to re-issue.
+  setPassword: (input: { newPassword: string }) =>
+    api.post<void>('/auth/password/set', input),
+
   // No arguments — refresh cookie rides via credentials: 'include' and the
   // CSRF header is attached automatically by client.ts (#60/#61).
   refresh: () => api.post<LoginResponse>('/auth/refresh'),

@@ -103,12 +103,26 @@
       "passwordPwned": "Esta contraseña ha aparecido en una filtración pública y no es segura. Por favor, elige otra.",
       "samePassword": "Elige una contraseña distinta de la actual.",
       "noPasswordSet": "Esta cuenta se conecta con un proveedor social y no tiene contraseña establecida.",
-      "invalidUnlockToken": "Este enlace de desbloqueo no es válido o ha caducado."
+      "invalidUnlockToken": "Este enlace de desbloqueo no es válido o ha caducado.",
+      "passwordAlreadySet": "Esta cuenta ya tiene una contraseña. Usa el formulario de cambio de contraseña."
     },
     "migration": {
       "title": "Actualización de seguridad",
       "body": "Hemos mejorado cómo mantenemos tu sesión iniciada. Por favor, inicia sesión una vez más — solo tomará unos segundos y te llevaremos de vuelta a donde estabas.",
       "cta": "Iniciar sesión de nuevo"
+    },
+    "setPassword": {
+      "title": "Establecer una contraseña",
+      "description": "Tu cuenta inicia sesión con {{providers}}. Añade una contraseña para entrar también con tu correo electrónico, y para seguir teniendo acceso si algún día pierdes ese proveedor.",
+      "descriptionNoProvider": "Añade una contraseña para iniciar sesión con tu correo electrónico.",
+      "submit": "Establecer contraseña",
+      "submitting": "Estableciendo…",
+      "success": "Contraseña establecida. Ya puedes iniciar sesión con tu correo electrónico."
+    },
+    "providerNames": {
+      "google": "Google",
+      "apple": "Apple",
+      "facebook": "Facebook"
     }
   },
   "dashboard": {

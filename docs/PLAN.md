@@ -153,6 +153,8 @@ Backend → Web → Mobile → Integrations → Deployment → App Store
 | OAuth 2.0: Google, Apple, Facebook (all three strategies implemented; registration through `OAuthStrategyRegistry` — #85) |
 | Email + password with mandatory 6-digit mailbox verification, Argon2id hashing (OWASP 2024 params), zxcvbn ≥ 3, HIBP breach check, per-account soft-lock after 5 failed attempts with single-use unlock link — #184; full spec in `docs/security/password-policy.md` |
 | Authenticated password change (`POST /auth/password/change`) — reuses zxcvbn + HIBP + SAME_PASSWORD guards, revokes every other session on rotation, issues a fresh session for the calling device (#185) |
+| First password for an OAuth-only account (`POST /auth/password/set`, #329) — before this, an account created through a provider was permanently locked to it: `NO_PASSWORD_SET` named the state and nothing acted on it. Separate endpoint from change on purpose (change requires proving the current password, set requires the absence of one; collapsing them would make a single endpoint's auth requirement depend on server state). Unlike change, it revokes no session — setting a first password invalidates nothing |
+| `GET /auth/me` reports `hasPassword` + linked `providers`, so the UI can pick the right form instead of showing a dead change-password form to accounts that can never use it (#329) |
 | JWT access (15 min) + refresh (30 days), algorithm on an allowlist (#52) |
 | Refresh token in HttpOnly + Secure + SameSite=None cookie, paired CSRF double-submit cookie (#60, #61) |
 | Login from multiple devices; `POST /auth/logout-all` invalidates all sessions for the user (#66) |
@@ -521,10 +523,11 @@ Finance Service → Kafka: finance.transaction.created
 | POST | `/auth/login` | Email + password sign-in. 401 on wrong credentials; 403 `EMAIL_NOT_VERIFIED` if mailbox unconfirmed; 403 `ACCOUNT_LOCKED` after 5 failed attempts |
 | POST | `/auth/unlock` | Consume single-use unlock token from the account-locked email; clears the soft-lock |
 | POST | `/auth/password/change` | Authenticated. Rotate password (Argon2id, zxcvbn, HIBP, SAME_PASSWORD guard). Revokes every other session and returns a fresh one for this device (#185). Audit log |
+| POST | `/auth/password/set` | Authenticated. First password for an OAuth-only account — refused with `PASSWORD_ALREADY_SET` when a hash exists. Same zxcvbn + HIBP bar as register. 204, and **no session is revoked**: adding a password invalidates nothing (#329). Audit log |
 | POST | `/auth/refresh` | Refresh access token; reads HttpOnly cookie + `X-CSRF-Token` header (double-submit) |
 | POST | `/auth/logout` | Invalidate the current session; clears cookies |
 | POST | `/auth/logout-all` | Invalidate **all** sessions for the user (#66); audit log |
-| GET | `/auth/me` | Current user + profile |
+| GET | `/auth/me` | Current user + profile, plus `hasPassword` and the linked `providers` (#329) — never the hash |
 | PATCH | `/auth/me` | Update profile (`avatarUrl` validated by `@IsUrl` http(s) — #68.1) |
 | DELETE | `/auth/me` | Delete account; Kafka `auth.user.deleted` for cascade cleanup; audit log |
 

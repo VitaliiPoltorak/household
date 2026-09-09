@@ -149,7 +149,14 @@
                 "exec": [
                   "pm.test('Status 200', () => pm.response.to.have.status(200));",
                   "const r = pm.response.json();",
-                  "pm.test('Has email', () => pm.expect(r.email).to.be.a('string'));"
+                  "pm.test('Has email', () => pm.expect(r.email).to.be.a('string'));",
+                  "// #329: the client had nothing to branch on, so it showed the",
+                  "// change-password form to accounts that can never use it.",
+                  "pm.test('Reports whether a password is set', () => pm.expect(pm.response.json().hasPassword).to.be.a('boolean'));",
+                  "pm.test('Seeded user has a password', () => pm.expect(pm.response.json().hasPassword).to.equal(true));",
+                  "pm.test('Lists linked providers', () => pm.expect(pm.response.json().providers).to.be.an('array'));",
+                  "// The hash itself must never cross the wire.",
+                  "pm.test('Never exposes the hash', () => pm.expect(pm.response.text()).to.not.include('$argon'));"
                 ]
               }
             }
@@ -240,6 +247,44 @@
             "url": "{{baseUrl}}/auth/refresh"
           },
           "description": "Double-submit CSRF: cookie value must match X-CSRF-Token header (apps/auth-service/src/auth/cookies.ts verifyCsrf). Explicit Cookie header used instead of relying on Newman's jar, since the jar can only hold one household_refresh value at a time and this run juggles two separate user sessions."
+        },
+        {
+          "name": "Reject setting a password when one already exists",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// The seeded e2e user signs in with a password, so this is the",
+                  "// refusal path. The positive path needs an OAuth-only account, which",
+                  "// this collection cannot create — it is covered by",
+                  "// apps/auth-service/test/password-set.integration.spec.ts.",
+                  "pm.test('Status 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Typed error code', () => pm.expect(pm.response.json().code).to.equal('PASSWORD_ALREADY_SET'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/auth/password/set",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"newPassword\": \"Journey-Windmill-Copper-{{runId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
         }
       ]
     },
