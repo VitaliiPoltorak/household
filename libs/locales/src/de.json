@@ -333,7 +333,8 @@
     "expiresOn": "läuft ab am {{date}}",
     "copyLink": "Link kopieren",
     "linkCopied": "Link kopiert!",
-    "roleChangeForbidden": "Du hast keine Berechtigung, die Rolle dieses Mitglieds zu ändern."
+    "roleChangeForbidden": "Du hast keine Berechtigung, die Rolle dieses Mitglieds zu ändern.",
+    "inviteLinkCopied": "Einladungslink in die Zwischenablage kopiert"
   },
   "settings": {
     "title": "Einstellungen",

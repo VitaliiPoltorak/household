@@ -1,10 +1,11 @@
-import { screen, waitFor } from '@testing-library/react';
+import { act, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { renderWithProviders, clearAuthTokens } from './wrapper';
 import { DashboardPage } from '../pages/DashboardPage';
 import { server } from './setup';
 import { MOCK_ACCOUNT } from './handlers';
+import i18n from '../i18n';
 
 describe('DashboardPage', () => {
   beforeEach(clearAuthTokens);
@@ -88,6 +89,92 @@ describe('DashboardPage', () => {
       },
       { timeout: 3000 },
     );
+  });
+
+  // #330/#331: this is the first dialog a brand-new user meets, reached from
+  // both the empty state and "+ New home". A failure there was silent and
+  // every string was hardcoded English while the page around it translated.
+  describe('create-household modal (#330, #331)', () => {
+    const openModal = async () => {
+      server.use(http.get('/api/v1/households', () => HttpResponse.json([])));
+      renderWithProviders(<DashboardPage />);
+      await waitFor(() => screen.getByText('Create your first home'), { timeout: 3000 });
+      await userEvent.click(screen.getByText('Create your first home'));
+    };
+
+    it('reports a failed create and keeps the typed name', async () => {
+      server.use(
+        http.post('/api/v1/households', () =>
+          HttpResponse.json({ statusCode: 500, message: 'Boom' }, { status: 500 }),
+        ),
+      );
+      await openModal();
+
+      await userEvent.type(screen.getByPlaceholderText('Home name…'), 'My New Home');
+      await userEvent.click(screen.getByRole('button', { name: 'Create' }));
+
+      await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Boom'), {
+        timeout: 3000,
+      });
+      // Dialog stays open with the name intact — a reset spinner and an empty
+      // dialog is indistinguishable from "you haven't pressed the button yet",
+      // and pressing Create again risks a duplicate household.
+      expect(screen.getByText('Create new home')).toBeInTheDocument();
+      expect(screen.getByPlaceholderText('Home name…')).toHaveValue('My New Home');
+    });
+
+    it('survives a network-level rejection without an unhandled promise', async () => {
+      // The reported symptom was a bare `TypeError: Failed to fetch` in the
+      // console with nothing rendered.
+      server.use(http.post('/api/v1/households', () => HttpResponse.error()));
+      await openModal();
+
+      await userEvent.type(screen.getByPlaceholderText('Home name…'), 'Flaky');
+      await userEvent.click(screen.getByRole('button', { name: 'Create' }));
+
+      await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument(), {
+        timeout: 3000,
+      });
+      expect(screen.getByPlaceholderText('Home name…')).toHaveValue('Flaky');
+    });
+
+    it('clears the error once the user edits the name', async () => {
+      server.use(
+        http.post('/api/v1/households', () =>
+          HttpResponse.json({ statusCode: 500, message: 'Boom' }, { status: 500 }),
+        ),
+      );
+      await openModal();
+
+      await userEvent.type(screen.getByPlaceholderText('Home name…'), 'X');
+      await userEvent.click(screen.getByRole('button', { name: 'Create' }));
+      await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument(), {
+        timeout: 3000,
+      });
+
+      await userEvent.type(screen.getByPlaceholderText('Home name…'), 'Y');
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    });
+
+    it('translates every string in the dialog', async () => {
+      await openModal();
+      await act(async () => {
+        await i18n.changeLanguage('uk');
+      });
+
+      try {
+        // Heading, placeholder and both buttons — the four literals that used
+        // to stay English under all four locales.
+        expect(screen.getByText('Створити новий дім')).toBeInTheDocument();
+        expect(screen.getByPlaceholderText('Назва дому…')).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Скасувати' })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Створити' })).toBeInTheDocument();
+      } finally {
+        await act(async () => {
+          await i18n.changeLanguage('en');
+        });
+      }
+    });
   });
 
   describe('Multi-currency total balance (#160)', () => {
