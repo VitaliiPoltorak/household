@@ -22,7 +22,11 @@ fixes every invocation, including manual ones:
 
 ```bash
 echo 'COMPOSE_FILE=docker-compose.yml:docker-compose.prod.yml' >> /opt/household/.env
-cd /opt/household && docker compose config | grep -c 'NODE_ENV: production'   # expect 7
+# One line per service, at the service indent. `docker compose config` also
+# echoes back the top-level x- extension fields, and docker-compose.prod.yml
+# carries an `x-prod-env` anchor holding NODE_ENV: production — an unanchored
+# `grep -c` counts that definition too and reports 8.
+cd /opt/household && docker compose config | grep -c '^      NODE_ENV: production'   # expect 7
 ```
 
 This is production-only and deliberately not in `.env.example`: local dev must
