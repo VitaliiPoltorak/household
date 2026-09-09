@@ -13,6 +13,8 @@ import {
 import { formatMoney } from '../lib/money';
 import { useRatesState, convert, BASE_CURRENCY_KEY } from '../hooks/useRates';
 import type { AccountSummary } from '../types/api';
+import { accountTypeLabel } from '../lib/account-type-label';
+import { useEnabledAccountTypes } from '../hooks/useEnabledAccountTypes';
 
 // Cap the "By account" chart at N slices so a household with 20 accounts
 // doesn't produce an unreadable ring; the tail is folded into a single
@@ -42,6 +44,11 @@ export function DashboardPage() {
     window.addEventListener('storage', onStorage);
     return () => window.removeEventListener('storage', onStorage);
   }, []);
+
+  // Needed to turn a stored type code into a readable, localised label in the
+  // wealth breakdown (#332). Same query key as AccountsPage, so the two share
+  // one cache entry rather than each fetching the list.
+  const { data: enabledTypes = [] } = useEnabledAccountTypes(hid);
 
   const { data: summary } = useQuery({
     queryKey: ['accounts', 'summary', hid],
@@ -203,6 +210,9 @@ export function DashboardPage() {
     baseCurrency,
     ratesState,
     t('dashboard.charts.other'),
+    // Resolved here rather than inside the builder so buildChartData stays a
+    // pure data function with no i18n or query dependency of its own (#332).
+    (code) => accountTypeLabel(code, enabledTypes, t),
   );
 
   if (!activeHousehold) {
@@ -333,8 +343,12 @@ export function DashboardPage() {
                 key={a.id}
                 className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900"
               >
+                {/* Same leak as the donut legend (#332), two elements away:
+                    the raw stored code rather than the type's name. The
+                    uppercase styling stays; what it uppercases is now a
+                    localised label, and the right thing for custom types. */}
                 <p className="text-xs uppercase tracking-wide text-gray-400 dark:text-gray-500">
-                  {a.type}
+                  {accountTypeLabel(a.type, enabledTypes, t)}
                 </p>
                 <p className="mt-0.5 font-medium text-gray-900 dark:text-gray-100">
                   {a.name}
@@ -411,6 +425,8 @@ function buildChartData(
   baseCurrency: string,
   ratesState: ReturnType<typeof useRatesState>,
   otherLabel: string,
+  /** Stored type code -> the name a person should read. See #332. */
+  typeLabel: (code: string) => string,
 ): {
   byType: DonutSlice[];
   byAccount: DonutSlice[];
@@ -485,7 +501,13 @@ function buildChartData(
     positive,
     (a) => a.type,
     (a) => a.base,
-    (a) => a.type,
+    // Grouping still keys on the stored code; only the LABEL is resolved
+    // (#332). DonutChart documents this field as "localised label shown in
+    // tooltip + legend", and passing the raw key was violating that contract
+    // at the call site — it leaked "bank"/"cash" onto the first screen after
+    // sign-in, stayed English under every locale, and showed the wrong thing
+    // entirely for a household's own custom types.
+    (a) => typeLabel(a.type),
   );
   const byCurrency = groupBy(
     positive,

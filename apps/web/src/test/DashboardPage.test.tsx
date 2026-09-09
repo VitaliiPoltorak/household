@@ -4,7 +4,7 @@ import { http, HttpResponse } from 'msw';
 import { renderWithProviders, clearAuthTokens } from './wrapper';
 import { DashboardPage } from '../pages/DashboardPage';
 import { server } from './setup';
-import { MOCK_ACCOUNT } from './handlers';
+import { MOCK_ACCOUNT, MOCK_ENABLED_ACCOUNT_TYPES } from './handlers';
 import i18n from '../i18n';
 
 describe('DashboardPage', () => {
@@ -512,10 +512,87 @@ describe('DashboardPage', () => {
       const headings = screen.getAllByRole('heading', { level: 3 });
       expect(headings.some((h) => h.textContent === 'By currency')).toBe(true);
 
-      // Legend labels reflect the two account types — "bank" also appears
-      // in the account grid tile below, hence getAllByText.
-      expect(screen.getAllByText('bank').length).toBeGreaterThanOrEqual(1);
-      expect(screen.getAllByText('cash').length).toBeGreaterThanOrEqual(1);
+      // #332: labels are the type's display name, not the stored key. The
+      // name also appears in the account grid tile below, hence getAllByText.
+      expect(screen.getAllByText('Bank').length).toBeGreaterThanOrEqual(1);
+      expect(screen.getAllByText('Cash').length).toBeGreaterThanOrEqual(1);
+      // The raw keys must be gone from the screen entirely.
+      expect(screen.queryByText('bank')).not.toBeInTheDocument();
+      expect(screen.queryByText('cash')).not.toBeInTheDocument();
+    });
+
+    it('uses the household label for a custom account type (#332)', async () => {
+      // The stored code is the only thing the summary carries; a household's
+      // own type has no translation, so its entered label is the only sensible
+      // label — and the raw code was simply wrong for it.
+      const CUSTOM = {
+        ...MOCK_ACCOUNT,
+        id: 'acc-paypal',
+        name: 'PayPal',
+        type: 'paypal',
+        currency: 'UAH',
+        balance: 300,
+      };
+      server.use(
+        http.get('/api/v1/account-types/enabled', () =>
+          HttpResponse.json([
+            ...MOCK_ENABLED_ACCOUNT_TYPES,
+            {
+              id: 'hat-paypal',
+              householdId: 'hh-1',
+              typeCode: 'paypal',
+              enabledAt: '2026-01-01T00:00:00Z',
+              accountType: {
+                code: 'paypal',
+                label: 'PayPal wallet',
+                icon: null,
+                isSystem: false,
+                createdAt: '2026-01-01T00:00:00Z',
+              },
+            },
+          ]),
+        ),
+        http.get('/api/v1/accounts/summary', () =>
+          HttpResponse.json({ totalBalance: 5300, accounts: [UAH_ACCOUNT, CUSTOM] }),
+        ),
+      );
+
+      renderWithProviders(<DashboardPage />);
+      await waitFor(
+        () => expect(screen.getByText('Wealth breakdown')).toBeInTheDocument(),
+        { timeout: 3000 },
+      );
+
+      expect(screen.getAllByText('PayPal wallet').length).toBeGreaterThanOrEqual(1);
+      expect(screen.queryByText('paypal')).not.toBeInTheDocument();
+    });
+
+    it('localises seeded type labels with the rest of the page (#332)', async () => {
+      server.use(
+        http.get('/api/v1/accounts/summary', () =>
+          HttpResponse.json({ totalBalance: 5200, accounts: [UAH_ACCOUNT, CASH_ACCOUNT] }),
+        ),
+      );
+
+      renderWithProviders(<DashboardPage />);
+      await waitFor(
+        () => expect(screen.getByText('Wealth breakdown')).toBeInTheDocument(),
+        { timeout: 3000 },
+      );
+
+      await act(async () => {
+        await i18n.changeLanguage('uk');
+      });
+      try {
+        await waitFor(() =>
+          expect(screen.getAllByText('Готівка').length).toBeGreaterThanOrEqual(1),
+        );
+        expect(screen.queryByText('cash')).not.toBeInTheDocument();
+      } finally {
+        await act(async () => {
+          await i18n.changeLanguage('en');
+        });
+      }
     });
 
     it('renders charts when multi-currency + rates are ready', async () => {
