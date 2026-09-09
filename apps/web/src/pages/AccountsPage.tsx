@@ -10,11 +10,12 @@ import type {
   EnabledAccountType,
 } from '../types/api';
 import { Modal } from '../components/ui/Modal';
+import { accountTypeLabel } from '../lib/account-type-label';
+import { useEnabledAccountTypes } from '../hooks/useEnabledAccountTypes';
 import { Button } from '../components/ui/Button';
 import { Input, Select } from '../components/ui/Input';
 import { Badge } from '../components/ui/Badge';
 import { formatMoney } from '../lib/money';
-import { td } from '../lib/i18n-dynamic';
 import { useRatesState, convert, BASE_CURRENCY_KEY } from '../hooks/useRates';
 import {
   useAccountActions,
@@ -38,13 +39,13 @@ const ADD_TYPE_VALUE = '__add_new_type__';
 // System types (the old fixed enum, now catalog rows with isSystem=true)
 // keep their existing i18n keys; a household-coined custom type has no
 // translation, so its own catalog label is the fallback.
+// Thin wrapper so the badge call sites keep reading as they did; the rule
+// itself lives in lib/account-type-label.ts, shared with the dashboard (#332).
 function typeLabel(
   et: EnabledAccountType,
   t: ReturnType<typeof useTranslation>['t'],
 ): string {
-  return td(t, `accounts.types.${et.typeCode}`, {
-    defaultValue: et.accountType.label,
-  });
+  return accountTypeLabel(et.typeCode, [et], t);
 }
 
 // ──────────────────────────────────────────────
@@ -98,11 +99,7 @@ export function AccountsPage() {
     enabled: !!hid,
   });
 
-  const { data: enabledTypes = [] } = useQuery({
-    queryKey: ['account-types-enabled', hid],
-    queryFn: () => financeApi.getEnabledAccountTypes(hid),
-    enabled: !!hid,
-  });
+  const { data: enabledTypes = [] } = useEnabledAccountTypes(hid);
 
   // Backend already sorts by name (accounts.service.ts findAll). Re-sorting
   // client-side with the browser locale drifted from PostgreSQL's collation

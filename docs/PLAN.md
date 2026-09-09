@@ -790,6 +790,15 @@ Finance Service → Kafka: finance.transaction.created
       first expense would be refused.
     ✔ Transactions CRUD + transfer (paired) + reverse-delta on delete
     ✔ Categories (archive/impact/permanent-delete flow), income sources
+    ✔ Account types read as names, not stored keys (#332) — the dashboard's "By account type"
+      donut labelled its slices `bank` / `cash`, passing the raw grouping key straight through as
+      the label. DonutChart documents that field as "localised label shown in tooltip + legend", so
+      the contract was being violated at the call site. It leaked an internal identifier onto the
+      first screen after sign-in, stayed English under every locale, and was simply wrong for a
+      household's own custom types, whose entered label is the only sensible name. The account grid
+      tile two elements away had the identical defect and is fixed with it. Resolution lives in
+      `lib/account-type-label.ts`, shared with the accounts screen's badges — grouping still keys
+      on the code, only the label is resolved.
     ✔ Shopping sidebar count stays fresh (#328) — the card's item count is embedded in the
       collection query, but the seven item-level mutations invalidated only the opened list, so
       adding items left the sidebar reading "0 items" beside a detail pane showing two until a full
