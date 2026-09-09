@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useHousehold } from '../contexts/HouseholdContext';
@@ -75,6 +75,21 @@ export function ShoppingPage() {
     [products],
   );
 
+  // Every item-level change moves BOTH the opened list and the sidebar card,
+  // whose count is embedded in the collection query (#328). The item mutations
+  // used to invalidate only the first, so adding an item left the sidebar
+  // reading "0 items" next to a detail pane showing two — the server value was
+  // right, only the cached one was stale, and a reload corrected it.
+  //
+  // One helper rather than a pair repeated seven times, so a future item
+  // mutation cannot forget half of it. The keys are spelled in full here to
+  // match the queries above; prefix matching made the short form work, but the
+  // inconsistency is what let the omission hide.
+  const invalidateListAndCollection = useCallback(() => {
+    qc.invalidateQueries({ queryKey: ['shopping-lists', hid] });
+    qc.invalidateQueries({ queryKey: ['shopping-list', selectedList?.id, hid] });
+  }, [qc, hid, selectedList?.id]);
+
   const createList = useMutation({
     mutationFn: (name: string) => shoppingApi.createList(hid, uid, { name }),
     onSuccess: () =>
@@ -84,8 +99,7 @@ export function ShoppingPage() {
   const completeList = useMutation({
     mutationFn: (id: string) => shoppingApi.completeList(id, hid, uid),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['shopping-lists', hid] });
-      qc.invalidateQueries({ queryKey: ['shopping-list', selectedList?.id] });
+      invalidateListAndCollection();
     },
   });
 
@@ -102,8 +116,7 @@ export function ShoppingPage() {
     mutationFn: ({ id, name }: { id: string; name: string }) =>
       shoppingApi.updateList(id, hid, { name }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['shopping-lists', hid] });
-      qc.invalidateQueries({ queryKey: ['shopping-list', selectedList?.id] });
+      invalidateListAndCollection();
     },
   });
 
@@ -136,8 +149,7 @@ export function ShoppingPage() {
         preferredStoreId,
         productId,
       }),
-    onSuccess: () =>
-      qc.invalidateQueries({ queryKey: ['shopping-list', selectedList?.id] }),
+    onSuccess: invalidateListAndCollection,
   });
 
   const bulkAddItems = useMutation({
@@ -148,8 +160,7 @@ export function ShoppingPage() {
         uid,
         names.map((name) => ({ name })),
       ),
-    onSuccess: () =>
-      qc.invalidateQueries({ queryKey: ['shopping-list', selectedList?.id] }),
+    onSuccess: invalidateListAndCollection,
   });
 
   // A link is attached to the Product, not the item instance (#197) — so
@@ -213,7 +224,7 @@ export function ShoppingPage() {
       });
     }
     qc.invalidateQueries({ queryKey: ['products', hid] });
-    qc.invalidateQueries({ queryKey: ['shopping-list', selectedList?.id] });
+    invalidateListAndCollection();
   };
 
   const toggleItem = useMutation({
@@ -226,8 +237,7 @@ export function ShoppingPage() {
       itemId: string;
       isPurchased: boolean;
     }) => shoppingApi.updateItem(listId, itemId, hid, uid, { isPurchased }),
-    onSuccess: () =>
-      qc.invalidateQueries({ queryKey: ['shopping-list', selectedList?.id] }),
+    onSuccess: invalidateListAndCollection,
   });
 
   const setActualStore = useMutation({
@@ -240,8 +250,7 @@ export function ShoppingPage() {
       itemId: string;
       actualStoreId: string;
     }) => shoppingApi.updateItem(listId, itemId, hid, uid, { actualStoreId }),
-    onSuccess: () =>
-      qc.invalidateQueries({ queryKey: ['shopping-list', selectedList?.id] }),
+    onSuccess: invalidateListAndCollection,
   });
 
   const setPreferredStore = useMutation({
@@ -255,15 +264,13 @@ export function ShoppingPage() {
       preferredStoreId: string | null;
     }) =>
       shoppingApi.updateItem(listId, itemId, hid, uid, { preferredStoreId }),
-    onSuccess: () =>
-      qc.invalidateQueries({ queryKey: ['shopping-list', selectedList?.id] }),
+    onSuccess: invalidateListAndCollection,
   });
 
   const deleteItem = useMutation({
     mutationFn: ({ listId, itemId }: { listId: string; itemId: string }) =>
       shoppingApi.deleteItem(listId, itemId, hid),
-    onSuccess: () =>
-      qc.invalidateQueries({ queryKey: ['shopping-list', selectedList?.id] }),
+    onSuccess: invalidateListAndCollection,
   });
 
   if (!activeHousehold)

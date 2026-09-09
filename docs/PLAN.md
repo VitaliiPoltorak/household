@@ -790,6 +790,14 @@ Finance Service → Kafka: finance.transaction.created
       first expense would be refused.
     ✔ Transactions CRUD + transfer (paired) + reverse-delta on delete
     ✔ Categories (archive/impact/permanent-delete flow), income sources
+    ✔ Shopping sidebar count stays fresh (#328) — the card's item count is embedded in the
+      collection query, but the seven item-level mutations invalidated only the opened list, so
+      adding items left the sidebar reading "0 items" beside a detail pane showing two until a full
+      reload. Cosmetic, but it is the at-a-glance view of what still needs buying, and it disagreed
+      with the list the user was looking at. Both keys now go through a single
+      `invalidateListAndCollection` helper so a future item mutation cannot invalidate half; the
+      keys are also spelled consistently with the queries, since prefix matching is what let the
+      omission hide.
     ✔ Dialogs report their failures and speak all four languages (#330, #331) — several modal
       submit handlers were `try { … } finally { setSaving(false) }` with no `catch`, so a rejection
       escaped as an unhandled promise rejection, the spinner reset, and the dialog looked idle and

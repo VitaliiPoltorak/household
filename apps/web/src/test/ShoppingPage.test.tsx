@@ -651,6 +651,87 @@ describe('ShoppingPage', () => {
     });
   });
 
+  // #328: the sidebar card's count comes from the collection query, while the
+  // item mutations only ever invalidated the opened list. Adding two items left
+  // the sidebar reading "0 items" beside a detail pane showing both, until a
+  // full reload — the server value was right, only the cached one was stale.
+  describe('sidebar count freshness (#328)', () => {
+    /** Serves a collection whose embedded items grow as the detail list does. */
+    const growingList = () => {
+      const items = [...MOCK_LIST.items];
+      server.use(
+        http.get('/api/v1/shopping-lists', () =>
+          HttpResponse.json([{ ...MOCK_LIST, items: [...items] }]),
+        ),
+        http.get('/api/v1/shopping-lists/:id', () =>
+          HttpResponse.json({ ...MOCK_LIST, items: [...items] }),
+        ),
+        http.post('/api/v1/shopping-lists/:id/items', async ({ request }) => {
+          const body = (await request.json()) as { name: string };
+          const added = {
+            ...MOCK_LIST.items[0],
+            id: `item-${items.length + 1}`,
+            name: body.name,
+          };
+          items.push(added);
+          return HttpResponse.json(added);
+        }),
+      );
+    };
+
+    const openList = async () => {
+      renderWithProviders(<ShoppingPage />);
+      await waitFor(() => screen.getByText('Weekly Groceries'), { timeout: 3000 });
+      await userEvent.click(screen.getByText('Weekly Groceries'));
+      await waitFor(() => screen.getByText('Milk'), { timeout: 3000 });
+    };
+
+    it('updates the sidebar count after adding an item, without a reload', async () => {
+      growingList();
+      await openList();
+      expect(screen.getByText(/1 item/)).toBeInTheDocument();
+
+      await userEvent.type(screen.getByPlaceholderText('Item name'), 'Bread');
+      await userEvent.click(screen.getByRole('button', { name: 'Add item' }));
+
+      await waitFor(() => expect(screen.getByText(/2 items/)).toBeInTheDocument(), {
+        timeout: 3000,
+      });
+    });
+
+    it('updates the sidebar count after removing an item', async () => {
+      const items = [
+        ...MOCK_LIST.items,
+        { ...MOCK_LIST.items[0], id: 'item-2', name: 'Bread' },
+      ];
+      server.use(
+        http.get('/api/v1/shopping-lists', () =>
+          HttpResponse.json([{ ...MOCK_LIST, items: [...items] }]),
+        ),
+        http.get('/api/v1/shopping-lists/:id', () =>
+          HttpResponse.json({ ...MOCK_LIST, items: [...items] }),
+        ),
+        http.delete('/api/v1/shopping-lists/:listId/items/:itemId', ({ params }) => {
+          const i = items.findIndex((it) => it.id === params.itemId);
+          if (i >= 0) items.splice(i, 1);
+          return new HttpResponse(null, { status: 204 });
+        }),
+      );
+
+      await openList();
+      await waitFor(() => expect(screen.getByText(/2 items/)).toBeInTheDocument(), {
+        timeout: 3000,
+      });
+
+      // The item rows' bare ✕ — list items are deliberately unguarded (#327).
+      await userEvent.click(screen.getAllByText('✕')[0]);
+
+      await waitFor(() => expect(screen.getByText(/1 item/)).toBeInTheDocument(), {
+        timeout: 3000,
+      });
+    });
+  });
+
   // #327: list and store deletes had the same bare-button shape as the
   // transaction ✕ — one click, no confirmation, no undo.
   describe('delete confirmation (#327)', () => {
