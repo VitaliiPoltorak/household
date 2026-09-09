@@ -120,14 +120,14 @@ export function TxRow({
         <button
           onClick={onEdit}
           className="text-sm text-gray-300 hover:text-primary-500 dark:text-gray-600 dark:hover:text-primary-400"
-          title="Edit"
+          title={t('common.edit')}
         >
           ✏️
         </button>
         <button
           onClick={onDelete}
           className="text-sm text-gray-300 hover:text-red-400 dark:text-gray-600 dark:hover:text-red-400"
-          title="Delete"
+          title={t('common.delete')}
         >
           ✕
         </button>

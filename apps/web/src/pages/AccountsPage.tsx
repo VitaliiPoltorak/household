@@ -450,7 +450,7 @@ function AccountCard({
           <button
             onClick={onEdit}
             className="text-sm text-gray-400 hover:text-primary-600 dark:text-gray-500 dark:hover:text-primary-400"
-            title="Edit"
+            title={t('common.edit')}
           >
             ✏️
           </button>
@@ -530,7 +530,7 @@ function AccountRow({
         <button
           onClick={onEdit}
           className="text-sm text-gray-400 hover:text-primary-600 dark:text-gray-500 dark:hover:text-primary-400"
-          title="Edit"
+          title={t('common.edit')}
         >
           ✏️
         </button>

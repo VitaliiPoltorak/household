@@ -790,6 +790,16 @@ Finance Service → Kafka: finance.transaction.created
       first expense would be refused.
     ✔ Transactions CRUD + transfer (paired) + reverse-delta on delete
     ✔ Categories (archive/impact/permanent-delete flow), income sources
+    ✔ Dialogs report their failures and speak all four languages (#330, #331) — several modal
+      submit handlers were `try { … } finally { setSaving(false) }` with no `catch`, so a rejection
+      escaped as an unhandled promise rejection, the spinner reset, and the dialog looked idle and
+      ready — indistinguishable from "you haven't pressed the button yet". Pressing the button
+      again then risks a duplicate on a partial failure. Worst placed of these was
+      CreateHouseholdModal, the first dialog a new user meets, which was also hardcoded English
+      while the page around it translated. Fixed via a shared `useAsyncSubmit` hook and a
+      `ui/FormError` banner rather than three copies of the same catch, so a future modal cannot
+      reintroduce the shape by omission; the two rename/invite modals on the household screen had
+      the same defect and are fixed in the same pass.
     ✔ Destructive actions are confirmed (#327) — a transaction was deleted by a bare ✕ sitting
       next to the edit pencil in a compact row: one mis-click permanently destroyed a financial
       record and silently rewrote the account balance, with no confirmation, no undo and no audit

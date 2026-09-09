@@ -10,6 +10,8 @@ import type { MemberRole, PublicUserProfile } from '../types/api';
 import { Button } from '../components/ui/Button';
 import { Input, Select } from '../components/ui/Input';
 import { Modal } from '../components/ui/Modal';
+import { FormError } from '../components/ui/FormError';
+import { useAsyncSubmit } from '../hooks/useAsyncSubmit';
 import { RoleBadge } from '../components/households/RoleBadge';
 import { BankConnectionsSection } from '../components/households/BankConnectionsSection';
 import { formatDate } from '../lib/date-format';
@@ -401,21 +403,18 @@ function InviteModal({
   const { t } = useTranslation();
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<MemberRole>('member');
-  const [saving, setSaving] = useState(false);
   const [copied, setCopied] = useState(false);
+  const { submitting, error, setError, run } = useAsyncSubmit();
 
-  const submit = async (e: React.FormEvent) => {
+  const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    setSaving(true);
-    try {
+    void run(async () => {
       const invite = await householdsApi.createInvite(hid, email, role, hid);
       const link = `${window.location.origin}/invite?token=${invite.token}`;
       await navigator.clipboard.writeText(link).catch(() => null);
       setCopied(true);
       setTimeout(onInvited, 1500);
-    } finally {
-      setSaving(false);
-    }
+    });
   };
 
   return (
@@ -425,7 +424,10 @@ function InviteModal({
           label={t('household.email')}
           type="email"
           value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          onChange={(e) => {
+            setEmail(e.target.value);
+            setError(null);
+          }}
           required
           placeholder="partner@example.com"
         />
@@ -442,9 +444,10 @@ function InviteModal({
         </Select>
         {copied && (
           <p className="text-sm text-green-600 dark:text-green-400">
-            ✓ Invite link copied to clipboard!
+            ✓ {t('household.inviteLinkCopied')}
           </p>
         )}
+        <FormError message={error} />
         <div className="flex gap-2">
           <Button
             type="button"
@@ -454,8 +457,8 @@ function InviteModal({
           >
             {t('common.cancel')}
           </Button>
-          <Button type="submit" className="flex-1" disabled={saving}>
-            {saving ? '…' : t('household.invite')}
+          <Button type="submit" className="flex-1" disabled={submitting}>
+            {submitting ? '…' : t('household.invite')}
           </Button>
         </div>
       </form>
@@ -476,18 +479,15 @@ function RenameModal({
 }) {
   const { t } = useTranslation();
   const [name, setName] = useState(currentName);
-  const [saving, setSaving] = useState(false);
+  const { submitting, error, setError, run } = useAsyncSubmit();
 
-  const submit = async (e: React.FormEvent) => {
+  const submit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim() || name === currentName) return;
-    setSaving(true);
-    try {
+    void run(async () => {
       const updated = await householdsApi.update(hid, hid, name.trim());
       onRenamed(updated);
-    } finally {
-      setSaving(false);
-    }
+    });
   };
 
   return (
@@ -496,9 +496,13 @@ function RenameModal({
         <Input
           label={t('household.title')}
           value={name}
-          onChange={(e) => setName(e.target.value)}
+          onChange={(e) => {
+            setName(e.target.value);
+            setError(null);
+          }}
           autoFocus
         />
+        <FormError message={error} />
         <div className="flex gap-2">
           <Button
             type="button"
@@ -511,9 +515,9 @@ function RenameModal({
           <Button
             type="submit"
             className="flex-1"
-            disabled={saving || !name.trim() || name === currentName}
+            disabled={submitting || !name.trim() || name === currentName}
           >
-            {saving ? '…' : t('common.save')}
+            {submitting ? '…' : t('common.save')}
           </Button>
         </div>
       </form>

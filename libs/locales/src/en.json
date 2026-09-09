@@ -333,7 +333,8 @@
     "expiresOn": "expires {{date}}",
     "copyLink": "Copy link",
     "linkCopied": "Link copied!",
-    "roleChangeForbidden": "You don't have permission to change this member's role."
+    "roleChangeForbidden": "You don't have permission to change this member's role.",
+    "inviteLinkCopied": "Invite link copied to clipboard"
   },
   "settings": {
     "title": "Settings",
