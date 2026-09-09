@@ -28,6 +28,13 @@ interface AuthContextValue extends AuthState {
   migrationNeeded: boolean;
   login: (tokens: LoginResponse) => Promise<void>;
   logout: () => Promise<void>;
+  /**
+   * Re-reads GET /auth/me. Needed when an action changes the profile in a way
+   * the UI must branch on but which issues no new tokens — setting a first
+   * password (#329) flips `hasPassword`, and the settings screen has to switch
+   * from the set form to the change form without a reload.
+   */
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -110,6 +117,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setState({ user });
   }, []);
 
+  const refreshUser = useCallback(async () => {
+    const user = await authApi.getMe();
+    applyLocale(user.locale);
+    setState({ user });
+  }, []);
+
   const logout = useCallback(async () => {
     await authApi.logout().catch(() => null);
     clearSession();
@@ -117,7 +130,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ ...state, isLoading, migrationNeeded, login, logout }}>
+    <AuthContext.Provider value={{ ...state, isLoading, migrationNeeded, login, logout, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );

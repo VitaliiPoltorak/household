@@ -72,6 +72,8 @@ export function mapAuthError(err: unknown): MappedAuthError {
         return { key: 'auth.errors.samePassword', code };
       case 'NO_PASSWORD_SET':
         return { key: 'auth.errors.noPasswordSet', code };
+      case 'PASSWORD_ALREADY_SET':
+        return { key: 'auth.errors.passwordAlreadySet', code };
     }
   }
 

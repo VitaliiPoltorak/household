@@ -16,7 +16,8 @@ export interface EmailThrottleRule {
     | 'login'
     | 'verify-email'
     | 'resend-verification'
-    | 'password-change';
+    | 'password-change'
+    | 'password-set';
   /** Max allowed hits per email per window. */
   limit: number;
   /** Window length in seconds. */
@@ -36,6 +37,11 @@ const DEFAULT_RULES: Record<
   'verify-email': { limit: 10, windowSec: 900 },
   'resend-verification': { limit: 3, windowSec: 3600 },
   'password-change': { limit: 5, windowSec: 3600 },
+  // Setting a first password (#329) is a once-per-account action, so the
+  // ceiling can be the same as change without ever inconveniencing a real
+  // user. Its own bucket so a burst here cannot lock the account out of
+  // signing in — which for an OAuth-only user is the only way back in.
+  'password-set': { limit: 5, windowSec: 3600 },
 };
 
 /**

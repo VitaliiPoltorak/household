@@ -103,12 +103,26 @@
       "passwordPwned": "Dieses Passwort ist in einem öffentlichen Datenleck aufgetaucht und nicht sicher. Bitte wählen Sie ein anderes.",
       "samePassword": "Wählen Sie ein Passwort, das sich vom aktuellen unterscheidet.",
       "noPasswordSet": "Dieses Konto meldet sich über einen Social-Provider an und hat kein Passwort gesetzt.",
-      "invalidUnlockToken": "Dieser Entsperr-Link ist ungültig oder abgelaufen."
+      "invalidUnlockToken": "Dieser Entsperr-Link ist ungültig oder abgelaufen.",
+      "passwordAlreadySet": "Dieses Konto hat bereits ein Passwort. Verwenden Sie stattdessen das Formular zum Ändern."
     },
     "migration": {
       "title": "Sicherheitsupdate",
       "body": "Wir haben die Sitzungsverwaltung verbessert. Bitte melden Sie sich noch einmal an — es dauert nur wenige Sekunden, und Sie landen wieder dort, wo Sie waren.",
       "cta": "Erneut anmelden"
+    },
+    "setPassword": {
+      "title": "Passwort festlegen",
+      "description": "Ihr Konto meldet sich über {{providers}} an. Legen Sie ein Passwort fest, um sich auch mit Ihrer E-Mail-Adresse anzumelden — und hineinzukommen, falls Sie den Zugang zu diesem Anbieter verlieren.",
+      "descriptionNoProvider": "Legen Sie ein Passwort fest, um sich mit Ihrer E-Mail-Adresse anzumelden.",
+      "submit": "Passwort festlegen",
+      "submitting": "Wird festgelegt…",
+      "success": "Passwort festgelegt. Sie können sich jetzt mit Ihrer E-Mail-Adresse anmelden."
+    },
+    "providerNames": {
+      "google": "Google",
+      "apple": "Apple",
+      "facebook": "Facebook"
     }
   },
   "dashboard": {

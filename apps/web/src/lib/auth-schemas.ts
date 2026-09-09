@@ -73,3 +73,24 @@ export const changePasswordSchema = z
     }
   });
 export type ChangePasswordFormValues = z.infer<typeof changePasswordSchema>;
+
+/**
+ * Setting a FIRST password (#329) — no current-password field, because the
+ * endpoint is only valid for an account that has none. Same strength floor and
+ * confirm rule as changing one.
+ */
+export const setPasswordSchema = z
+  .object({
+    newPassword: passwordSchema,
+    confirmPassword: z.string().min(1),
+  })
+  .superRefine((data, ctx) => {
+    if (data.newPassword !== data.confirmPassword) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['confirmPassword'],
+        message: 'auth.errors.confirmMismatch',
+      });
+    }
+  });
+export type SetPasswordFormValues = z.infer<typeof setPasswordSchema>;

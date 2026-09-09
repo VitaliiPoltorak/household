@@ -29,7 +29,8 @@ export type AuthErrorCode =
   | 'WEAK_PASSWORD'
   | 'PASSWORD_PWNED'
   | 'SAME_PASSWORD'
-  | 'NO_PASSWORD_SET';
+  | 'NO_PASSWORD_SET'
+  | 'PASSWORD_ALREADY_SET';
 
 /** Extra fields the backend puts alongside `code` on the WEAK_PASSWORD body. */
 export interface WeakPasswordDetails {
@@ -52,6 +53,14 @@ export interface User {
   avatarUrl: string | null;
   locale: string;
   createdAt: string;
+  // #329: whether the account can sign in with a password at all. Without it
+  // the settings screen showed the change-password form to OAuth-only
+  // accounts, which have nothing to type into "current password".
+  hasPassword: boolean;
+  // Providers the account is linked to ('google' | 'apple' | 'facebook'),
+  // so the UI can explain WHY there is no password rather than just
+  // asserting it. Empty for a password-only account.
+  providers: string[];
 }
 
 /**

@@ -34,6 +34,7 @@ import { ResendVerificationDto } from './dto/resend-verification.dto';
 import { LoginWithPasswordDto } from './dto/login-with-password.dto';
 import { UnlockAccountDto } from './dto/unlock-account.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
+import { SetPasswordDto } from './dto/set-password.dto';
 import {
   clearAuthCookies,
   generateCsrfToken,
@@ -158,6 +159,25 @@ export class AuthController {
       deviceInfo: dto.deviceInfo,
     });
     return this.buildLoginResponse(tokens, res);
+  }
+
+  @Post('password/set')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @Audit({ action: 'auth.password.set', resourceType: 'user' })
+  @ApiOperation({
+    summary:
+      'Set a first password on an account that has none (OAuth-only). Refused when a password already exists.',
+  })
+  @ApiHeader({ name: 'x-user-id', required: true })
+  async setPassword(
+    @Headers('x-user-id') userId: string,
+    @Body() dto: SetPasswordDto,
+  ): Promise<void> {
+    this.requireUserId(userId);
+    // 204, and no session is touched: adding a password invalidates nothing,
+    // so unlike password/change there is nothing to re-issue. The client
+    // refetches /auth/me to pick up hasPassword.
+    await this.auth.setPassword(userId, { newPassword: dto.newPassword });
   }
 
   // Provider-specific endpoints are retained for backward compatibility with
@@ -305,6 +325,14 @@ export class AuthController {
       avatarUrl: user.avatarUrl,
       locale: user.locale,
       createdAt: user.createdAt,
+      // #329: the client had nothing to branch on, so it rendered the
+      // change-password form to OAuth-only accounts that can never use it.
+      // A boolean, never the hash or any part of it.
+      hasPassword: !!user.passwordHash,
+      // Which providers this account is reachable through. Lets the settings
+      // screen say "you sign in with Google" rather than leaving the absence
+      // of a password unexplained.
+      providers: (user.authProviders ?? []).map((p) => p.provider).sort(),
     };
   }
 
