@@ -20,6 +20,47 @@ env:
   PNPM_VERSION: '9.15.9'
 
 jobs:
+  # #343: runs unconditionally (not gated behind the `changes` job below) —
+  # a secret can land in any file, docs included, so this is the one job
+  # that always runs regardless of which areas changed.
+  gitleaks:
+    name: Secret scan (gitleaks)
+    runs-on: ubuntu-latest
+    env:
+      GITLEAKS_VERSION: '8.30.1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history so a PR scan (below) can walk every commit, not
+          # just the working tree at HEAD.
+          fetch-depth: 0
+
+      - name: Install gitleaks
+        run: |
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            | tar -xz gitleaks
+          sudo mv gitleaks /usr/local/bin/gitleaks
+
+      # PRs scan full history (a leak could hide in any commit the PR
+      # carries, not just its net diff); pushes to main scan only the
+      # commits the push actually added, falling back to a full scan when
+      # there's no meaningful before/after (new branch, workflow_dispatch).
+      - name: Scan (pull request — full history)
+        if: github.event_name == 'pull_request'
+        run: gitleaks detect --source . --log-opts="--all" --redact -v
+
+      - name: Scan (push — new commits)
+        if: github.event_name != 'pull_request'
+        run: |
+          BEFORE="${{ github.event.before }}"
+          AFTER="${{ github.event.after }}"
+          ZERO_SHA="0000000000000000000000000000000000000000"
+          if [ -z "$BEFORE" ] || [ "$BEFORE" = "$ZERO_SHA" ] || [ -z "$AFTER" ]; then
+            gitleaks detect --source . --log-opts="--all" --redact -v
+          else
+            gitleaks detect --source . --log-opts="$BEFORE..$AFTER" --redact -v
+          fi
+
   # #223: a docs-only or single-area change shouldn't pay for every test
   # layer. This job classifies the diff; the three real jobs below stay
   # gated with `if:` (not filtered out at the workflow `on:` level) so they

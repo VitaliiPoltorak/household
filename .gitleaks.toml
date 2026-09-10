@@ -1,0 +1,41 @@
+title = "gitleaks config for the household monorepo"
+
+# Keep gitleaks' built-in ruleset (AWS/GCP/Stripe keys, private keys, generic
+# high-entropy secrets, etc.) and layer our allowlist on top of it, rather
+# than maintaining our own rule list from scratch.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Deliberate placeholders and test fixtures, not real secrets (#343)"
+
+paths = [
+  # Documents every env var name for local setup. Every value is either
+  # empty or an obvious placeholder (e.g. GATEWAY_SIGNING_SECRET=dev-only-change-me) —
+  # never a value that was ever live anywhere.
+  '''(^|/)\.env\.example$''',
+  '''(^|/)apps/web/\.env\.local\.example$''',
+
+  # Committed CI/pre-commit fixtures (#208) for the local scenario stack.
+  # Every value is a self-describing fake (e.g. "ci-only-not-a-real-secret")
+  # — see the header comment in .env.ci for why these are tracked at all
+  # while .env/.env.local/.env.production are gitignored.
+  '''(^|/)\.env\.ci$''',
+  '''(^|/)\.env\.test$''',
+
+  # Backend service test fixtures — throwaway JWT secrets, sample tokens,
+  # and hash fragments (e.g. an HIBP k-anonymity suffix) that exist only to
+  # assert behavior in unit/integration specs, never used outside the test
+  # run that generates them.
+  '''(^|/)apps/[^/]+/test/.*''',
+
+  # Web unit test fixtures — same reasoning as the backend test dirs above
+  # (e.g. a hardcoded invite-token UUID used to assert routing behavior).
+  '''(^|/)apps/web/src/test/.*''',
+]
+
+regexes = [
+  # README/docs illustrative examples — a documentation placeholder mail
+  # sender, not a real mailbox or credential.
+  '''no-reply@localhost''',
+]
