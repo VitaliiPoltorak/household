@@ -234,6 +234,10 @@ This also runs automatically on every commit (once `pnpm hooks:enable` is active
 
 You can still import both JSON files into the Postman GUI for exploratory testing — select the **Household — Local** environment, run **Setup → Login (owner)** first, then anything else.
 
+### Secret scanning
+
+Every push and PR runs a `gitleaks` job in CI (#343) — PRs scan the full commit history they carry, pushes scan only the new commits. `.gitleaks.toml` allowlists deliberate non-secrets: `.env.example`, `.env.ci`, `.env.test`, `apps/web/.env.local.example`, and the backend/web test fixtures under `apps/*/test/` and `apps/web/src/test/` that use throwaway values on purpose. A real secret anywhere else fails the build.
+
 ## Google OAuth setup
 
 Required once to get a `GOOGLE_CLIENT_ID` and test tokens locally.
