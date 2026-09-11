@@ -12,11 +12,17 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiHeader } from '@nestjs/swagger';
 import { Audit } from '@household/audit';
+import { RequireFeature } from '@household/feature-flags';
 import { BankConnectionsService } from './bank-connections.service';
 import { SyncService } from './sync.service';
 import { ConnectMonobankDto } from './dto/connect-monobank.dto';
 import { BankConnectionResponseDto } from './dto/bank-connection-response.dto';
 
+// Only the two routes that actually call out to Monobank
+// (connect + sync) are gated behind the 'monobank-integration' kill-switch.
+// GET routes and DELETE deliberately are not: reads render existing state
+// (never a misleading empty list) and disconnecting is the one thing a user
+// should still be able to do during an incident.
 @ApiTags('Monobank')
 @ApiHeader({ name: 'x-household-id', required: true })
 @Controller('monobank')
@@ -27,6 +33,7 @@ export class BankConnectionsController {
   ) {}
 
   @Post('connect')
+  @RequireFeature('monobank-integration')
   @Audit({
     action: 'integration.monobank.connect',
     resourceType: 'bank_connection',
@@ -60,6 +67,7 @@ export class BankConnectionsController {
   }
 
   @Post('connections/:id/sync')
+  @RequireFeature('monobank-integration')
   async triggerSync(
     @Headers('x-household-id') hid: string,
     @Param('id') id: string,

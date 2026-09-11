@@ -27,6 +27,11 @@ const MAX_LOOKBACK_MS = (31 * 24 + 1) * 60 * 60 * 1000; // Monobank: 31 days + 1
  *  - the lastSyncAt check enforces the 60s-per-token spacing Monobank
  *    requires even when syncs never overlap (the lock alone doesn't cover
  *    "ran, finished in 2s, immediately triggered again").
+ *
+ * Sync is 100% user-initiated — there is no scheduler here. If one gets
+ * added later, it must check FeatureFlagService.isEnabled('monobank-integration', ...)
+ * itself; BankConnectionsController's @RequireFeature guard only covers the
+ * HTTP path.
  */
 @Injectable()
 export class SyncService {

@@ -408,4 +408,10 @@ export const handlers = [
   http.get(`${BASE}/integrations/monobank/connections`, () =>
     HttpResponse.json([]),
   ),
+
+  // Feature flags — default every flag to enabled; override per test to
+  // exercise a hidden/disabled state.
+  http.get(`${BASE}/feature-flags`, () =>
+    HttpResponse.json({ 'monobank-integration': true }),
+  ),
 ];

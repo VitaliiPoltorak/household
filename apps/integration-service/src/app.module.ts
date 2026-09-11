@@ -5,6 +5,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { KafkaModule } from '@household/kafka';
 import { ensureSchema } from '@household/database';
 import { AuditModule } from '@household/audit';
+import { FeatureFlagsModule } from '@household/feature-flags';
 import { RedisModule } from './redis/redis.module';
 import { BankConnectionsModule } from './bank-connections/bank-connections.module';
 import { ExternalTransactionsModule } from './external-transactions/external-transactions.module';
@@ -37,6 +38,7 @@ import { entities } from './config/entities';
     KafkaModule.forRootAsync('integration-service'),
     AuditModule.register(),
     RedisModule,
+    FeatureFlagsModule.register('integration-service'),
     BankConnectionsModule,
     ExternalTransactionsModule,
     EventsModule,

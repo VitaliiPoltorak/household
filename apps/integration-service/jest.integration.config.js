@@ -10,6 +10,8 @@ module.exports = {
     '^@household/common(.*)$': '<rootDir>/../../libs/common/src$1',
     '^@household/contracts(.*)$': '<rootDir>/../../libs/contracts/src$1',
     '^@household/database(.*)$': '<rootDir>/../../libs/database/src$1',
+    '^@household/feature-flags(.*)$':
+      '<rootDir>/../../libs/feature-flags/src$1',
     '^@household/kafka(.*)$': '<rootDir>/../../libs/kafka/src$1',
     '^@household/testing(.*)$': '<rootDir>/../../libs/testing/src$1',
   },

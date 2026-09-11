@@ -9,6 +9,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { ApiTags, ApiHeader } from '@nestjs/swagger';
+import { RequireFeature } from '@household/feature-flags';
 import { ExternalTransactionsService } from './external-transactions.service';
 import { MapTransactionDto } from './dto/map-transaction.dto';
 import { UnmappedTransactionResponseDto } from './dto/unmapped-transaction-response.dto';
@@ -30,6 +31,7 @@ export class ExternalTransactionsController {
   }
 
   @Post('transactions/:id/map')
+  @RequireFeature('monobank-integration')
   async map(
     @Headers('x-user-id') userId: string,
     @Headers('x-household-id') hid: string,
