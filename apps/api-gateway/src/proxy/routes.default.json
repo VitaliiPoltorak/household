@@ -94,5 +94,11 @@
     "envKey": "INTEGRATION_SERVICE_URL",
     "defaultUrl": "http://localhost:3005",
     "rewrites": { "^": "/monobank" }
+  },
+  {
+    "prefix": "/api/v1/feature-flags",
+    "envKey": "HOUSEHOLD_SERVICE_URL",
+    "defaultUrl": "http://localhost:3002",
+    "rewrites": { "^": "/feature-flags" }
   }
 ]

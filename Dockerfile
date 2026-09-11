@@ -51,6 +51,7 @@ COPY libs/audit/package.json libs/audit/package.json
 COPY libs/common/package.json libs/common/package.json
 COPY libs/contracts/package.json libs/contracts/package.json
 COPY libs/database/package.json libs/database/package.json
+COPY libs/feature-flags/package.json libs/feature-flags/package.json
 COPY libs/kafka/package.json libs/kafka/package.json
 COPY libs/locales/package.json libs/locales/package.json
 COPY libs/testing/package.json libs/testing/package.json
@@ -118,6 +119,12 @@ COPY --from=build /app/apps/${SERVICE}/dist ./apps/${SERVICE}/dist
 # instruction service-agnostic like the rest of this stage — the file is a
 # few KB and content-identical across builds, so it's a shared layer too.
 COPY scripts/seed-e2e-user.js ./scripts/seed-e2e-user.js
+
+# scripts/feature-flag.js is the ops kill-switch, run inside the
+# household-service container the same way seed-e2e-user.js runs inside
+# auth-service's — copied into every service's image for the same
+# service-agnostic-instruction reason given above.
+COPY scripts/feature-flag.js ./scripts/feature-flag.js
 
 # Entrypoint resolved at runtime — one CMD for every service. sh -c because
 # CMD-exec-form can't expand env vars.

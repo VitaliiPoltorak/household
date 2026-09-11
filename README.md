@@ -198,6 +198,7 @@ pnpm --filter @household/web test:ui      # Vitest UI
 
 # Backend integration tests per service (requires docker compose up -d)
 pnpm --filter @household/finance-service test:integration
+pnpm --filter @household/household-service test:integration
 pnpm --filter @household/shopping-service test:integration
 pnpm --filter @household/integration-service test:integration
 
@@ -543,5 +544,10 @@ Clients (web / mobile) communicate only with the API Gateway over HTTPS/REST and
 All business entities carry a `householdId` — multi-tenancy at the household level. A user can belong to multiple households.
 
 Inter-service async communication uses Kafka. The Realtime Gateway (Phase 2) consumes Kafka events and broadcasts them to Socket.IO rooms (`household:{id}`), so all connected clients (web + mobile) see changes instantly.
+
+Feature flags (#348) are resolved server-side by household-service (global default → household override → user override) and cached per-service via `@household/feature-flags`, invalidated on toggle by the `feature-flag.updated` Kafka event. Flip the global default of an already-deployed flag with the ops script (household-service must be up):
+```bash
+docker compose exec -T household-service node scripts/feature-flag.js <flag-key> <on|off>
+```
 
 See [`docs/PLAN.md`](docs/PLAN.md) for the full architecture, data model, Kafka event catalog, API endpoints, and development phases.
