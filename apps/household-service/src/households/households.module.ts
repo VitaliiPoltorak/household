@@ -10,8 +10,11 @@ import { HouseholdsController } from './households.controller';
 import { InvitesController } from '../invites/invites.controller';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Household, HouseholdMember, HouseholdInvite])],
+  imports: [
+    TypeOrmModule.forFeature([Household, HouseholdMember, HouseholdInvite]),
+  ],
   controllers: [HouseholdsController, InvitesController],
   providers: [HouseholdsService, MembersService, InvitesService],
+  exports: [MembersService],
 })
 export class HouseholdsModule {}

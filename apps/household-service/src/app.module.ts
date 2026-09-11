@@ -8,6 +8,7 @@ import { AuditModule } from '@household/audit';
 import { RedisModule } from './redis/redis.module';
 import { HouseholdsModule } from './households/households.module';
 import { EventsModule } from './events/events.module';
+import { FeatureFlagsModule } from './feature-flags/feature-flags.module';
 import { entities } from './config/entities';
 
 @Module({
@@ -38,6 +39,7 @@ import { entities } from './config/entities';
     RedisModule,
     HouseholdsModule,
     EventsModule,
+    FeatureFlagsModule,
   ],
 })
 export class AppModule {}

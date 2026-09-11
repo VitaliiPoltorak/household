@@ -187,6 +187,7 @@ Backend → Web → Mobile → Integrations → Deployment → App Store
 | Kafka consumer `auth.user.deleted` → cascade cleanup of memberships |
 | Kafka emitter `household.deleted` → finance/shopping consumers clean up their schemas (#83.4) |
 | Audit log for delete household, member role change, member remove, invite create/revoke/accept (#68.3) |
+| Feature-flag registry + household overrides (`FeatureFlagsService`, #348); emits `feature-flag.updated` on every toggle |
 
 **Roles:**
 
@@ -449,6 +450,24 @@ external_transactions
   id, connection_id, external_id, raw_data (json), mapped_transaction_id?
 ```
 
+### Feature flags (#348)
+
+```
+feature_flags                 # NOT scoped to a household — owned by household-service,
+  id, flag_key, description,  # metadata mirrors libs/contracts/src/feature-flags/registry.ts
+  enabled_default, status (dev|beta|kill-switch), expires_at?, rollout_issue_url?
+
+feature_flag_overrides
+  id, flag_id, actor_type (household|user), actor_id, enabled,
+  source (manual|subscription)          # 'subscription' is #230's future paid-feature hook
+  UNIQUE (flag_id, actor_type, actor_id)
+```
+
+Resolution order: `user` override → `household` override → `enabled_default`. Every non-`kill-switch`
+service that gates behavior on a flag caches the resolved state in Redis
+(`flag:{flagKey}:default` / `:household:{id}` / `:user:{id}`, 60s TTL) via `@household/feature-flags`'
+`FeatureFlagService`, invalidated by the `feature-flag.updated` Kafka event.
+
 ---
 
 ## 7. Kafka events
@@ -499,6 +518,7 @@ Finance Service → Kafka: finance.transaction.created
 | `integration.monobank.sync.failed` | Integration | Notification |
 | `shopping.list.completed` | Shopping | Notification |
 | `shopping.item.purchased` | Shopping | Finance (optional) |
+| `feature-flag.updated` | Household | Every service consuming `@household/feature-flags` (cache invalidation only — not bridged to Socket.IO, see `kafka-bridge.service.ts`'s topic regex) |
 
 ---
 
@@ -549,6 +569,19 @@ Finance Service → Kafka: finance.transaction.created
 | PATCH | `/households/:id/members/:memberId` | Change role |
 | DELETE | `/households/:id/members/:memberId` | Remove a member |
 | POST | `/invites/:token/accept` | Accept an invite |
+
+---
+
+### Feature Flags `/feature-flags` (#348)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/feature-flags` | Resolved value of every registered flag for the caller |
+| GET | `/feature-flags/:flagKey/state` | Raw per-actor state — primarily internal (called by `@household/feature-flags`' client directly against household-service), membership-checked when both actor headers are present |
+| PUT | `/feature-flags/:flagKey/household-override` | Set a household-scoped override (owner/admin only) |
+| DELETE | `/feature-flags/:flagKey/household-override` | Revert a household to the global default (owner/admin only) |
+
+> Flags are resolved server-side only — the client never supplies one. The global default is toggled via `scripts/feature-flag.js` (ops kill-switch, direct DB write — no platform-admin role exists yet), not through this API.
 
 ---
 
@@ -924,6 +957,13 @@ pnpm test:postman                                            # API scenario coll
     ✔ Verify migrations: run creates the schema correctly on an empty DB
     ✔ Disable synchronize in every service — replaced by `migrations` + `migrationsRun: true` in each `app.module.ts` (#304)
     ✔ Migrations run automatically at service bootstrap (`migrationsRun: true`), no separate startup script needed
+
+✔ Feature-flag infrastructure (#348)
+    ✔ `libs/contracts/src/feature-flags/registry.ts` — static in-git flag metadata; CI expiry check (`libs/contracts/test/registry.spec.ts`)
+    ✔ household-service owns `feature_flags` / `feature_flag_overrides`; `GET /feature-flags` + household-override endpoints
+    ✔ `@household/feature-flags` — `@RequireFeature` guard, Redis-cached resolution, `feature-flag.updated` Kafka invalidation
+    ✔ `scripts/feature-flag.js` — ops kill-switch for the global default (no platform-admin role exists yet)
+    □ Gate the Monobank integration behind a kill-switch flag — first real consumer, follow-up PR
 ```
 
 ---
