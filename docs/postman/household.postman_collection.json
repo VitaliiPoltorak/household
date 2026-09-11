@@ -377,6 +377,33 @@
           }
         },
         {
+          "name": "Get resolved feature flags",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const r = pm.response.json();",
+                  "pm.test('monobank-integration flag is present and a boolean', () => pm.expect(r['monobank-integration']).to.be.a('boolean'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Household-Id",
+                "value": "{{householdId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/feature-flags"
+          },
+          "description": "Resolved value of every registered feature flag for the caller (#348). No override exists yet in this run, so every flag reflects its registry-seeded global default."
+        },
+        {
           "name": "Update household name",
           "event": [
             {

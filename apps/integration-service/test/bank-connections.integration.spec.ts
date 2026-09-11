@@ -94,6 +94,8 @@ describe('Bank connections (integration)', () => {
     fakeMonobank.shouldFailStatement = false;
     const lockKeys = await redis.keys('sync:lock:*');
     if (lockKeys.length > 0) await redis.del(...lockKeys);
+    const flagKeys = await redis.keys('flag:*');
+    if (flagKeys.length > 0) await redis.del(...flagKeys);
   });
 
   afterAll(async () => {
@@ -353,6 +355,77 @@ describe('Bank connections (integration)', () => {
 
       expect(res.body).toMatchObject({ status: 'success' });
       expect(rotationMonobank.receivedToken).toBe('mono-token-pre-rotation');
+    });
+  });
+
+  describe('feature flag: monobank-integration (kill-switch)', () => {
+    // No household-service is running in this test app, so a cache MISS
+    // always falls back to the registry default (true) — see
+    // FeatureFlagService.isEnabled. Pre-populating the Redis cache directly
+    // (same technique the sync:lock: tests above use) is what lets these
+    // tests force the "disabled" state without a live household-service.
+    // Every request here carries X-Household-Id, so the household-scoped key
+    // needs seeding too ('none' = cached "no override") — leaving it unset
+    // would itself read back as a miss and trigger a live (failing) fetch
+    // that falls back to the registry default (true), masking the flag-off
+    // behavior this test is meant to exercise.
+    async function disableFlag() {
+      await redis.set('flag:monobank-integration:default', '0', 'EX', 60);
+      await redis.set(
+        `flag:monobank-integration:household:${H}`,
+        'none',
+        'EX',
+        60,
+      );
+    }
+
+    it('503s POST /monobank/connect while disabled', async () => {
+      await disableFlag();
+      await connect().expect(503);
+    });
+
+    it('503s POST /monobank/connections/:id/sync while disabled', async () => {
+      const created = await connect();
+      await disableFlag();
+
+      await request(app.getHttpServer())
+        .post(`/monobank/connections/${created.body.id}/sync`)
+        .set('X-Household-Id', H)
+        .expect(503);
+    });
+
+    it('still allows read/disconnect endpoints while disabled', async () => {
+      const created = await connect();
+      await disableFlag();
+
+      await request(app.getHttpServer())
+        .get('/monobank/connections')
+        .set('X-Household-Id', H)
+        .expect(200);
+      await request(app.getHttpServer())
+        .get(`/monobank/connections/${created.body.id}/logs`)
+        .set('X-Household-Id', H)
+        .expect(200);
+      await request(app.getHttpServer())
+        .delete(`/monobank/connections/${created.body.id}`)
+        .set('X-Household-Id', H)
+        .expect(204);
+    });
+
+    it('resumes normal operation once the flag is re-enabled', async () => {
+      const created = await connect();
+      await disableFlag();
+      await request(app.getHttpServer())
+        .post(`/monobank/connections/${created.body.id}/sync`)
+        .set('X-Household-Id', H)
+        .expect(503);
+
+      await redis.set('flag:monobank-integration:default', '1', 'EX', 60);
+
+      await request(app.getHttpServer())
+        .post(`/monobank/connections/${created.body.id}/sync`)
+        .set('X-Household-Id', H)
+        .expect(201);
     });
   });
 });

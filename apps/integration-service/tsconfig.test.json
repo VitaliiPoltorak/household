@@ -11,6 +11,8 @@
       "@household/contracts/*": ["libs/contracts/src/*"],
       "@household/database": ["libs/database/src"],
       "@household/database/*": ["libs/database/src/*"],
+      "@household/feature-flags": ["libs/feature-flags/src"],
+      "@household/feature-flags/*": ["libs/feature-flags/src/*"],
       "@household/kafka": ["libs/kafka/src"],
       "@household/kafka/*": ["libs/kafka/src/*"],
       "@household/testing": ["libs/testing/src"],

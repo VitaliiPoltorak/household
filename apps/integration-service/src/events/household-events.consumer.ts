@@ -11,6 +11,12 @@ import { BankConnection } from '../bank-connections/entities/bank-connection.ent
  * so re-runs are safe (empty delete = no-op). bank_sync_logs and
  * external_transactions cascade via ON DELETE CASCADE on connection_id, so
  * deleting bank_connections is sufficient.
+ *
+ * Deliberately NOT gated behind the 'monobank-integration' flag — this is a
+ * data-retention obligation, not Monobank traffic. Dropping it while the
+ * flag is off would silently consume-and-discard household.deleted events
+ * (at-least-once delivery means they're not replayed), leaving orphaned
+ * encrypted bank tokens for households that no longer exist.
  */
 @Injectable()
 export class HouseholdEventsConsumer implements OnModuleInit {

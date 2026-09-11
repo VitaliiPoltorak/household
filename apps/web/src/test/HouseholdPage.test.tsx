@@ -500,3 +500,31 @@ describe('HouseholdPage — bank connections (#291)', () => {
     expect(await screen.findByText('3 transactions')).toBeInTheDocument();
   });
 });
+
+describe('HouseholdPage — monobank-integration kill-switch (#348)', () => {
+  it('renders the bank connections section when the flag is on (default)', async () => {
+    renderWithProviders(<HouseholdPage />);
+    expect(
+      await screen.findByText('No bank accounts connected yet.'),
+    ).toBeInTheDocument();
+  });
+
+  it('hides the bank connections section entirely when the flag is off', async () => {
+    server.use(
+      http.get('/api/v1/feature-flags', () =>
+        HttpResponse.json({ 'monobank-integration': false }),
+      ),
+    );
+
+    renderWithProviders(<HouseholdPage />);
+
+    // The section renders (default enabled=true) until the flags query
+    // resolves, so assert eventual absence rather than an immediate one —
+    // an immediate check would trivially pass before that happens.
+    await waitFor(() =>
+      expect(
+        screen.queryByText('No bank accounts connected yet.'),
+      ).not.toBeInTheDocument(),
+    );
+  });
+});

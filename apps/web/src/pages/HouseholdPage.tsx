@@ -5,6 +5,7 @@ import { useHousehold } from '../contexts/HouseholdContext';
 import { useAuth } from '../contexts/AuthContext';
 import { householdsApi } from '../api/households';
 import { authApi } from '../api/auth';
+import { featureFlagsApi } from '../api/feature-flags';
 import { ApiError } from '../api/client';
 import type { MemberRole, PublicUserProfile } from '../types/api';
 import { Button } from '../components/ui/Button';
@@ -37,6 +38,16 @@ export function HouseholdPage() {
   const { user } = useAuth();
   const qc = useQueryClient();
   const hid = activeHousehold?.id ?? '';
+
+  // Defaults to shown (?? true) while loading or on a flags-endpoint error —
+  // the server-side @RequireFeature guard is the real enforcement, this is
+  // only a cosmetic hint, so a blip here should never hide a working feature.
+  const { data: flags } = useQuery({
+    queryKey: ['feature-flags', hid],
+    queryFn: () => featureFlagsApi.resolveAll(hid),
+    enabled: !!hid,
+  });
+  const monobankEnabled = flags?.['monobank-integration'] ?? true;
 
   const [showInvite, setShowInvite] = useState(false);
   const [showRename, setShowRename] = useState(false);
@@ -279,8 +290,8 @@ export function HouseholdPage() {
         </Section>
       )}
 
-      {/* Bank connections */}
-      <BankConnectionsSection hid={hid} />
+      {/* Bank connections — hidden while the monobank-integration kill-switch is off */}
+      {monobankEnabled && <BankConnectionsSection hid={hid} />}
 
       {/* Danger zone */}
       {households.length > 1 && (

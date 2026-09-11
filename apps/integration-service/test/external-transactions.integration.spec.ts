@@ -1,11 +1,13 @@
 import { BadRequestException, INestApplication } from '@nestjs/common';
 import request from 'supertest';
+import Redis from 'ioredis';
 import {
   createTestApp,
   cleanDatabase,
   resetKafkaMocks,
 } from '@household/testing';
 import { AppModule } from '../src/app.module';
+import { REDIS_CLIENT } from '../src/redis/redis.module';
 import {
   MonobankClientService,
   type MonobankClientInfo,
@@ -74,6 +76,7 @@ const U = 'test-user-id';
 describe('External transactions (integration)', () => {
   let app: INestApplication;
   let fakeFinance: FakeFinanceClient;
+  let redis: Redis;
 
   beforeAll(async () => {
     fakeFinance = new FakeFinanceClient();
@@ -84,6 +87,7 @@ describe('External transactions (integration)', () => {
         .overrideProvider(FinanceClientService)
         .useValue(fakeFinance),
     );
+    redis = app.get<Redis>(REDIS_CLIENT);
   });
 
   beforeEach(async () => {
@@ -91,9 +95,12 @@ describe('External transactions (integration)', () => {
     resetKafkaMocks();
     fakeFinance.calls = [];
     fakeFinance.shouldFail = false;
+    const flagKeys = await redis.keys('flag:*');
+    if (flagKeys.length > 0) await redis.del(...flagKeys);
   });
 
   afterAll(async () => {
+    await redis.quit();
     await app.close();
   });
 
@@ -239,6 +246,31 @@ describe('External transactions (integration)', () => {
         .set('X-Household-Id', H)
         .send({ accountId: 'bad-account' })
         .expect(400);
+    });
+
+    it('503s while the monobank-integration flag is disabled', async () => {
+      await connectAndSync();
+      const [unmapped] = (await getUnmapped()).body;
+      // No household-service running in this test app -> a cache miss falls
+      // back to the registry default (true); pre-populate every key the
+      // guard reads (default + household + user, since /map sends both
+      // X-Household-Id and X-User-Id) to force "disabled" without one, same
+      // technique the bank-connections spec uses for sync:lock:.
+      await redis.set('flag:monobank-integration:default', '0', 'EX', 60);
+      await redis.set(
+        `flag:monobank-integration:household:${H}`,
+        'none',
+        'EX',
+        60,
+      );
+      await redis.set(`flag:monobank-integration:user:${U}`, 'none', 'EX', 60);
+
+      await request(app.getHttpServer())
+        .post(`/monobank/transactions/${unmapped.id}/map`)
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
+        .send({ accountId: 'finance-account-1' })
+        .expect(503);
     });
   });
 });

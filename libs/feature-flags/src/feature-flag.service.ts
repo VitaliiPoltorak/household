@@ -57,7 +57,10 @@ export class FeatureFlagService {
     const raw = await this.redis.mget(...keys);
     const byKey = new Map(keys.map((k, i) => [k, raw[i]] as const));
 
-    let defaultState = decodeState(byKey.get(defKey) ?? null);
+    // The 'default' cache key only ever holds '1'/'0' (never 'none' — a
+    // flag always has an enabledDefault), so this narrows the general
+    // FeatureFlagState decode result down to what's actually possible here.
+    let defaultState = decodeState(byKey.get(defKey) ?? null) as boolean | null;
     let householdState: FeatureFlagState = hhKey
       ? (decodeState(byKey.get(hhKey) ?? null) ?? 'none')
       : 'none';
