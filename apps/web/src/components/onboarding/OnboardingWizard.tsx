@@ -30,7 +30,8 @@ export function OnboardingWizard() {
   const navigate = useNavigate();
   const { isOpen, finish } = useOnboarding();
   const { user } = useAuth();
-  const { households, activeHousehold, setActiveHousehold } = useHousehold();
+  const { households, activeHousehold, setActiveHousehold, refetch } =
+    useHousehold();
   const [step, setStep] = useState<Step>('household');
   // The household just created in this run, if any — used instead of
   // waiting on activeHousehold/households to refetch so step 2 can proceed
@@ -87,6 +88,11 @@ export function OnboardingWizard() {
           onCreated={(h) => {
             setHid(h.id);
             setActiveHousehold(h);
+            // The households list query is still cached from before this
+            // household existed (see DashboardPage's own create-household
+            // flow for the same pattern) — without this, the Dashboard
+            // reads "no household" right after the wizard hands off to it.
+            void refetch();
             goNext();
           }}
           onNext={() => {
