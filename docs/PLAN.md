@@ -988,10 +988,13 @@ pnpm test:postman                                            # API scenario coll
     ✔ Household settings & invites
     ✔ User settings (profile, i18n, logout-all)
     ✔ Bank connections (Monobank) — #291
-✔ First-run onboarding wizard (#347) — household → first account → first shopping list → dashboard,
-    skippable at every step, re-entrant via an (i) button in Header/MobileMenuSheet. Outcome tracked
-    per-user as `onboardingStatus` (pending/completed/skipped/reviewed_later) on `auth.users`; a
-    'pending' user is the only case that auto-opens it, and creating/joining another household never
+✔ First-run guided tour (#347) — a spotlight walkthrough of the 5 primary pages (Dashboard, Accounts,
+    Transactions, Shopping, Household), dimming the background and highlighting one real UI element per
+    step with a Back/Skip/Next tooltip. Pure client-side simulation: no data is created, and pages with
+    no real household/accounts/lists show one canned "Example" row per step instead of their normal empty
+    state. Skippable at every step, re-entrant via an (i) button in Header/MobileMenuSheet. Outcome
+    tracked per-user as `onboardingStatus` (pending/completed/skipped/reviewed_later) on `auth.users`; a
+    'pending' user is the only case that auto-starts it, and creating/joining another household never
     re-triggers it
 ✔ Dark theme (#42) — light / dark / system, class on <html>, `useTheme` + `<html>` inline script against FOUC, toggle in Header and selector in Settings
 ✔ Socket.IO client

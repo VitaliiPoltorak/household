@@ -2,6 +2,8 @@ import { useState, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useHousehold } from '../contexts/HouseholdContext';
+import { useOnboarding } from '../contexts/OnboardingContext';
+import { DemoAccountRow } from '../components/onboarding/DemoRows';
 import { financeApi } from '../api/finance';
 import type {
   Account,
@@ -59,6 +61,7 @@ const fmt = (n: number, currency = 'UAH') => formatMoney(n, currency);
 export function AccountsPage() {
   const { t } = useTranslation();
   const { activeHousehold } = useHousehold();
+  const { isStepTarget, isTourPage } = useOnboarding();
   const qc = useQueryClient();
   const hid = activeHousehold?.id ?? '';
 
@@ -153,7 +156,7 @@ export function AccountsPage() {
         })
       : null;
 
-  if (!activeHousehold)
+  if (!activeHousehold && !isTourPage('/accounts'))
     return (
       <p className="text-gray-500 dark:text-gray-400">
         {t('common.selectHousehold')}
@@ -248,7 +251,10 @@ export function AccountsPage() {
         </div>
         <div className="flex items-center gap-2">
           <ViewToggle value={viewMode} onChange={handleViewModeChange} />
-          <Button onClick={() => setShowCreate(true)}>
+          <Button
+            data-tour="accounts-new-btn"
+            onClick={() => setShowCreate(true)}
+          >
             {t('accounts.new')}
           </Button>
         </div>
@@ -257,13 +263,22 @@ export function AccountsPage() {
       {isLoading ? (
         <Spinner />
       ) : sortedAccounts.length === 0 ? (
-        <Empty
-          text={t('accounts.empty')}
-          action={() => setShowCreate(true)}
-          actionLabel={t('accounts.addFirst')}
-        />
+        <div data-tour="accounts-list">
+          {isStepTarget('accounts-list') ? (
+            <DemoAccountRow />
+          ) : (
+            <Empty
+              text={t('accounts.empty')}
+              action={() => setShowCreate(true)}
+              actionLabel={t('accounts.addFirst')}
+            />
+          )}
+        </div>
       ) : viewMode === 'grid' ? (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div
+          data-tour="accounts-list"
+          className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
+        >
           {sortedAccounts.map((a) => (
             <AccountCard
               key={a.id}
@@ -280,6 +295,7 @@ export function AccountsPage() {
       ) : (
         <ul
           role="list"
+          data-tour="accounts-list"
           className="divide-y divide-gray-100 rounded-xl border border-gray-200 bg-white dark:divide-gray-800 dark:border-gray-800 dark:bg-gray-900"
         >
           {sortedAccounts.map((a) => (
@@ -830,7 +846,9 @@ function CreateAccountModal({
         currency,
         // Omitted rather than sent as 0 when the field is left blank, so the
         // server's own default is what applies (#326).
-        ...(Number.isFinite(parsedBalance) ? { initialBalance: parsedBalance } : {}),
+        ...(Number.isFinite(parsedBalance)
+          ? { initialBalance: parsedBalance }
+          : {}),
         allowsNegativeBalance,
       });
       onCreated();

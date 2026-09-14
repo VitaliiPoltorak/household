@@ -100,7 +100,7 @@ export function MobileMenuSheet({ onClose }: { onClose: () => void }) {
           >
             <InfoIcon className="h-5 w-5 text-gray-500 dark:text-gray-400" />
             <span className="flex-1 text-[14.5px] font-medium text-gray-900 dark:text-gray-100">
-              {t('onboarding.reopenButton')}
+              {t('tour.reopenButton')}
             </span>
           </button>
 

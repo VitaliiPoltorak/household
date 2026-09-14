@@ -31,8 +31,8 @@ export function Header() {
         <div className="h-4 w-px bg-gray-200 dark:bg-gray-700" />
         <button
           onClick={openManually}
-          title={t('onboarding.reopenButton')}
-          aria-label={t('onboarding.reopenButton')}
+          title={t('tour.reopenButton')}
+          aria-label={t('tour.reopenButton')}
           className="rounded-full p-1 text-gray-400 opacity-70 transition-opacity hover:opacity-100 dark:text-gray-500"
         >
           <InfoIcon className="h-5 w-5" />

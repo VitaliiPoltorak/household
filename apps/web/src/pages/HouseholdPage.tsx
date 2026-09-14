@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useHousehold } from '../contexts/HouseholdContext';
 import { useAuth } from '../contexts/AuthContext';
+import { useOnboarding } from '../contexts/OnboardingContext';
 import { householdsApi } from '../api/households';
 import { authApi } from '../api/auth';
 import { featureFlagsApi } from '../api/feature-flags';
@@ -36,6 +37,7 @@ export function HouseholdPage() {
   const { activeHousehold, households, setActiveHousehold, refetch } =
     useHousehold();
   const { user } = useAuth();
+  const { isTourPage } = useOnboarding();
   const qc = useQueryClient();
   const hid = activeHousehold?.id ?? '';
 
@@ -128,7 +130,7 @@ export function HouseholdPage() {
     },
   });
 
-  if (!activeHousehold)
+  if (!activeHousehold && !isTourPage('/household'))
     return (
       <p className="text-gray-500 dark:text-gray-400">
         Select a household first.
@@ -163,7 +165,7 @@ export function HouseholdPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-          {activeHousehold.name}
+          {activeHousehold?.name ?? t('tour.demo.householdName')}
         </h1>
         <Button
           size="sm"
@@ -175,7 +177,7 @@ export function HouseholdPage() {
       </div>
 
       {/* Members */}
-      <Section title={t('household.members')}>
+      <Section title={t('household.members')} data-tour="household-members">
         <div className="divide-y divide-gray-100 rounded-xl border border-gray-200 bg-white dark:divide-gray-800 dark:border-gray-800 dark:bg-gray-900">
           {members.map((m) => {
             const profile = userById.get(m.userId);
@@ -240,7 +242,12 @@ export function HouseholdPage() {
             );
           })}
         </div>
-        <Button size="sm" onClick={() => setShowInvite(true)} className="mt-3">
+        <Button
+          data-tour="household-invite-btn"
+          size="sm"
+          onClick={() => setShowInvite(true)}
+          className="mt-3"
+        >
           + {t('household.inviteByEmail')}
         </Button>
       </Section>
@@ -328,7 +335,7 @@ export function HouseholdPage() {
       {showRename && (
         <RenameModal
           hid={hid}
-          currentName={activeHousehold.name}
+          currentName={activeHousehold?.name ?? ''}
           onClose={() => setShowRename(false)}
           onRenamed={(updated) => {
             setActiveHousehold(updated);
@@ -344,12 +351,14 @@ export function HouseholdPage() {
 function Section({
   title,
   children,
+  'data-tour': dataTour,
 }: {
   title: string;
   children: React.ReactNode;
+  'data-tour'?: string;
 }) {
   return (
-    <div>
+    <div data-tour={dataTour}>
       <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
         {title}
       </h2>

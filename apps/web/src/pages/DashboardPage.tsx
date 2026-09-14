@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 import { useHousehold } from '../contexts/HouseholdContext';
+import { useOnboarding } from '../contexts/OnboardingContext';
 import { financeApi } from '../api/finance';
 import { CreateHouseholdModal } from '../components/households/CreateHouseholdModal';
 import { StatCard } from '../components/dashboard/StatCard';
@@ -27,6 +28,7 @@ const fmt = (n: number, currency = 'UAH') => formatMoney(n, currency, 'uk-UA');
 export function DashboardPage() {
   const { t } = useTranslation();
   const { activeHousehold, setActiveHousehold, refetch } = useHousehold();
+  const { isTourPage } = useOnboarding();
   const [showCreate, setShowCreate] = useState(false);
   // Same key as AccountsPage — a change on either page is visible on the other
   // once TanStack Query refetches. Live cross-tab sync via 'storage' event so
@@ -215,7 +217,7 @@ export function DashboardPage() {
     (code) => accountTypeLabel(code, enabledTypes, t),
   );
 
-  if (!activeHousehold) {
+  if (!activeHousehold && !isTourPage('/dashboard')) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-4">
         <p className="text-gray-500 dark:text-gray-400">
@@ -245,7 +247,7 @@ export function DashboardPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-          {activeHousehold.name}
+          {activeHousehold?.name ?? t('tour.demo.householdName')}
         </h1>
         <button
           onClick={() => setShowCreate(true)}
@@ -265,7 +267,10 @@ export function DashboardPage() {
         )}
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div
+        data-tour="dashboard-stats"
+        className="grid grid-cols-1 gap-4 sm:grid-cols-3"
+      >
         <StatCard
           label={t('dashboard.totalBalance')}
           value={totalBalanceValue}

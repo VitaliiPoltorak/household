@@ -310,28 +310,72 @@
     "deleteStoreTitle": "Delete this store?",
     "deleteStoreBody": "\"{{name}}\" is removed permanently. This cannot be undone."
   },
-  "onboarding": {
-    "title": "Get started",
+  "tour": {
     "progress": "Step {{current}} of {{total}}",
+    "back": "Back",
+    "skip": "Skip",
     "next": "Next",
-    "skipAll": "Skip for now",
-    "skipStep": "Skip this step",
-    "reopenButton": "Setup guide",
+    "finish": "Finish",
+    "reopenButton": "Guided tour",
     "steps": {
-      "household": {
-        "description": "Every account and list belongs to a household. Let's create yours.",
-        "already": "You're already set up with {{name}}."
+      "intro": {
+        "title": "Welcome to Household",
+        "body": "Let's take a quick tour of the app — you can skip at any time."
       },
-      "account": {
-        "description": "Add your first account so we can start tracking your balance."
+      "dashboardStats": {
+        "title": "Your overview",
+        "body": "This is where your total balance, income and expenses for the month show up once you have data."
       },
-      "shopping": {
-        "description": "Optional: start a shopping list to try it out."
+      "accountsNew": {
+        "title": "Add an account",
+        "body": "Use this button to add a bank, cash, or other account so Household can track its balance."
       },
-      "done": {
-        "description": "You're all set. Your dashboard will fill in as you go.",
-        "cta": "Go to dashboard"
+      "accountsList": {
+        "title": "Your accounts",
+        "body": "Every account you add shows up here, with its current balance."
+      },
+      "txNew": {
+        "title": "Log a transaction",
+        "body": "Record income or an expense against one of your accounts."
+      },
+      "txTransfer": {
+        "title": "Transfer between accounts",
+        "body": "Move money from one of your accounts to another — both sides are kept in sync."
+      },
+      "txFilters": {
+        "title": "Filter transactions",
+        "body": "Narrow the list by type, account, or date range."
+      },
+      "shoppingNew": {
+        "title": "Start a shopping list",
+        "body": "Create a list to plan and track purchases with your household."
+      },
+      "shoppingList": {
+        "title": "Your lists",
+        "body": "Lists you create appear here — tap one to see and check off its items."
+      },
+      "householdInvite": {
+        "title": "Invite your household",
+        "body": "Send an email invite so family members can join and share this household."
+      },
+      "householdMembers": {
+        "title": "Members",
+        "body": "Everyone in your household appears here, along with their role."
+      },
+      "outro": {
+        "title": "You're all set",
+        "body": "That's the tour — explore at your own pace. You can reopen it anytime from the (i) button."
       }
+    },
+    "demo": {
+      "badge": "Example",
+      "accountName": "Example: Mono Card",
+      "accountBalance": "₴2,450.00",
+      "txDescription": "Example: Groceries",
+      "txAmount": "-₴350.00",
+      "listName": "Example: Weekly groceries",
+      "listItems": "3 items",
+      "householdName": "Example Home"
     }
   },
   "household": {

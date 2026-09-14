@@ -3,6 +3,8 @@ import { useTranslation } from 'react-i18next';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useHousehold } from '../contexts/HouseholdContext';
 import { useAuth } from '../contexts/AuthContext';
+import { useOnboarding } from '../contexts/OnboardingContext';
+import { DemoListRow } from '../components/onboarding/DemoRows';
 import { useDebouncedValue } from '../hooks/useDebouncedValue';
 import { shoppingApi } from '../api/shopping';
 import { ApiError } from '../api/client';
@@ -27,6 +29,7 @@ export function ShoppingPage() {
   const { t } = useTranslation();
   const { activeHousehold } = useHousehold();
   const { user } = useAuth();
+  const { isStepTarget, isTourPage } = useOnboarding();
   const qc = useQueryClient();
   const hid = activeHousehold?.id ?? '';
   const uid = user?.id ?? '';
@@ -36,7 +39,8 @@ export function ShoppingPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [showRename, setShowRename] = useState(false);
   // #327: deleting a list takes its items with it, so it asks first.
-  const [confirmDeleteList, setConfirmDeleteList] = useState<ShoppingList | null>(null);
+  const [confirmDeleteList, setConfirmDeleteList] =
+    useState<ShoppingList | null>(null);
 
   const { data: lists = [], isLoading } = useQuery({
     queryKey: ['shopping-lists', hid, statusFilter],
@@ -87,7 +91,9 @@ export function ShoppingPage() {
   // inconsistency is what let the omission hide.
   const invalidateListAndCollection = useCallback(() => {
     qc.invalidateQueries({ queryKey: ['shopping-lists', hid] });
-    qc.invalidateQueries({ queryKey: ['shopping-list', selectedList?.id, hid] });
+    qc.invalidateQueries({
+      queryKey: ['shopping-list', selectedList?.id, hid],
+    });
   }, [qc, hid, selectedList?.id]);
 
   const createList = useMutation({
@@ -273,7 +279,7 @@ export function ShoppingPage() {
     onSuccess: invalidateListAndCollection,
   });
 
-  if (!activeHousehold)
+  if (!activeHousehold && !isTourPage('/shopping'))
     return (
       <p className="text-gray-500 dark:text-gray-400">
         Select a household first.
@@ -290,7 +296,11 @@ export function ShoppingPage() {
           <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">
             {t('shopping.title')}
           </h1>
-          <Button size="sm" onClick={() => setShowCreate(true)}>
+          <Button
+            data-tour="shopping-new-btn"
+            size="sm"
+            onClick={() => setShowCreate(true)}
+          >
             {t('shopping.newList')}
           </Button>
         </div>
@@ -319,11 +329,17 @@ export function ShoppingPage() {
         {isLoading ? (
           <Spinner />
         ) : lists.length === 0 ? (
-          <p className="py-8 text-center text-sm text-gray-400 dark:text-gray-500">
-            {t('shopping.emptyLists')}
-          </p>
+          <div data-tour="shopping-list">
+            {isStepTarget('shopping-list') ? (
+              <DemoListRow />
+            ) : (
+              <p className="py-8 text-center text-sm text-gray-400 dark:text-gray-500">
+                {t('shopping.emptyLists')}
+              </p>
+            )}
+          </div>
         ) : (
-          <div className="space-y-2 overflow-y-auto">
+          <div data-tour="shopping-list" className="space-y-2 overflow-y-auto">
             {lists.map((list) => (
               <button
                 key={list.id}
@@ -1200,7 +1216,9 @@ function StoresColumn({
   });
 
   // #327: same treatment as lists and transactions.
-  const [confirmDeleteStore, setConfirmDeleteStore] = useState<Store | null>(null);
+  const [confirmDeleteStore, setConfirmDeleteStore] = useState<Store | null>(
+    null,
+  );
 
   const deleteStore = useMutation({
     mutationFn: (id: string) => shoppingApi.deleteStore(id, hid),
@@ -1332,7 +1350,9 @@ function StoresColumn({
       {confirmDeleteStore && (
         <ConfirmDialog
           title={t('shopping.deleteStoreTitle')}
-          body={t('shopping.deleteStoreBody', { name: confirmDeleteStore.name })}
+          body={t('shopping.deleteStoreBody', {
+            name: confirmDeleteStore.name,
+          })}
           confirmLabel={t('common.delete')}
           confirming={deleteStore.isPending}
           onCancel={() => setConfirmDeleteStore(null)}
