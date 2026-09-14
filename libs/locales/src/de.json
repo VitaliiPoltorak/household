@@ -317,7 +317,28 @@
     "next": "Weiter",
     "finish": "Fertig",
     "reopenButton": "Geführte Tour",
+    "clickHint": "Klicken, um fortzufahren →",
     "steps": {
+      "navToAccounts": {
+        "title": "Weiter zu Konten",
+        "body": "Klicke auf Konten in der Navigation, um die Tour dort fortzusetzen."
+      },
+      "navToTransactions": {
+        "title": "Weiter zu Buchungen",
+        "body": "Klicke auf Buchungen in der Navigation, um die Tour dort fortzusetzen."
+      },
+      "navToShopping": {
+        "title": "Weiter zu Einkäufe",
+        "body": "Klicke auf Einkäufe in der Navigation, um die Tour dort fortzusetzen."
+      },
+      "navToHousehold": {
+        "title": "Weiter zu Haushalt",
+        "body": "Klicke auf Haushalt in der Navigation, um die Tour dort fortzusetzen."
+      },
+      "navToDashboard": {
+        "title": "Zurück zum Dashboard",
+        "body": "Klicke auf Dashboard in der Navigation, um die Tour abzuschließen."
+      },
       "intro": {
         "title": "Willkommen bei Household",
         "body": "Machen wir eine kurze Tour durch die App — du kannst sie jederzeit überspringen."

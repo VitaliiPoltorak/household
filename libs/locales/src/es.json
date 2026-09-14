@@ -317,7 +317,28 @@
     "next": "Siguiente",
     "finish": "Finalizar",
     "reopenButton": "Recorrido guiado",
+    "clickHint": "Haz clic para continuar →",
     "steps": {
+      "navToAccounts": {
+        "title": "Ve a Cuentas",
+        "body": "Haz clic en Cuentas en el menú para continuar el recorrido allí."
+      },
+      "navToTransactions": {
+        "title": "Ve a Movimientos",
+        "body": "Haz clic en Movimientos en el menú para continuar el recorrido allí."
+      },
+      "navToShopping": {
+        "title": "Ve a Compras",
+        "body": "Haz clic en Compras en el menú para continuar el recorrido allí."
+      },
+      "navToHousehold": {
+        "title": "Ve a Hogar",
+        "body": "Haz clic en Hogar en el menú para continuar el recorrido allí."
+      },
+      "navToDashboard": {
+        "title": "Vuelve al Panel",
+        "body": "Haz clic en Panel en el menú para terminar el recorrido."
+      },
       "intro": {
         "title": "Bienvenido a Household",
         "body": "Hagamos un recorrido rápido por la app — puedes omitirlo en cualquier momento."

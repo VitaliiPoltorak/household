@@ -317,6 +317,7 @@
     "next": "Next",
     "finish": "Finish",
     "reopenButton": "Guided tour",
+    "clickHint": "Click it to continue →",
     "steps": {
       "intro": {
         "title": "Welcome to Household",
@@ -325,6 +326,26 @@
       "dashboardStats": {
         "title": "Your overview",
         "body": "This is where your total balance, income and expenses for the month show up once you have data."
+      },
+      "navToAccounts": {
+        "title": "Head to Accounts",
+        "body": "Click Accounts in the nav to continue the tour there."
+      },
+      "navToTransactions": {
+        "title": "Head to Transactions",
+        "body": "Click Transactions in the nav to continue the tour there."
+      },
+      "navToShopping": {
+        "title": "Head to Shopping",
+        "body": "Click Shopping in the nav to continue the tour there."
+      },
+      "navToHousehold": {
+        "title": "Head to Household",
+        "body": "Click Household in the nav to continue the tour there."
+      },
+      "navToDashboard": {
+        "title": "Back to the Dashboard",
+        "body": "Click Dashboard in the nav to wrap up the tour."
       },
       "accountsNew": {
         "title": "Add an account",

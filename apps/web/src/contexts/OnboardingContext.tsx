@@ -70,12 +70,27 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
   const currentStep = isActive ? TOUR_STEPS[stepIndex] : null;
 
   // Every step change navigates to that step's page (a no-op when already
-  // there) so the spotlight always has a real, mounted target to find.
+  // there) so the spotlight always has a real, mounted target to find. Not
+  // for interactive steps — those spotlight a real nav link on the CURRENT
+  // page and wait for the user's own click instead (see the effect below).
   useEffect(() => {
-    if (!currentStep) return;
+    if (!currentStep || currentStep.interactive) return;
     if (location.pathname !== currentStep.page) navigate(currentStep.page);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentStep?.id]);
+
+  // An interactive step's target stays genuinely clickable through the
+  // overlay (see TourOverlay) — once the user's own click actually lands
+  // and the route reaches the next step's page, advance for them. This is
+  // what makes a page transition a real action instead of the tour
+  // silently teleporting them there.
+  useEffect(() => {
+    if (!currentStep?.interactive) return;
+    const nextStep = TOUR_STEPS[stepIndex + 1];
+    if (nextStep && location.pathname === nextStep.page) {
+      setStepIndex((i) => i + 1);
+    }
+  }, [currentStep, stepIndex, location.pathname]);
 
   const finish = useCallback(
     (reachedEnd: boolean) => {

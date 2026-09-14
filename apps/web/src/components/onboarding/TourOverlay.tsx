@@ -18,10 +18,19 @@ const TOOLTIP_ESTIMATED_HEIGHT = 180;
 /**
  * The guided-tour spotlight (#347): dims the whole viewport, cuts a hole
  * around the current step's real target element, and shows a tooltip with
- * Back/Skip/Next. The background — including the spotlighted element
- * itself — is not clickable; the tour never simulates a real interaction,
- * only explains one, so advancing happens exclusively through the
- * tooltip's own buttons (see OnboardingContext).
+ * Back/Skip/Next.
+ *
+ * Two modes:
+ * - Explain steps: the background (including the spotlighted element
+ *   itself) is not clickable — the tour is only describing something, not
+ *   simulating it, so advancing happens exclusively through the tooltip's
+ *   own buttons.
+ * - Interactive steps (`currentStep.interactive`): the spotlighted element
+ *   is a real nav link and stays genuinely clickable through the dim
+ *   overlay — the tour advances itself once that real click lands (see
+ *   OnboardingContext), so the tooltip drops its Next button for a hint
+ *   instead. This is what makes a page transition a real user action
+ *   rather than the tour silently teleporting them there.
  */
 export function TourOverlay() {
   const { isActive, currentStep, stepIndex, totalSteps, next, back, skip } =
@@ -38,10 +47,19 @@ export function TourOverlay() {
     let timer: ReturnType<typeof setTimeout> | undefined;
 
     const measure = () => {
-      const el = document.querySelector(`[data-tour="${currentStep.target}"]`);
-      if (el) {
-        setRect(el.getBoundingClientRect());
-        return true;
+      // A nav target exists twice in the DOM (desktop Sidebar + mobile
+      // MobileTabBar) — only one is visible at a given viewport width via
+      // CSS, so pick whichever actually has a size rather than always the
+      // first match.
+      const candidates = document.querySelectorAll(
+        `[data-tour="${currentStep.target}"]`,
+      );
+      for (const el of candidates) {
+        const r = el.getBoundingClientRect();
+        if (r.width > 0 && r.height > 0) {
+          setRect(r);
+          return true;
+        }
       }
       return false;
     };
@@ -68,25 +86,36 @@ export function TourOverlay() {
 
   if (!isActive || !currentStep) return null;
 
+  const interactive = !!currentStep.interactive;
   const cardProps: TourCardProps = {
     titleKey: currentStep.titleKey,
     bodyKey: currentStep.bodyKey,
     stepIndex,
     totalSteps,
     isLast: stepIndex === totalSteps - 1,
+    interactive,
     onBack: back,
     onSkip: skip,
     onNext: next,
   };
   const dimClass = 'fixed bg-black/50 dark:bg-black/70';
+  // Interactive steps need clicks to pass through the hole to the real nav
+  // link underneath — the outer layer stops blocking everything, and each
+  // dim quadrant + the tooltip opt back in individually.
+  const dimStyle = interactive ? ({ pointerEvents: 'auto' } as const) : {};
+  const tooltipStyle = interactive ? ({ pointerEvents: 'auto' } as const) : {};
 
   return createPortal(
-    <div className="fixed inset-0 z-[60]" style={{ pointerEvents: 'auto' }}>
+    <div
+      className="fixed inset-0 z-[60]"
+      style={{ pointerEvents: interactive ? 'none' : 'auto' }}
+    >
       {rect ? (
         <>
           <div
             className={dimClass}
             style={{
+              ...dimStyle,
               top: 0,
               left: 0,
               width: '100vw',
@@ -96,6 +125,7 @@ export function TourOverlay() {
           <div
             className={dimClass}
             style={{
+              ...dimStyle,
               top: rect.bottom + PAD,
               left: 0,
               width: '100vw',
@@ -105,6 +135,7 @@ export function TourOverlay() {
           <div
             className={dimClass}
             style={{
+              ...dimStyle,
               top: Math.max(0, rect.top - PAD),
               left: 0,
               width: Math.max(0, rect.left - PAD),
@@ -114,6 +145,7 @@ export function TourOverlay() {
           <div
             className={dimClass}
             style={{
+              ...dimStyle,
               top: Math.max(0, rect.top - PAD),
               left: rect.right + PAD,
               right: 0,
@@ -123,20 +155,27 @@ export function TourOverlay() {
           <div
             className="fixed rounded-lg ring-2 ring-primary-400"
             style={{
+              pointerEvents: 'none',
               top: rect.top - PAD,
               left: rect.left - PAD,
               width: rect.width + PAD * 2,
               height: rect.height + PAD * 2,
             }}
           />
-          <div className="fixed" style={tooltipPosition(rect)}>
+          <div
+            className="fixed"
+            style={{ ...tooltipStyle, ...tooltipPosition(rect) }}
+          >
             <TourCard {...cardProps} />
           </div>
         </>
       ) : (
         <>
-          <div className={dimClass} style={{ inset: 0 }} />
-          <div className="fixed inset-0 flex items-center justify-center p-4">
+          <div className={dimClass} style={{ ...dimStyle, inset: 0 }} />
+          <div
+            className="fixed inset-0 flex items-center justify-center p-4"
+            style={tooltipStyle}
+          >
             <TourCard {...cardProps} />
           </div>
         </>
@@ -167,6 +206,7 @@ interface TourCardProps {
   stepIndex: number;
   totalSteps: number;
   isLast: boolean;
+  interactive: boolean;
   onBack: () => void;
   onSkip: () => void;
   onNext: () => void;
@@ -178,6 +218,7 @@ function TourCard({
   stepIndex,
   totalSteps,
   isLast,
+  interactive,
   onBack,
   onSkip,
   onNext,
@@ -205,16 +246,22 @@ function TourCard({
         >
           {t('tour.skip')}
         </button>
-        <div className="flex gap-2">
-          {stepIndex > 0 && (
-            <Button variant="secondary" size="sm" onClick={onBack}>
-              {t('tour.back')}
+        {interactive ? (
+          <p className="animate-pulse text-xs font-medium text-primary-600 dark:text-primary-400">
+            {t('tour.clickHint')}
+          </p>
+        ) : (
+          <div className="flex gap-2">
+            {stepIndex > 0 && (
+              <Button variant="secondary" size="sm" onClick={onBack}>
+                {t('tour.back')}
+              </Button>
+            )}
+            <Button size="sm" onClick={onNext}>
+              {isLast ? t('tour.finish') : t('tour.next')}
             </Button>
-          )}
-          <Button size="sm" onClick={onNext}>
-            {isLast ? t('tour.finish') : t('tour.next')}
-          </Button>
-        </div>
+          </div>
+        )}
       </div>
     </div>
   );
