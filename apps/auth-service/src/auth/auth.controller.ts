@@ -325,6 +325,8 @@ export class AuthController {
       avatarUrl: user.avatarUrl,
       locale: user.locale,
       createdAt: user.createdAt,
+      // #347: drives whether the web app auto-opens the onboarding wizard.
+      onboardingStatus: user.onboardingStatus,
       // #329: the client had nothing to branch on, so it rendered the
       // change-password form to OAuth-only accounts that can never use it.
       // A boolean, never the hash or any part of it.
@@ -352,6 +354,7 @@ export class AuthController {
       avatarUrl: user.avatarUrl,
       locale: user.locale,
       createdAt: user.createdAt,
+      onboardingStatus: user.onboardingStatus,
     };
   }
 

@@ -310,6 +310,30 @@
     "deleteStoreTitle": "¿Eliminar esta tienda?",
     "deleteStoreBody": "«{{name}}» se elimina de forma permanente. Esto no se puede deshacer."
   },
+  "onboarding": {
+    "title": "Primeros pasos",
+    "progress": "Paso {{current}} de {{total}}",
+    "next": "Siguiente",
+    "skipAll": "Omitir por ahora",
+    "skipStep": "Omitir este paso",
+    "reopenButton": "Guía de configuración",
+    "steps": {
+      "household": {
+        "description": "Cada cuenta y lista pertenece a un hogar. Creemos el tuyo.",
+        "already": "Ya estás configurado con «{{name}}»."
+      },
+      "account": {
+        "description": "Añade tu primera cuenta para que podamos empezar a rastrear tu saldo."
+      },
+      "shopping": {
+        "description": "Opcional: crea una lista de compras para probarlo."
+      },
+      "done": {
+        "description": "Todo listo. Tu panel se irá completando a medida que uses la app.",
+        "cta": "Ir al panel"
+      }
+    }
+  },
   "household": {
     "title": "Hogar",
     "newHome": "Nuevo hogar",

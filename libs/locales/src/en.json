@@ -310,6 +310,30 @@
     "deleteStoreTitle": "Delete this store?",
     "deleteStoreBody": "\"{{name}}\" is removed permanently. This cannot be undone."
   },
+  "onboarding": {
+    "title": "Get started",
+    "progress": "Step {{current}} of {{total}}",
+    "next": "Next",
+    "skipAll": "Skip for now",
+    "skipStep": "Skip this step",
+    "reopenButton": "Setup guide",
+    "steps": {
+      "household": {
+        "description": "Every account and list belongs to a household. Let's create yours.",
+        "already": "You're already set up with {{name}}."
+      },
+      "account": {
+        "description": "Add your first account so we can start tracking your balance."
+      },
+      "shopping": {
+        "description": "Optional: start a shopping list to try it out."
+      },
+      "done": {
+        "description": "You're all set. Your dashboard will fill in as you go.",
+        "cta": "Go to dashboard"
+      }
+    }
+  },
   "household": {
     "title": "Household",
     "newHome": "New home",

@@ -200,6 +200,61 @@
           }
         },
         {
+          "name": "Update onboarding status",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "// #347 — PATCH /auth/me doubles as the onboarding-status write; this",
+                  "// confirms it round-trips and leaves other profile fields alone.",
+                  "pm.test('Reports the new onboarding status', () => pm.expect(pm.response.json().onboardingStatus).to.equal('skipped'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/auth/me",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"onboardingStatus\": \"skipped\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Get my profile reflects onboarding status",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Onboarding status persisted', () => pm.expect(pm.response.json().onboardingStatus).to.equal('skipped'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/auth/me"
+          }
+        },
+        {
           "name": "Refresh token",
           "event": [
             {

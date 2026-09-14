@@ -5,10 +5,13 @@ import { MemoryRouter } from 'react-router-dom';
 // InitialEntry isn't re-exported from react-router-dom (v6); import from the
 // core `history` shape that MemoryRouter accepts. Kept as a local alias so
 // callers pass either a plain path string or a `{ pathname, state }` object.
-type InitialEntry = string | { pathname: string; state?: unknown; search?: string; hash?: string };
+type InitialEntry =
+  | string
+  | { pathname: string; state?: unknown; search?: string; hash?: string };
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import { AuthProvider } from '../contexts/AuthContext';
 import { HouseholdProvider } from '../contexts/HouseholdContext';
+import { OnboardingProvider } from '../contexts/OnboardingContext';
 import { ThemeProvider } from '../contexts/ThemeContext';
 import { setAccessToken } from '../api/client';
 
@@ -51,8 +54,15 @@ export function clearAuthTokens() {
   localStorage.clear();
 }
 
-export function renderWithProviders(ui: React.ReactElement, options: WrapperOptions = {}) {
-  const { initialEntries = ['/'], preloadTokens = true, ...renderOptions } = options;
+export function renderWithProviders(
+  ui: React.ReactElement,
+  options: WrapperOptions = {},
+) {
+  const {
+    initialEntries = ['/'],
+    preloadTokens = true,
+    ...renderOptions
+  } = options;
 
   if (preloadTokens) setAuthTokens();
 
@@ -66,7 +76,7 @@ export function renderWithProviders(ui: React.ReactElement, options: WrapperOpti
             <MemoryRouter initialEntries={initialEntries}>
               <AuthProvider>
                 <HouseholdProvider>
-                  {children}
+                  <OnboardingProvider>{children}</OnboardingProvider>
                 </HouseholdProvider>
               </AuthProvider>
             </MemoryRouter>

@@ -1,6 +1,7 @@
 import { api } from './client';
 import type {
   LoginResponse,
+  OnboardingStatus,
   PublicUserProfile,
   RegisterResponse,
   User,
@@ -11,10 +12,16 @@ export const authApi = {
     api.post<LoginResponse>('/auth/google', { idToken, deviceInfo: 'Web' }),
 
   register: (input: { email: string; password: string; displayName: string }) =>
-    api.post<RegisterResponse>('/auth/register', { ...input, deviceInfo: 'Web' }),
+    api.post<RegisterResponse>('/auth/register', {
+      ...input,
+      deviceInfo: 'Web',
+    }),
 
   verifyEmail: (input: { email: string; code: string }) =>
-    api.post<LoginResponse>('/auth/verify-email', { ...input, deviceInfo: 'Web' }),
+    api.post<LoginResponse>('/auth/verify-email', {
+      ...input,
+      deviceInfo: 'Web',
+    }),
 
   resendVerification: (email: string) =>
     api.post<{ ok: true }>('/auth/verify-email/resend', { email }),
@@ -22,11 +29,13 @@ export const authApi = {
   loginWithPassword: (input: { email: string; password: string }) =>
     api.post<LoginResponse>('/auth/login', { ...input, deviceInfo: 'Web' }),
 
-  unlockAccount: (token: string) =>
-    api.post<void>('/auth/unlock', { token }),
+  unlockAccount: (token: string) => api.post<void>('/auth/unlock', { token }),
 
   changePassword: (input: { currentPassword: string; newPassword: string }) =>
-    api.post<LoginResponse>('/auth/password/change', { ...input, deviceInfo: 'Web' }),
+    api.post<LoginResponse>('/auth/password/change', {
+      ...input,
+      deviceInfo: 'Web',
+    }),
 
   // #329 — first password for an OAuth-only account. 204, no tokens: adding a
   // password invalidates no session, so there is nothing to re-issue.
@@ -44,8 +53,12 @@ export const authApi = {
 
   getMe: () => api.get<User>('/auth/me'),
 
-  updateProfile: (data: { displayName?: string; avatarUrl?: string; locale?: string }) =>
-    api.patch<User>('/auth/me', data),
+  updateProfile: (data: {
+    displayName?: string;
+    avatarUrl?: string;
+    locale?: string;
+    onboardingStatus?: OnboardingStatus;
+  }) => api.patch<User>('/auth/me', data),
 
   deleteAccount: () => api.delete('/auth/me'),
 

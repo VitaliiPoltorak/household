@@ -310,6 +310,30 @@
     "deleteStoreTitle": "Diesen Laden löschen?",
     "deleteStoreBody": "„{{name}}“ wird endgültig entfernt. Das lässt sich nicht rückgängig machen."
   },
+  "onboarding": {
+    "title": "Erste Schritte",
+    "progress": "Schritt {{current}} von {{total}}",
+    "next": "Weiter",
+    "skipAll": "Vorerst überspringen",
+    "skipStep": "Diesen Schritt überspringen",
+    "reopenButton": "Einrichtungshilfe",
+    "steps": {
+      "household": {
+        "description": "Jedes Konto und jede Liste gehört zu einem Haushalt. Lass uns deinen erstellen.",
+        "already": "Du bist bereits mit „{{name}}“ eingerichtet."
+      },
+      "account": {
+        "description": "Füge dein erstes Konto hinzu, damit wir deinen Kontostand verfolgen können."
+      },
+      "shopping": {
+        "description": "Optional: Starte eine Einkaufsliste zum Ausprobieren."
+      },
+      "done": {
+        "description": "Alles bereit. Dein Dashboard füllt sich, während du die App nutzt.",
+        "cta": "Zum Dashboard"
+      }
+    }
+  },
   "household": {
     "title": "Haushalt",
     "newHome": "Neuer Haushalt",
