@@ -2,16 +2,19 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../contexts/AuthContext';
 import { useHousehold } from '../../contexts/HouseholdContext';
+import { useOnboarding } from '../../contexts/OnboardingContext';
 import { useNavigate } from 'react-router-dom';
 import { OnlineUsers } from '../presence/OnlineUsers';
 import { ThemeToggle } from './ThemeToggle';
 import { LanguageSwitcher } from './LanguageSwitcher';
 import { MobileMenuSheet } from './MobileMenuSheet';
+import { InfoIcon } from '../brand/icons';
 
 export function Header() {
   const { t } = useTranslation();
   const { user, logout } = useAuth();
   const { activeHousehold } = useHousehold();
+  const { openManually } = useOnboarding();
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -25,6 +28,15 @@ export function Header() {
       {/* Desktop bar — unchanged from before responsive nav */}
       <div className="hidden h-14 items-center justify-end gap-3 px-6 md:flex">
         <OnlineUsers />
+        <div className="h-4 w-px bg-gray-200 dark:bg-gray-700" />
+        <button
+          onClick={openManually}
+          title={t('tour.reopenButton')}
+          aria-label={t('tour.reopenButton')}
+          className="rounded-full p-1 text-gray-400 opacity-70 transition-opacity hover:opacity-100 dark:text-gray-500"
+        >
+          <InfoIcon className="h-5 w-5" />
+        </button>
         <div className="h-4 w-px bg-gray-200 dark:bg-gray-700" />
         <ThemeToggle />
         <div className="h-4 w-px bg-gray-200 dark:bg-gray-700" />

@@ -3,7 +3,8 @@ import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../contexts/AuthContext';
-import { InviteIcon, SettingsIcon } from '../brand/icons';
+import { useOnboarding } from '../../contexts/OnboardingContext';
+import { InviteIcon, SettingsIcon, InfoIcon } from '../brand/icons';
 import { ThemeToggle } from './ThemeToggle';
 import { LanguageSwitcher } from './LanguageSwitcher';
 
@@ -16,6 +17,7 @@ import { LanguageSwitcher } from './LanguageSwitcher';
 export function MobileMenuSheet({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation();
   const { user, logout } = useAuth();
+  const { openManually } = useOnboarding();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -87,6 +89,18 @@ export function MobileMenuSheet({ onClose }: { onClose: () => void }) {
             <SettingsIcon className="h-5 w-5 text-gray-500 dark:text-gray-400" />
             <span className="flex-1 text-[14.5px] font-medium text-gray-900 dark:text-gray-100">
               {t('nav.settings')}
+            </span>
+          </button>
+          <button
+            onClick={() => {
+              onClose();
+              openManually();
+            }}
+            className="flex items-center gap-3.5 border-b border-gray-100 px-3 py-3.5 text-left dark:border-gray-800"
+          >
+            <InfoIcon className="h-5 w-5 text-gray-500 dark:text-gray-400" />
+            <span className="flex-1 text-[14.5px] font-medium text-gray-900 dark:text-gray-100">
+              {t('tour.reopenButton')}
             </span>
           </button>
 

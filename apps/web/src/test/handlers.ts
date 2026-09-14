@@ -15,6 +15,14 @@ export const MOCK_USER = {
   // screen shows the change-password form. MOCK_OAUTH_USER is the other case.
   hasPassword: true,
   providers: [] as string[],
+  // #347 — 'completed' by default so the onboarding wizard doesn't pop over
+  // every other page test's assertions. Tests that exercise the wizard
+  // itself override this per-test via server.use().
+  onboardingStatus: 'completed' as
+    | 'pending'
+    | 'completed'
+    | 'skipped'
+    | 'reviewed_later',
 };
 
 /** An account created through a provider: no password, hence no way in without it. */

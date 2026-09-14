@@ -310,6 +310,95 @@
     "deleteStoreTitle": "¿Eliminar esta tienda?",
     "deleteStoreBody": "«{{name}}» se elimina de forma permanente. Esto no se puede deshacer."
   },
+  "tour": {
+    "progress": "Paso {{current}} de {{total}}",
+    "back": "Atrás",
+    "skip": "Omitir",
+    "next": "Siguiente",
+    "finish": "Finalizar",
+    "reopenButton": "Recorrido guiado",
+    "clickHint": "Haz clic para continuar →",
+    "steps": {
+      "navToAccounts": {
+        "title": "Ve a Cuentas",
+        "body": "Haz clic en Cuentas en el menú para continuar el recorrido allí."
+      },
+      "navToTransactions": {
+        "title": "Ve a Movimientos",
+        "body": "Haz clic en Movimientos en el menú para continuar el recorrido allí."
+      },
+      "navToShopping": {
+        "title": "Ve a Compras",
+        "body": "Haz clic en Compras en el menú para continuar el recorrido allí."
+      },
+      "navToHousehold": {
+        "title": "Ve a Hogar",
+        "body": "Haz clic en Hogar en el menú para continuar el recorrido allí."
+      },
+      "navToDashboard": {
+        "title": "Vuelve al Panel",
+        "body": "Haz clic en Panel en el menú para terminar el recorrido."
+      },
+      "intro": {
+        "title": "Bienvenido a Household",
+        "body": "Hagamos un recorrido rápido por la app — puedes omitirlo en cualquier momento."
+      },
+      "dashboardStats": {
+        "title": "Tu resumen",
+        "body": "Aquí aparecerán tu saldo total, ingresos y gastos del mes en cuanto tengas datos."
+      },
+      "accountsNew": {
+        "title": "Añade una cuenta",
+        "body": "Usa este botón para añadir una cuenta bancaria, en efectivo u otra, y que Household siga su saldo."
+      },
+      "accountsList": {
+        "title": "Tus cuentas",
+        "body": "Cada cuenta que añadas aparece aquí, con su saldo actual."
+      },
+      "txNew": {
+        "title": "Registra un movimiento",
+        "body": "Registra un ingreso o gasto en una de tus cuentas."
+      },
+      "txTransfer": {
+        "title": "Transferir entre cuentas",
+        "body": "Mueve dinero de una de tus cuentas a otra — ambos lados quedan sincronizados."
+      },
+      "txFilters": {
+        "title": "Filtrar movimientos",
+        "body": "Acota la lista por tipo, cuenta o rango de fechas."
+      },
+      "shoppingNew": {
+        "title": "Crea una lista de compras",
+        "body": "Crea una lista para planificar y seguir compras junto a tu hogar."
+      },
+      "shoppingList": {
+        "title": "Tus listas",
+        "body": "Las listas que crees aparecen aquí — toca una para ver y marcar sus artículos."
+      },
+      "householdInvite": {
+        "title": "Invita a tu hogar",
+        "body": "Envía una invitación por correo para que los miembros de tu familia se unan a este hogar."
+      },
+      "householdMembers": {
+        "title": "Miembros",
+        "body": "Todos los miembros de tu hogar aparecen aquí, junto con su rol."
+      },
+      "outro": {
+        "title": "Todo listo",
+        "body": "Eso es todo el recorrido — explora a tu propio ritmo. Puedes volver a abrirlo cuando quieras con el botón (i)."
+      }
+    },
+    "demo": {
+      "badge": "Ejemplo",
+      "accountName": "Ejemplo: Tarjeta Mono",
+      "accountBalance": "2.450,00 €",
+      "txDescription": "Ejemplo: Supermercado",
+      "txAmount": "-350,00 €",
+      "listName": "Ejemplo: Compra semanal",
+      "listItems": "3 artículos",
+      "householdName": "Hogar de ejemplo"
+    }
+  },
   "household": {
     "title": "Hogar",
     "newHome": "Nuevo hogar",

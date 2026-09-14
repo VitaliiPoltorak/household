@@ -2,6 +2,7 @@ import { Entity, Column, OneToMany } from 'typeorm';
 import { Exclude } from 'class-transformer';
 import { BaseEntity } from '@household/database';
 import { AuthProvider } from './auth-provider.entity';
+import { OnboardingStatus } from './onboarding-status.enum';
 
 @Entity({ name: 'users', schema: 'auth' })
 export class User extends BaseEntity {
@@ -29,6 +30,14 @@ export class User extends BaseEntity {
   // already verified them for us.
   @Column({ name: 'email_verified_at', type: 'timestamptz', nullable: true })
   emailVerifiedAt: Date | null;
+
+  @Column({
+    name: 'onboarding_status',
+    type: 'enum',
+    enum: OnboardingStatus,
+    default: OnboardingStatus.PENDING,
+  })
+  onboardingStatus: OnboardingStatus;
 
   @OneToMany(() => AuthProvider, (ap) => ap.user, { cascade: true })
   authProviders: AuthProvider[];

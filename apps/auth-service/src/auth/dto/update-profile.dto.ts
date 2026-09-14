@@ -1,5 +1,12 @@
-import { IsOptional, IsString, IsUrl, MaxLength } from 'class-validator';
+import {
+  IsEnum,
+  IsOptional,
+  IsString,
+  IsUrl,
+  MaxLength,
+} from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
+import { OnboardingStatus } from '../../users/entities/onboarding-status.enum';
 
 export class UpdateProfileDto {
   @ApiPropertyOptional()
@@ -22,4 +29,9 @@ export class UpdateProfileDto {
   @IsOptional()
   @MaxLength(5)
   locale?: string;
+
+  @ApiPropertyOptional({ enum: OnboardingStatus })
+  @IsOptional()
+  @IsEnum(OnboardingStatus)
+  onboardingStatus?: OnboardingStatus;
 }

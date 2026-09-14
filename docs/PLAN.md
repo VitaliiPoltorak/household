@@ -351,7 +351,7 @@ libs/
 
 ```
 users
-  id, email, display_name, avatar_url, locale, created_at
+  id, email, display_name, avatar_url, locale, created_at, onboarding_status
 
 auth_providers
   id, user_id, provider (google|apple|facebook), provider_user_id
@@ -547,8 +547,8 @@ Finance Service → Kafka: finance.transaction.created
 | POST | `/auth/refresh` | Refresh access token; reads HttpOnly cookie + `X-CSRF-Token` header (double-submit) |
 | POST | `/auth/logout` | Invalidate the current session; clears cookies |
 | POST | `/auth/logout-all` | Invalidate **all** sessions for the user (#66); audit log |
-| GET | `/auth/me` | Current user + profile, plus `hasPassword` and the linked `providers` (#329) — never the hash |
-| PATCH | `/auth/me` | Update profile (`avatarUrl` validated by `@IsUrl` http(s) — #68.1) |
+| GET | `/auth/me` | Current user + profile, plus `hasPassword`, the linked `providers` (#329), and `onboardingStatus` (#347) — never the hash |
+| PATCH | `/auth/me` | Update profile (`avatarUrl` validated by `@IsUrl` http(s) — #68.1), or `onboardingStatus` alone to record the onboarding wizard's outcome (#347) |
 | DELETE | `/auth/me` | Delete account; Kafka `auth.user.deleted` for cascade cleanup; audit log |
 
 ---
@@ -988,6 +988,14 @@ pnpm test:postman                                            # API scenario coll
     ✔ Household settings & invites
     ✔ User settings (profile, i18n, logout-all)
     ✔ Bank connections (Monobank) — #291
+✔ First-run guided tour (#347) — a spotlight walkthrough of the 5 primary pages (Dashboard, Accounts,
+    Transactions, Shopping, Household), dimming the background and highlighting one real UI element per
+    step with a Back/Skip/Next tooltip. Pure client-side simulation: no data is created, and pages with
+    no real household/accounts/lists show one canned "Example" row per step instead of their normal empty
+    state. Skippable at every step, re-entrant via an (i) button in Header/MobileMenuSheet. Outcome
+    tracked per-user as `onboardingStatus` (pending/completed/skipped/reviewed_later) on `auth.users`; a
+    'pending' user is the only case that auto-starts it, and creating/joining another household never
+    re-triggers it
 ✔ Dark theme (#42) — light / dark / system, class on <html>, `useTheme` + `<html>` inline script against FOUC, toggle in Header and selector in Settings
 ✔ Socket.IO client
     ✔ Connect on login, disconnect on logout

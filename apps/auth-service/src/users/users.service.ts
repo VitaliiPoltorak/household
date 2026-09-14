@@ -71,8 +71,13 @@ export class UsersService {
     return ap?.user ?? null;
   }
 
-  async findOrCreateByOAuth(profile: OAuthProfile): Promise<{ user: User; isNew: boolean }> {
-    let user = await this.findByProvider(profile.provider, profile.providerUserId);
+  async findOrCreateByOAuth(
+    profile: OAuthProfile,
+  ): Promise<{ user: User; isNew: boolean }> {
+    let user = await this.findByProvider(
+      profile.provider,
+      profile.providerUserId,
+    );
     if (user) return { user, isNew: false };
 
     user = await this.findByEmail(profile.email);
@@ -137,13 +142,18 @@ export class UsersService {
    * (see PasswordHasherService.needsRehash) so users migrate to stronger
    * settings on next successful sign-in without any user-facing prompt.
    */
-  async updatePasswordHash(userId: string, passwordHash: string): Promise<void> {
+  async updatePasswordHash(
+    userId: string,
+    passwordHash: string,
+  ): Promise<void> {
     await this.userRepo.update(userId, { passwordHash });
   }
 
   async updateProfile(
     id: string,
-    data: Partial<Pick<User, 'displayName' | 'avatarUrl' | 'locale'>>,
+    data: Partial<
+      Pick<User, 'displayName' | 'avatarUrl' | 'locale' | 'onboardingStatus'>
+    >,
   ): Promise<User> {
     await this.userRepo.update(id, data);
     return this.userRepo.findOneOrFail({ where: { id } });

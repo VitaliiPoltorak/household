@@ -31,7 +31,7 @@ Shared libraries in `libs/`: `common` (config, filters, JWT verify, gateway sign
 | integration-service | 3005 | Monobank connection, statement sync (mapping to accounts — #21) |
 | realtime-gateway | 3010 | Socket.IO, presence, live updates |
 | mailpit *(dev only)* | 1025 / 8025 | Local mail catcher — receives the verification codes and unlock links `auth-service` sends, readable at http://localhost:8025 |
-| **web** | **5173** | **React SPA — dashboard, finance, shopping, household, email/password auth (register + verify + login + unlock + password change)** |
+| **web** | **5173** | **React SPA — dashboard, finance, shopping, household, email/password auth (register + verify + login + unlock + password change), first-run guided tour (#347)** |
 
 ## Prerequisites
 

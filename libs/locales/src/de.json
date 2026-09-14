@@ -310,6 +310,95 @@
     "deleteStoreTitle": "Diesen Laden löschen?",
     "deleteStoreBody": "„{{name}}“ wird endgültig entfernt. Das lässt sich nicht rückgängig machen."
   },
+  "tour": {
+    "progress": "Schritt {{current}} von {{total}}",
+    "back": "Zurück",
+    "skip": "Überspringen",
+    "next": "Weiter",
+    "finish": "Fertig",
+    "reopenButton": "Geführte Tour",
+    "clickHint": "Klicken, um fortzufahren →",
+    "steps": {
+      "navToAccounts": {
+        "title": "Weiter zu Konten",
+        "body": "Klicke auf Konten in der Navigation, um die Tour dort fortzusetzen."
+      },
+      "navToTransactions": {
+        "title": "Weiter zu Buchungen",
+        "body": "Klicke auf Buchungen in der Navigation, um die Tour dort fortzusetzen."
+      },
+      "navToShopping": {
+        "title": "Weiter zu Einkäufe",
+        "body": "Klicke auf Einkäufe in der Navigation, um die Tour dort fortzusetzen."
+      },
+      "navToHousehold": {
+        "title": "Weiter zu Haushalt",
+        "body": "Klicke auf Haushalt in der Navigation, um die Tour dort fortzusetzen."
+      },
+      "navToDashboard": {
+        "title": "Zurück zum Dashboard",
+        "body": "Klicke auf Dashboard in der Navigation, um die Tour abzuschließen."
+      },
+      "intro": {
+        "title": "Willkommen bei Household",
+        "body": "Machen wir eine kurze Tour durch die App — du kannst sie jederzeit überspringen."
+      },
+      "dashboardStats": {
+        "title": "Deine Übersicht",
+        "body": "Hier erscheinen dein Gesamtsaldo, Einnahmen und Ausgaben des Monats, sobald Daten vorhanden sind."
+      },
+      "accountsNew": {
+        "title": "Konto hinzufügen",
+        "body": "Mit diesem Button fügst du ein Bank-, Bar- oder anderes Konto hinzu, damit Household seinen Saldo verfolgt."
+      },
+      "accountsList": {
+        "title": "Deine Konten",
+        "body": "Jedes hinzugefügte Konto erscheint hier mit seinem aktuellen Saldo."
+      },
+      "txNew": {
+        "title": "Buchung erfassen",
+        "body": "Erfasse eine Einnahme oder Ausgabe für eines deiner Konten."
+      },
+      "txTransfer": {
+        "title": "Zwischen Konten übertragen",
+        "body": "Verschiebe Geld von einem deiner Konten auf ein anderes — beide Seiten bleiben synchron."
+      },
+      "txFilters": {
+        "title": "Buchungen filtern",
+        "body": "Grenze die Liste nach Typ, Konto oder Zeitraum ein."
+      },
+      "shoppingNew": {
+        "title": "Einkaufsliste starten",
+        "body": "Erstelle eine Liste, um Einkäufe mit deinem Haushalt zu planen und zu verfolgen."
+      },
+      "shoppingList": {
+        "title": "Deine Listen",
+        "body": "Erstellte Listen erscheinen hier — tippe eine an, um ihre Einträge zu sehen und abzuhaken."
+      },
+      "householdInvite": {
+        "title": "Haushalt einladen",
+        "body": "Sende eine E-Mail-Einladung, damit Familienmitglieder diesem Haushalt beitreten können."
+      },
+      "householdMembers": {
+        "title": "Mitglieder",
+        "body": "Alle Mitglieder deines Haushalts erscheinen hier, zusammen mit ihrer Rolle."
+      },
+      "outro": {
+        "title": "Alles bereit",
+        "body": "Das war die Tour — erkunde die App in deinem eigenen Tempo. Du kannst sie jederzeit über den (i)-Button erneut öffnen."
+      }
+    },
+    "demo": {
+      "badge": "Beispiel",
+      "accountName": "Beispiel: Mono-Karte",
+      "accountBalance": "2.450,00 €",
+      "txDescription": "Beispiel: Lebensmittel",
+      "txAmount": "-350,00 €",
+      "listName": "Beispiel: Wocheneinkauf",
+      "listItems": "3 Artikel",
+      "householdName": "Beispielhaushalt"
+    }
+  },
   "household": {
     "title": "Haushalt",
     "newHome": "Neuer Haushalt",

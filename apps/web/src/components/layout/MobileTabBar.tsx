@@ -20,6 +20,7 @@ export function MobileTabBar() {
         <NavLink
           key={to}
           to={to}
+          data-tour={`nav-${to.slice(1)}`}
           className={({ isActive }) =>
             clsx(
               'flex flex-1 flex-col items-center gap-0.5 py-1 text-[10px]',

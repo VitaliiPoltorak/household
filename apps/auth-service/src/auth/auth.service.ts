@@ -587,7 +587,9 @@ export class AuthService {
 
   async updateProfile(
     userId: string,
-    data: Partial<Pick<User, 'displayName' | 'avatarUrl' | 'locale'>>,
+    data: Partial<
+      Pick<User, 'displayName' | 'avatarUrl' | 'locale' | 'onboardingStatus'>
+    >,
   ): Promise<User> {
     return this.users.updateProfile(userId, data);
   }

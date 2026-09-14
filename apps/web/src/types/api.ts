@@ -61,7 +61,17 @@ export interface User {
   // so the UI can explain WHY there is no password rather than just
   // asserting it. Empty for a password-only account.
   providers: string[];
+  // #347: drives the onboarding wizard. 'pending' auto-opens it once; any
+  // other value means the user already made a choice, and it only reopens
+  // via the manual (i) re-entry button.
+  onboardingStatus: OnboardingStatus;
 }
+
+export type OnboardingStatus =
+  | 'pending'
+  | 'completed'
+  | 'skipped'
+  | 'reviewed_later';
 
 /**
  * Redacted user shape returned by `GET /auth/users?ids=…`. Any caller with a

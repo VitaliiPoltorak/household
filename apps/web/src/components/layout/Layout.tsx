@@ -1,5 +1,6 @@
 import { Outlet, Navigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import { OnboardingProvider } from '../../contexts/OnboardingContext';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
 import { MobileTabBar } from './MobileTabBar';
@@ -18,15 +19,17 @@ export function Layout() {
   if (!user) return <Navigate to="/login" replace />;
 
   return (
-    <div className="flex h-screen bg-gray-50 dark:bg-gray-950">
-      <Sidebar />
-      <div className="flex flex-1 flex-col overflow-hidden">
-        <Header />
-        <main className="flex-1 overflow-y-auto p-4 pb-24 text-gray-900 dark:text-gray-100 md:p-6">
-          <Outlet />
-        </main>
+    <OnboardingProvider>
+      <div className="flex h-screen bg-gray-50 dark:bg-gray-950">
+        <Sidebar />
+        <div className="flex flex-1 flex-col overflow-hidden">
+          <Header />
+          <main className="flex-1 overflow-y-auto p-4 pb-24 text-gray-900 dark:text-gray-100 md:p-6">
+            <Outlet />
+          </main>
+        </div>
+        <MobileTabBar />
       </div>
-      <MobileTabBar />
-    </div>
+    </OnboardingProvider>
   );
 }
