@@ -149,23 +149,26 @@ Built (#348) — `libs/contracts/src/feature-flags/registry.ts` is the static, i
 
 ## Current implementation status
 
-**Phases 0–2 and 4 complete. Phase 3 (Integrations) partially done** — `auth-service` OAuth providers (Google/Apple/Facebook) are implemented; `integration-service` (Monobank connect + sync, transaction mapping) does not exist yet (issues #20, #21). Implemented so far:
+**Phases 0–2 and 4 complete. Phase 3 (Integrations) in progress** — `auth-service` OAuth providers (Google/Apple/Facebook) plus email+password (mailbox verification, soft-lock/unlock, first-password path for OAuth-only accounts) are implemented; `integration-service` (Monobank connect + incremental sync, transaction mapping — issues #20/#21, both closed) exists and is gated behind the `monobank-integration` kill-switch flag. Still-open Phase 3 follow-ups: multi-account sync (#293) and Monobank webhooks (#292) — today only the first Monobank account returned by `client-info` is synced, via polling. Implemented so far:
 
-**Libs:** `common`, `contracts`, `database`, `kafka`, `locales` (i18n en/uk/de/es), `testing`
+**Libs:** `common`, `contracts`, `database`, `kafka`, `audit` (audit_log entity + `@Audit()` decorator/interceptor), `feature-flags` (`@RequireFeature` guard, Redis-cached resolution — see Feature flags below), `locales` (i18n en/uk/de/es), `testing`
 
 **Backend services:**
 - `api-gateway` — JWT proxy, Redis rate limiting, Swagger
-- `auth-service` — Google/Apple/Facebook OAuth, JWT, Redis sessions
-- `household-service` — CRUD households, members (owner/admin/member/viewer), Redis invites, Kafka consumer (auth.user.deleted → cleanup)
-- `finance-service` — accounts with balance tracking, transactions, categories, recurring payments, reports (monthly/by-category/net-worth)
+- `auth-service` — Google/Apple/Facebook OAuth, email+password (verification, soft-lock/unlock), JWT, Redis sessions, public user directory
+- `household-service` — CRUD households, members (owner/admin/member/viewer), Redis invites, Kafka consumer (auth.user.deleted → cleanup), feature-flag runtime state (`GET /feature-flags` + household-override endpoints)
+- `finance-service` — accounts with balance tracking, transactions (incl. cross-currency transfers), categories, recurring payments, reports (monthly/by-category/net-worth)
 - `shopping-service` — stores, products, shopping lists + items, Kafka events
+- `integration-service` — Monobank connect + incremental sync (#20), transaction mapping (#21), both gated behind `@RequireFeature('monobank-integration')`
 - `realtime-gateway` — Socket.IO (JWT auth, rooms, presence, Kafka→WS bridge)
 
 **Web app** (`apps/web`, port 5173):
-- React 18 + Vite 5 + TanStack Query + Tailwind CSS + react-i18next
-- Pages: Dashboard, Accounts, Transactions (with transfer), Shopping lists, Household settings
-- Auth: Google OAuth via @react-oauth/google, axios→fetch, auto token refresh
+- React 18 + Vite 5 + TanStack Query + Tailwind CSS (light/dark/system) + react-i18next
+- Pages: Dashboard, Accounts, Transactions (with transfer), Categories, Shopping lists, Household settings (incl. Invites, Bank connections), Settings, Login/Register/Verify-email/Unlock-account
+- Auth: Google OAuth + email/password, access token kept in memory, auto refresh via HttpOnly cookie
 - Real-time: Socket.IO client (entity updates, presence avatars, editing indicators)
 - i18n: 4 languages, language switcher in Header, user.locale sync
 
-Next: finish **Phase 3** (`integration-service` — Monobank sync), then **Phase 5** — React Native mobile app.
+**Not started:** `notification-service` (#30), mobile app (#27–#29, #34), Electron desktop (#228), public landing page (#346), Sentry/Mixpanel/UI analytics (#231).
+
+Next: close out Phase 3 follow-ups (#292, #293), then **Phase 5** — React Native mobile app.
