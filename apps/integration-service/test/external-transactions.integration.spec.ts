@@ -1,4 +1,6 @@
 import { BadRequestException, INestApplication } from '@nestjs/common';
+import { getRepositoryToken } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import request from 'supertest';
 import Redis from 'ioredis';
 import {
@@ -17,6 +19,11 @@ import {
   FinanceClientService,
   type CreateFinanceTransactionPayload,
 } from '../src/external-transactions/finance-client.service';
+import {
+  BankSyncLog,
+  SyncStatus,
+} from '../src/bank-connections/entities/bank-sync-log.entity';
+import { SyncScheduler } from '../src/bank-connections/sync.scheduler';
 
 class FakeMonobankClient {
   clientInfo: MonobankClientInfo = {
@@ -77,6 +84,8 @@ describe('External transactions (integration)', () => {
   let app: INestApplication;
   let fakeFinance: FakeFinanceClient;
   let redis: Redis;
+  let scheduler: SyncScheduler;
+  let syncLogRepo: Repository<BankSyncLog>;
 
   beforeAll(async () => {
     fakeFinance = new FakeFinanceClient();
@@ -88,6 +97,10 @@ describe('External transactions (integration)', () => {
         .useValue(fakeFinance),
     );
     redis = app.get<Redis>(REDIS_CLIENT);
+    scheduler = app.get<SyncScheduler>(SyncScheduler);
+    syncLogRepo = app.get<Repository<BankSyncLog>>(
+      getRepositoryToken(BankSyncLog),
+    );
   });
 
   beforeEach(async () => {
@@ -95,6 +108,8 @@ describe('External transactions (integration)', () => {
     resetKafkaMocks();
     fakeFinance.calls = [];
     fakeFinance.shouldFail = false;
+    const lockKeys = await redis.keys('sync:lock:*');
+    if (lockKeys.length > 0) await redis.del(...lockKeys);
     const flagKeys = await redis.keys('flag:*');
     if (flagKeys.length > 0) await redis.del(...flagKeys);
   });
@@ -104,6 +119,24 @@ describe('External transactions (integration)', () => {
     await app.close();
   });
 
+  // Drives every queued/running run one tick at a time until none are left
+  // — same helper as bank-connections.integration.spec.ts, kept local since
+  // jest specs don't share fixtures across files in this repo.
+  async function drainSyncs(maxTicks = 20): Promise<void> {
+    for (let i = 0; i < maxTicks; i++) {
+      const active = await syncLogRepo.find({
+        where: [{ status: SyncStatus.QUEUED }, { status: SyncStatus.RUNNING }],
+      });
+      if (active.length === 0) return;
+      for (const run of active) {
+        const lockKeys = await redis.keys('sync:lock:*');
+        if (lockKeys.length > 0) await redis.del(...lockKeys);
+        await scheduler.advanceRun(run);
+      }
+    }
+    throw new Error('drainSyncs: runs still active after maxTicks');
+  }
+
   async function connectAndSync(householdId = H): Promise<string> {
     const connection = await request(app.getHttpServer())
       .post('/monobank/connect')
@@ -112,6 +145,7 @@ describe('External transactions (integration)', () => {
     await request(app.getHttpServer())
       .post(`/monobank/connections/${connection.body.id}/sync`)
       .set('X-Household-Id', householdId);
+    await drainSyncs();
     return connection.body.id as string;
   }
 

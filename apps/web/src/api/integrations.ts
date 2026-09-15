@@ -1,5 +1,5 @@
 import { api } from './client';
-import type { BankConnection, BankSyncLog } from '../types/api';
+import type { BankAccount, BankConnection, BankSyncLog } from '../types/api';
 
 const cfg = (hid: string) => ({ headers: { 'X-Household-Id': hid } });
 
@@ -17,10 +17,24 @@ export const integrationsApi = {
   disconnect: (id: string, hid: string) =>
     api.delete(`/integrations/monobank/connections/${id}`, cfg(hid)),
 
+  // Accepted, not finished (#293) — returns the queued run; poll getLogs (or
+  // getConnections while a run is active) for progress.
   sync: (id: string, hid: string) =>
     api.post<BankSyncLog>(
       `/integrations/monobank/connections/${id}/sync`,
       undefined,
+      cfg(hid),
+    ),
+
+  setAccountSyncEnabled: (
+    connectionId: string,
+    accountId: string,
+    hid: string,
+    enabled: boolean,
+  ) =>
+    api.patch<BankAccount>(
+      `/integrations/monobank/connections/${connectionId}/accounts/${accountId}`,
+      { enabled },
       cfg(hid),
     ),
 

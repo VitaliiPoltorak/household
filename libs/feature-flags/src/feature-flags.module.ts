@@ -1,4 +1,4 @@
-import { DynamicModule, Module } from '@nestjs/common';
+import { DynamicModule, Global, Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { FeatureFlagClientService } from './feature-flag-client.service';
 import { FeatureFlagService } from './feature-flag.service';
@@ -16,7 +16,13 @@ import { FEATURE_FLAGS_SERVICE_NAME } from './constants';
  *
  * Call FeatureFlagsModule.register('integration-service') from the app's
  * AppModule — the serviceName becomes the Kafka consumer group id.
+ *
+ * @Global() so FeatureFlagService is injectable from any feature module in
+ * the app, not just ones that import this module directly — needed by any
+ * provider that checks a flag outside an HTTP request (e.g. a @Cron
+ * scheduler), where the @RequireFeature guard doesn't apply (#293).
  */
+@Global()
 @Module({})
 export class FeatureFlagsModule {
   static register(serviceName: string): DynamicModule {

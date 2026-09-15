@@ -551,6 +551,8 @@
     "history": "Sync history",
     "historyEmpty": "No syncs yet.",
     "transactionCount_one": "{{count}} transaction",
-    "transactionCount_other": "{{count}} transactions"
+    "transactionCount_other": "{{count}} transactions",
+    "accountsProgress": "{{done}} of {{total}} accounts",
+    "syncEnabled": "Sync"
   }
 }
