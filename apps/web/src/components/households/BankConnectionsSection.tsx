@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { integrationsApi } from '../../api/integrations';
 import { ApiError } from '../../api/client';
-import type { BankConnection } from '../../types/api';
+import type { BankAccount, BankConnection } from '../../types/api';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Modal } from '../ui/Modal';
@@ -22,11 +22,17 @@ export function BankConnectionsSection({ hid }: { hid: string }) {
     id: string;
     message: string;
   } | null>(null);
+  // Connections with an active (queued/running) sync run — sync is
+  // accepted, not finished (#293), so the connections list is polled while
+  // any of these are active and cleared once each run's own poll sees it
+  // reach success/failed.
+  const [activeSyncs, setActiveSyncs] = useState<Set<string>>(new Set());
 
   const { data: connections = [] } = useQuery({
     queryKey: ['bank-connections', hid],
     queryFn: () => integrationsApi.getConnections(hid),
     enabled: !!hid,
+    refetchInterval: activeSyncs.size > 0 ? 5000 : false,
   });
 
   const disconnect = useMutation({
@@ -38,7 +44,7 @@ export function BankConnectionsSection({ hid }: { hid: string }) {
   const sync = useMutation({
     mutationFn: (id: string) => integrationsApi.sync(id, hid),
     onSuccess: (_data, id) => {
-      qc.invalidateQueries({ queryKey: ['bank-connections', hid] });
+      setActiveSyncs((s) => new Set(s).add(id));
       setSyncMessage((m) => (m?.id === id ? null : m));
     },
     onError: (err: unknown, id) => {
@@ -50,6 +56,36 @@ export function BankConnectionsSection({ hid }: { hid: string }) {
       }
     },
   });
+
+  const toggleAccount = useMutation({
+    mutationFn: ({
+      connectionId,
+      accountId,
+      enabled,
+    }: {
+      connectionId: string;
+      accountId: string;
+      enabled: boolean;
+    }) =>
+      integrationsApi.setAccountSyncEnabled(
+        connectionId,
+        accountId,
+        hid,
+        enabled,
+      ),
+    onSuccess: () =>
+      qc.invalidateQueries({ queryKey: ['bank-connections', hid] }),
+  });
+
+  function stopWatching(connectionId: string) {
+    setActiveSyncs((s) => {
+      if (!s.has(connectionId)) return s;
+      const next = new Set(s);
+      next.delete(connectionId);
+      return next;
+    });
+    qc.invalidateQueries({ queryKey: ['bank-connections', hid] });
+  }
 
   return (
     <div>
@@ -74,7 +110,7 @@ export function BankConnectionsSection({ hid }: { hid: string }) {
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                      {c.maskedPan ?? c.monobankAccountId ?? '—'}
+                      {c.accounts[0]?.maskedPan ?? c.monobankClientId ?? '—'}
                     </span>
                     <Badge label={c.status} />
                   </div>
@@ -95,10 +131,14 @@ export function BankConnectionsSection({ hid }: { hid: string }) {
                   </button>
                   <button
                     onClick={() => sync.mutate(c.id)}
-                    disabled={sync.isPending && sync.variables === c.id}
+                    disabled={
+                      (sync.isPending && sync.variables === c.id) ||
+                      activeSyncs.has(c.id)
+                    }
                     className="text-xs text-primary-600 hover:underline disabled:opacity-50 dark:text-primary-400"
                   >
-                    {sync.isPending && sync.variables === c.id
+                    {(sync.isPending && sync.variables === c.id) ||
+                    activeSyncs.has(c.id)
                       ? t('bankConnections.syncing')
                       : t('bankConnections.syncNow')}
                   </button>
@@ -123,6 +163,30 @@ export function BankConnectionsSection({ hid }: { hid: string }) {
                   {syncMessage.message}
                 </p>
               )}
+              {activeSyncs.has(c.id) && (
+                <SyncProgress
+                  hid={hid}
+                  connectionId={c.id}
+                  onSettled={() => stopWatching(c.id)}
+                />
+              )}
+              {c.accounts.length > 1 && (
+                <div className="mt-2 space-y-1 border-t border-gray-100 pt-2 dark:border-gray-800">
+                  {c.accounts.map((account) => (
+                    <AccountRow
+                      key={account.id}
+                      account={account}
+                      onToggle={(enabled) =>
+                        toggleAccount.mutate({
+                          connectionId: c.id,
+                          accountId: account.id,
+                          enabled,
+                        })
+                      }
+                    />
+                  ))}
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -146,6 +210,88 @@ export function BankConnectionsSection({ hid }: { hid: string }) {
           onClose={() => setHistoryFor(null)}
         />
       )}
+    </div>
+  );
+}
+
+// Polls this connection's most recent sync run while it's active, shows
+// "N of M accounts" progress, and calls onSettled once the run reaches a
+// terminal state (success/failed) so the parent can stop watching it.
+function SyncProgress({
+  hid,
+  connectionId,
+  onSettled,
+}: {
+  hid: string;
+  connectionId: string;
+  onSettled: () => void;
+}) {
+  const { t } = useTranslation();
+  const { data: logs } = useQuery({
+    queryKey: ['bank-connection-logs', connectionId],
+    queryFn: () => integrationsApi.getLogs(connectionId, hid),
+    refetchInterval: (query) => {
+      const latest = query.state.data?.[0];
+      if (
+        !latest ||
+        latest.status === 'queued' ||
+        latest.status === 'running'
+      ) {
+        return 3000;
+      }
+      onSettled();
+      return false;
+    },
+  });
+
+  const latest = logs?.[0];
+  if (!latest || (latest.status !== 'queued' && latest.status !== 'running')) {
+    return null;
+  }
+
+  return (
+    <p className="mt-1 text-xs text-primary-600 dark:text-primary-400">
+      {t('bankConnections.accountsProgress', {
+        done: latest.accountsDone,
+        total: latest.accountsTotal,
+      })}
+    </p>
+  );
+}
+
+function AccountRow({
+  account,
+  onToggle,
+}: {
+  account: BankAccount;
+  onToggle: (enabled: boolean) => void;
+}) {
+  const { t } = useTranslation();
+  return (
+    <div className="flex items-center justify-between py-1 pl-1 text-xs">
+      <div className="flex min-w-0 items-center gap-2">
+        {account.kind === 'jar' && <Badge label="jar" />}
+        <span className="truncate text-gray-600 dark:text-gray-300">
+          {account.title ?? account.maskedPan ?? '—'}
+        </span>
+        {account.lastError && (
+          <span
+            title={account.lastError}
+            className="text-red-500 dark:text-red-400"
+          >
+            ⚠
+          </span>
+        )}
+      </div>
+      <label className="flex shrink-0 items-center gap-1.5 text-gray-400 dark:text-gray-500">
+        {t('bankConnections.syncEnabled')}
+        <input
+          type="checkbox"
+          checked={account.syncEnabled}
+          onChange={(e) => onToggle(e.target.checked)}
+          className="h-3.5 w-3.5 rounded border-gray-300 text-primary-600 focus:ring-primary-500 dark:border-gray-600"
+        />
+      </label>
     </div>
   );
 }

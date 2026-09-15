@@ -5,6 +5,7 @@ import { renderWithProviders } from './wrapper';
 import { server } from './setup';
 import { HouseholdPage } from '../pages/HouseholdPage';
 import { MOCK_BANK_CONNECTION, MOCK_SYNC_LOG } from './handlers';
+import type { BankSyncLog } from '../types/api';
 
 describe('HouseholdPage — member display names (#166)', () => {
   const OWNER_ID = 'user-1'; // same as MOCK_USER.id from handlers
@@ -370,28 +371,43 @@ describe('HouseholdPage — bank connections (#291)', () => {
     expect(screen.getByLabelText('Personal API token')).toBeInTheDocument();
   });
 
-  it('syncs a connection and reflects the new last-sync time', async () => {
+  it('accepts a sync (202), shows progress, then reflects completion', async () => {
+    // #293: sync is enqueued, not finished, synchronously — the component
+    // polls GET .../logs until the run leaves queued/running.
+    vi.useFakeTimers({ shouldAdvanceTime: true });
     let connection = { ...MOCK_BANK_CONNECTION };
+    let log: BankSyncLog = {
+      ...MOCK_SYNC_LOG,
+      status: 'queued',
+      accountsDone: 0,
+      accountsTotal: 1,
+    };
     server.use(
       http.get('/api/v1/integrations/monobank/connections', () =>
         HttpResponse.json([connection]),
       ),
-      http.post('/api/v1/integrations/monobank/connections/:id/sync', () => {
-        connection = { ...connection, lastSyncAt: '2026-07-02T10:00:00Z' };
-        return HttpResponse.json(
-          { ...MOCK_SYNC_LOG, status: 'success' },
-          { status: 201 },
-        );
-      }),
+      http.post('/api/v1/integrations/monobank/connections/:id/sync', () =>
+        HttpResponse.json(log, { status: 202 }),
+      ),
+      http.get('/api/v1/integrations/monobank/connections/:id/logs', () =>
+        HttpResponse.json([log]),
+      ),
     );
 
     renderWithProviders(<HouseholdPage />);
     expect(await screen.findByText('Never synced')).toBeInTheDocument();
     await userEvent.click(screen.getByText('Sync now'));
 
+    expect(await screen.findByText('0 of 1 accounts')).toBeInTheDocument();
+
+    log = { ...log, status: 'success', accountsDone: 1 };
+    connection = { ...connection, lastSyncAt: '2026-07-02T10:00:00Z' };
+    await vi.advanceTimersByTimeAsync(3000);
+
     await waitFor(() =>
       expect(screen.queryByText('Never synced')).not.toBeInTheDocument(),
     );
+    vi.useRealTimers();
   });
 
   it('shows a specific inline message when a sync is already in progress (409)', async () => {

@@ -2,6 +2,7 @@ import { join } from 'path';
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { ScheduleModule } from '@nestjs/schedule';
 import { KafkaModule } from '@household/kafka';
 import { ensureSchema } from '@household/database';
 import { AuditModule } from '@household/audit';
@@ -31,11 +32,19 @@ import { entities } from './config/entities';
           entities,
           migrations: [join(__dirname, 'migrations', '*.{ts,js}')],
           migrationsRun: true,
+          // 'each' (one transaction per migration, not one across all
+          // pending migrations) is what lets MultiAccountSync1789000000000
+          // opt itself out of transaction wrapping — Postgres forbids using
+          // a newly-added enum value inside the same transaction that added
+          // it, and TypeORM only honours a migration's own `transaction`
+          // override when the global mode isn't 'all'.
+          migrationsTransactionMode: 'each',
           synchronize: false,
         };
       },
     }),
     KafkaModule.forRootAsync('integration-service'),
+    ScheduleModule.forRoot(),
     AuditModule.register(),
     RedisModule,
     FeatureFlagsModule.register('integration-service'),

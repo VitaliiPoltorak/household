@@ -4,6 +4,8 @@ import {
   BankConnectionStatus,
   BankProvider,
 } from '../entities/bank-connection.entity';
+import { BankAccount } from '../entities/bank-account.entity';
+import { BankAccountResponseDto } from './bank-account-response.dto';
 
 // Explicit response shape — tokenEncrypted must never reach a client.
 // Mapped by hand rather than relying on class-transformer's @Exclude, which
@@ -14,26 +16,29 @@ export class BankConnectionResponseDto {
   @ApiProperty({ required: false, nullable: true }) monobankClientId:
     | string
     | null;
-  @ApiProperty({ required: false, nullable: true }) monobankAccountId:
-    | string
-    | null;
+  // Per-account display (masked PAN, sync status) now lives on each entry
+  // of `accounts` — a connection can hold several accounts/jars (#293).
+  @ApiProperty({ type: [BankAccountResponseDto] })
+  accounts: BankAccountResponseDto[];
   @ApiProperty({
     required: false,
     nullable: true,
-    description: 'e.g. "444455******1234"',
+    description:
+      'Last statement API call on this token, across all its accounts',
   })
-  maskedPan: string | null;
-  @ApiProperty({ required: false, nullable: true }) lastSyncAt: Date | null;
+  lastSyncAt: Date | null;
   @ApiProperty({ enum: BankConnectionStatus }) status: BankConnectionStatus;
   @ApiProperty() createdAt: Date;
 
-  static from(connection: BankConnection): BankConnectionResponseDto {
+  static from(
+    connection: BankConnection,
+    accounts: BankAccount[],
+  ): BankConnectionResponseDto {
     return {
       id: connection.id,
       provider: connection.provider,
       monobankClientId: connection.monobankClientId,
-      monobankAccountId: connection.monobankAccountId,
-      maskedPan: connection.maskedPan,
+      accounts: accounts.map(BankAccountResponseDto.from),
       lastSyncAt: connection.lastSyncAt,
       status: connection.status,
       createdAt: connection.createdAt,

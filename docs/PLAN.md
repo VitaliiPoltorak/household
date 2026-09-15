@@ -756,18 +756,23 @@ Finance Service → Kafka: finance.transaction.created
 | Method | Path | Description |
 |--------|------|-------------|
 | POST | `/integrations/monobank/connect` | Connect Monobank (token) |
-| GET | `/integrations/monobank/connections` | List connections |
+| GET | `/integrations/monobank/connections` | List connections, each with its nested `accounts[]` |
 | DELETE | `/integrations/monobank/connections/:id` | Disconnect |
-| POST | `/integrations/monobank/connections/:id/sync` | Trigger manual sync |
-| GET | `/integrations/monobank/connections/:id/logs` | Sync history |
+| PATCH | `/integrations/monobank/connections/:id/accounts/:accountId` | Enable/disable sync for one account (e.g. opt a jar in) |
+| POST | `/integrations/monobank/connections/:id/sync` | Enqueue a sync run — 202, not synchronous (#293) |
+| GET | `/integrations/monobank/connections/:id/logs` | Sync run history, with per-run accountsTotal/accountsDone |
 | GET | `/integrations/monobank/transactions` | Unmapped external transactions |
 | POST | `/integrations/monobank/transactions/:id/map` | Link to an account/category — creates the finance-service transaction |
 
-> #20: `connect` validates the token against Monobank's `/personal/client-info` before persisting, and encrypts it at rest (AES-256-GCM, `TOKEN_ENCRYPTION_KEY` — same strength rule as `JWT_SECRET`). Key rotation is supported via `TOKEN_ENCRYPTION_KEY_PREV`, same convention as `KAFKA_SIGNING_KEY_PREV` — `decryptToken` falls back to it when the primary key doesn't match (#296 Phase 1); bulk re-encrypting existing rows under a new primary key is a separate follow-up (#296 Phase 2). `sync` fetches the primary Monobank account's statement only (the first account returned by `client-info`) — Monobank's 1-request/60s limit is per token across *all* of a client's accounts, so a manual "sync now" trigger fetching several accounts serially would turn one HTTP request into a multi-minute wait; multi-account sync is a natural follow-up once #21 gives each Monobank account somewhere to map to. Concurrency is guarded by a `sync:lock:{connectionId}` Redis lock (crash-safe TTL) plus an explicit 60s-since-`lastSyncAt` check (the lock alone doesn't cover back-to-back non-overlapping syncs). Fetched statement items are upserted into `external_transactions` keyed on `(connectionId, externalId)`, tolerating overlap at incremental-sync window boundaries.
+> #20: `connect` validates the token against Monobank's `/personal/client-info` before persisting, and encrypts it at rest (AES-256-GCM, `TOKEN_ENCRYPTION_KEY` — same strength rule as `JWT_SECRET`). Key rotation is supported via `TOKEN_ENCRYPTION_KEY_PREV`, same convention as `KAFKA_SIGNING_KEY_PREV` — `decryptToken` falls back to it when the primary key doesn't match (#296 Phase 1); bulk re-encrypting existing rows under a new primary key is a separate follow-up (#296 Phase 2). Fetched statement items are upserted into `external_transactions` keyed on `(connectionId, externalId)`, tolerating overlap at incremental-sync window boundaries.
 >
-> #21: `GET .../transactions` lists unmapped `external_transactions` for the household, parsed from the raw Monobank payload, with a `suggestedCategoryName` hint from a baseline MCC→category table (`mcc-category.ts`) — a suggestion only, never auto-applied, since silently miscategorizing money is worse than asking. `POST .../transactions/:id/map` calls finance-service's `POST /transactions` **directly** (not through the gateway, but signed with the same `GATEWAY_SIGNING_SECRET`/`computeSignature` the gateway's proxy uses — the same trust boundary, a second caller) so balance mutation stays owned by finance-service's existing atomic `create()` path. `Transaction.externalId` (a pre-existing, previously-unused column) is set to `monobank:<id>` and used for idempotency — a retried map call returns the already-created transaction instead of double-booking it. Currency is resolved from Monobank's numeric ISO 4217 code via a small baseline table (`currency-code.ts`); an unmapped code fails closed with 400 rather than guessing. Multi-account sync (#293) and Monobank webhooks (#292) are separate, already-filed follow-ups.
+> #21: `GET .../transactions` lists unmapped `external_transactions` for the household, parsed from the raw Monobank payload, with a `suggestedCategoryName` hint from a baseline MCC→category table (`mcc-category.ts`) — a suggestion only, never auto-applied, since silently miscategorizing money is worse than asking. `POST .../transactions/:id/map` calls finance-service's `POST /transactions` **directly** (not through the gateway, but signed with the same `GATEWAY_SIGNING_SECRET`/`computeSignature` the gateway's proxy uses — the same trust boundary, a second caller) so balance mutation stays owned by finance-service's existing atomic `create()` path. `Transaction.externalId` (a pre-existing, previously-unused column) is set to `monobank:<id>` and used for idempotency — a retried map call returns the already-created transaction instead of double-booking it. Currency is resolved from Monobank's numeric ISO 4217 code via a small baseline table (`currency-code.ts`); an unmapped code fails closed with 400 rather than guessing.
 >
-> #348: `connect`, `sync`, and `map` are gated behind the `monobank-integration` kill-switch flag (`@RequireFeature`, 503 when disabled) — an emergency off-switch for a Monobank outage or load spike. The three `GET`s and `DELETE .../connections/:id` are deliberately **not** gated: reads should keep rendering existing state instead of going blank, and disconnecting is the one action a user should still be able to take mid-incident. Toggle the global default with `scripts/feature-flag.js monobank-integration <on|off>`; the web app hides the whole Bank connections section on `HouseholdPage` when the flag resolves off for the caller.
+> #293: every account and jar `client-info` returns is stored as a `bank_accounts` row (a card's `syncEnabled` defaults true, a jar's defaults false — a jar adds another 60s step to a sync run, so it's opt-in via the `PATCH .../accounts/:accountId` toggle). `sync` no longer fetches synchronously: it enqueues a `bank_sync_logs` run (202, status `queued`) and returns immediately. `SyncScheduler` (`@Cron`, every 15s) walks the run's sync-enabled accounts one at a time — same `sync:lock:{connectionId}` Redis lock plus 60s-since-`lastSyncAt` gate the old synchronous path used, now enforced between accounts within a run rather than between separate HTTP calls. A run finalizes (success/failed) once no sync-enabled account is still due; it's marked failed only if every account in it failed, so one bad card doesn't sink a run that synced the rest. `lastSyncAt` moves to the connection level for the per-token gate and to each `BankAccount` row for "when did this specific account last sync" — a failed attempt still bumps both, since Monobank counts the HTTP call against the rate limit regardless of outcome, and an account whose `lastSyncAt` never advanced would otherwise stay "due" forever and hang the run.
+>
+> #348: `connect`, `sync`, and `map` are gated behind the `monobank-integration` kill-switch flag (`@RequireFeature`, 503 when disabled) — an emergency off-switch for a Monobank outage or load spike. `SyncScheduler` checks the flag itself each tick, since the guard only covers the HTTP path. The three `GET`s, `DELETE .../connections/:id`, and the account-toggle `PATCH` are deliberately **not** gated: reads should keep rendering existing state instead of going blank, and disconnecting/toggling are actions a user should still be able to take mid-incident. Toggle the global default with `scripts/feature-flag.js monobank-integration <on|off>`; the web app hides the whole Bank connections section on `HouseholdPage` when the flag resolves off for the caller.
+>
+> Monobank webhooks (#292) remain a follow-up — sync is polling-only for now.
 
 ---
 
@@ -948,7 +953,19 @@ pnpm test:postman                                            # API scenario coll
     ✔ Incremental sync honouring rate limits
     ✔ Map external → internal transactions (#21)
     ✔ Kafka: integration.monobank.*
-    □ Multi-account sync (#293), Monobank webhooks (#292) — follow-ups, not MVP scope
+    ✔ Multi-account sync (#293) — every Monobank account under a token is stored
+      (`bank_accounts`, one row per account/jar); jars are stored sync-disabled
+      by default (opt-in toggle). `POST .../sync` enqueues a run (202) instead
+      of syncing synchronously; `SyncScheduler` (`@Cron`, 15s) walks the run's
+      sync-enabled accounts one at a time, honouring the 60s-per-token gate
+      between Monobank statement calls. `bank_sync_logs` tracks per-run
+      accountsTotal/accountsDone; a run fails only if every account in it
+      failed. Migration backfills the pre-#293 single-account connections into
+      `bank_accounts` before dropping the now-redundant
+      `bank_connections.monobank_account_id`/`masked_pan`/`account_mappings`
+      columns — destructive, so an image rollback across this deploy needs a
+      database restore too (see README's rollback table).
+    □ Monobank webhooks (#292) — follow-up, not MVP scope
 
 ▷ Apple + Facebook OAuth end-to-end (#22)
     ✔ Strategies implemented (google/apple/facebook.strategy.ts + OAuthStrategyRegistry)

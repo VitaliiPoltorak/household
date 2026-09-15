@@ -149,7 +149,7 @@ Built (#348) — `libs/contracts/src/feature-flags/registry.ts` is the static, i
 
 ## Current implementation status
 
-**Phases 0–2 and 4 complete. Phase 3 (Integrations) in progress** — `auth-service` OAuth providers (Google/Apple/Facebook) plus email+password (mailbox verification, soft-lock/unlock, first-password path for OAuth-only accounts) are implemented; `integration-service` (Monobank connect + incremental sync, transaction mapping — issues #20/#21, both closed) exists and is gated behind the `monobank-integration` kill-switch flag. Still-open Phase 3 follow-ups: multi-account sync (#293) and Monobank webhooks (#292) — today only the first Monobank account returned by `client-info` is synced, via polling. Implemented so far:
+**Phases 0–2 and 4 complete. Phase 3 (Integrations) in progress** — `auth-service` OAuth providers (Google/Apple/Facebook) plus email+password (mailbox verification, soft-lock/unlock, first-password path for OAuth-only accounts) are implemented; `integration-service` (Monobank connect + incremental sync, transaction mapping — issues #20/#21, both closed) exists and is gated behind the `monobank-integration` kill-switch flag. Multi-account sync (#293) is done — every account/jar under a token syncs via a background `SyncScheduler` (`@Cron`) honouring the 60s-per-token gate, `POST .../sync` enqueues (202) rather than syncing synchronously. Still-open Phase 3 follow-up: Monobank webhooks (#292) — sync is polling-only for now. Implemented so far:
 
 **Libs:** `common`, `contracts`, `database`, `kafka`, `audit` (audit_log entity + `@Audit()` decorator/interceptor), `feature-flags` (`@RequireFeature` guard, Redis-cached resolution — see Feature flags below), `locales` (i18n en/uk/de/es), `testing`
 
@@ -171,4 +171,4 @@ Built (#348) — `libs/contracts/src/feature-flags/registry.ts` is the static, i
 
 **Not started:** `notification-service` (#30), mobile app (#27–#29, #34), Electron desktop (#228), public landing page (#346), Sentry/Mixpanel/UI analytics (#231).
 
-Next: close out Phase 3 follow-ups (#292, #293), then **Phase 5** — React Native mobile app.
+Next: close out the remaining Phase 3 follow-up (#292 Monobank webhooks), then **Phase 5** — React Native mobile app.

@@ -551,6 +551,8 @@
     "history": "Historial de sincronización",
     "historyEmpty": "Todavía no hay sincronizaciones.",
     "transactionCount_one": "{{count}} transacción",
-    "transactionCount_other": "{{count}} transacciones"
+    "transactionCount_other": "{{count}} transacciones",
+    "accountsProgress": "{{done}} de {{total}} cuentas",
+    "syncEnabled": "Sincronizar"
   }
 }

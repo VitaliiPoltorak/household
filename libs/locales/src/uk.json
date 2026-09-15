@@ -558,6 +558,8 @@
     "historyEmpty": "Синхронізацій ще не було.",
     "transactionCount_one": "{{count}} транзакція",
     "transactionCount_few": "{{count}} транзакції",
-    "transactionCount_many": "{{count}} транзакцій"
+    "transactionCount_many": "{{count}} транзакцій",
+    "accountsProgress": "{{done}} з {{total}} рахунків",
+    "syncEnabled": "Синхронізація"
   }
 }

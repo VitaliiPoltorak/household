@@ -313,19 +313,30 @@ export interface ShoppingListItem {
 
 export type BankProvider = 'monobank';
 export type BankConnectionStatus = 'active' | 'error' | 'disconnected';
+export type BankAccountKind = 'account' | 'jar';
+
+export interface BankAccount {
+  id: string;
+  kind: BankAccountKind;
+  maskedPan: string | null;
+  title: string | null;
+  currencyCode: number | null;
+  syncEnabled: boolean;
+  lastSyncAt: string | null;
+  lastError: string | null;
+}
 
 export interface BankConnection {
   id: string;
   provider: BankProvider;
   monobankClientId: string | null;
-  monobankAccountId: string | null;
-  maskedPan: string | null;
+  accounts: BankAccount[];
   lastSyncAt: string | null;
   status: BankConnectionStatus;
   createdAt: string;
 }
 
-export type SyncStatus = 'running' | 'success' | 'failed';
+export type SyncStatus = 'queued' | 'running' | 'success' | 'failed';
 
 export interface BankSyncLog {
   id: string;
@@ -335,5 +346,7 @@ export interface BankSyncLog {
   status: SyncStatus;
   error: string | null;
   transactionsCount: number;
+  accountsTotal: number;
+  accountsDone: number;
   createdAt: string;
 }

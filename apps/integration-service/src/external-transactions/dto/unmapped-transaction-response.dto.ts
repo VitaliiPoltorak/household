@@ -7,6 +7,7 @@ import { suggestCategoryName } from '../mcc-category';
 export class UnmappedTransactionResponseDto {
   @ApiProperty() id: string;
   @ApiProperty() connectionId: string;
+  @ApiProperty({ nullable: true }) bankAccountId: string | null;
   @ApiProperty() externalId: string;
   @ApiProperty({ nullable: true }) description: string | null;
   @ApiProperty() mcc: number;
@@ -29,6 +30,7 @@ export class UnmappedTransactionResponseDto {
     return {
       id: tx.id,
       connectionId: tx.connectionId,
+      bankAccountId: tx.bankAccountId,
       externalId: tx.externalId,
       description: item.description ?? null,
       mcc: item.mcc,

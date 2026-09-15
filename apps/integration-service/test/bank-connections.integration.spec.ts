@@ -26,9 +26,18 @@ import {
   BankConnectionStatus,
   BankProvider,
 } from '../src/bank-connections/entities/bank-connection.entity';
+import {
+  BankAccount,
+  BankAccountKind,
+} from '../src/bank-connections/entities/bank-account.entity';
+import {
+  BankSyncLog,
+  SyncStatus,
+} from '../src/bank-connections/entities/bank-sync-log.entity';
+import { SyncScheduler } from '../src/bank-connections/sync.scheduler';
 
-class FakeMonobankClient {
-  clientInfo: MonobankClientInfo = {
+function defaultClientInfo(): MonobankClientInfo {
+  return {
     clientId: 'mono-client-1',
     name: 'Test User',
     accounts: [
@@ -42,18 +51,29 @@ class FakeMonobankClient {
       },
     ],
   };
-  statementItems: MonobankStatementItem[] = [
-    {
-      id: 'tx-1',
-      time: Math.floor(Date.now() / 1000),
-      description: 'Coffee',
-      mcc: 5814,
-      amount: -5000,
-      operationAmount: -5000,
-      currencyCode: 980,
-      balance: 95000,
-    },
-  ];
+}
+
+function defaultStatementItems(): Record<string, MonobankStatementItem[]> {
+  return {
+    'acc-1': [
+      {
+        id: 'tx-1',
+        time: Math.floor(Date.now() / 1000),
+        description: 'Coffee',
+        mcc: 5814,
+        amount: -5000,
+        operationAmount: -5000,
+        currencyCode: 980,
+        balance: 95000,
+      },
+    ],
+  };
+}
+
+class FakeMonobankClient {
+  clientInfo: MonobankClientInfo = defaultClientInfo();
+  statementItems: Record<string, MonobankStatementItem[]> =
+    defaultStatementItems();
   shouldFailClientInfo = false;
   shouldFailStatement = false;
 
@@ -64,11 +84,14 @@ class FakeMonobankClient {
     return this.clientInfo;
   }
 
-  async getStatement(): Promise<MonobankStatementItem[]> {
+  async getStatement(
+    _token: string,
+    account: string,
+  ): Promise<MonobankStatementItem[]> {
     if (this.shouldFailStatement) {
       throw new BadGatewayException('Monobank request failed (500)');
     }
-    return this.statementItems;
+    return this.statementItems[account] ?? [];
   }
 }
 
@@ -78,6 +101,8 @@ describe('Bank connections (integration)', () => {
   let app: INestApplication;
   let fakeMonobank: FakeMonobankClient;
   let redis: Redis;
+  let scheduler: SyncScheduler;
+  let syncLogRepo: Repository<BankSyncLog>;
 
   beforeAll(async () => {
     fakeMonobank = new FakeMonobankClient();
@@ -85,6 +110,10 @@ describe('Bank connections (integration)', () => {
       b.overrideProvider(MonobankClientService).useValue(fakeMonobank),
     );
     redis = app.get<Redis>(REDIS_CLIENT);
+    scheduler = app.get<SyncScheduler>(SyncScheduler);
+    syncLogRepo = app.get<Repository<BankSyncLog>>(
+      getRepositoryToken(BankSyncLog),
+    );
   });
 
   beforeEach(async () => {
@@ -92,6 +121,12 @@ describe('Bank connections (integration)', () => {
     resetKafkaMocks();
     fakeMonobank.shouldFailClientInfo = false;
     fakeMonobank.shouldFailStatement = false;
+    // Fresh objects each test — several tests mutate clientInfo/statementItems
+    // (jars, "no accounts", multi-account) and this fixture is shared across
+    // the whole file, so a stale mutation would otherwise leak into every
+    // later test.
+    fakeMonobank.clientInfo = defaultClientInfo();
+    fakeMonobank.statementItems = defaultStatementItems();
     const lockKeys = await redis.keys('sync:lock:*');
     if (lockKeys.length > 0) await redis.del(...lockKeys);
     const flagKeys = await redis.keys('flag:*');
@@ -110,20 +145,75 @@ describe('Bank connections (integration)', () => {
       .send({ token: 'mono-token-abc' });
   }
 
+  // Drives every queued/running run one tick at a time until none are left,
+  // so a test can assert on the finished state without waiting on the real
+  // 15s cron interval. Bounded so a stuck run fails the test loudly instead
+  // of hanging.
+  async function drainSyncs(maxTicks = 20): Promise<void> {
+    for (let i = 0; i < maxTicks; i++) {
+      const active = await syncLogRepo.find({
+        where: [{ status: SyncStatus.QUEUED }, { status: SyncStatus.RUNNING }],
+      });
+      if (active.length === 0) return;
+      for (const run of active) {
+        const lockKeys = await redis.keys('sync:lock:*');
+        if (lockKeys.length > 0) await redis.del(...lockKeys);
+        await scheduler.advanceRun(run);
+      }
+    }
+    throw new Error('drainSyncs: runs still active after maxTicks');
+  }
+
+  async function connectAndSync(householdId = H) {
+    const created = await connect(householdId).expect(201);
+    await request(app.getHttpServer())
+      .post(`/monobank/connections/${created.body.id}/sync`)
+      .set('X-Household-Id', householdId)
+      .expect(202);
+    await drainSyncs();
+    return created;
+  }
+
   describe('POST /monobank/connect', () => {
-    it('validates the token against Monobank and stores the connection', async () => {
+    it('validates the token against Monobank and stores the connection with its accounts', async () => {
       const res = await connect().expect(201);
 
       expect(res.body).toMatchObject({
         provider: 'monobank',
         monobankClientId: 'mono-client-1',
-        monobankAccountId: 'acc-1',
-        maskedPan: '444455******1234',
         status: 'active',
+        lastSyncAt: null,
+      });
+      expect(res.body.accounts).toHaveLength(1);
+      expect(res.body.accounts[0]).toMatchObject({
+        maskedPan: '444455******1234',
+        syncEnabled: true,
         lastSyncAt: null,
       });
       expect(res.body.token).toBeUndefined();
       expect(res.body.tokenEncrypted).toBeUndefined();
+    });
+
+    it('stores jars as sync-disabled accounts', async () => {
+      fakeMonobank.clientInfo = {
+        ...fakeMonobank.clientInfo,
+        jars: [
+          {
+            id: 'jar-1',
+            sendId: 'send-1',
+            title: 'New car',
+            currencyCode: 980,
+            balance: 500000,
+          },
+        ],
+      };
+
+      const res = await connect().expect(201);
+
+      const jar = res.body.accounts.find(
+        (a: { kind: string }) => a.kind === 'jar',
+      );
+      expect(jar).toMatchObject({ title: 'New car', syncEnabled: false });
     });
 
     it('rejects without X-Household-Id', async () => {
@@ -159,6 +249,48 @@ describe('Bank connections (integration)', () => {
     });
   });
 
+  describe('PATCH /monobank/connections/:id/accounts/:accountId', () => {
+    it('toggles an account (e.g. a jar) on for sync', async () => {
+      fakeMonobank.clientInfo = {
+        ...fakeMonobank.clientInfo,
+        jars: [
+          {
+            id: 'jar-1',
+            sendId: 'send-1',
+            title: 'New car',
+            currencyCode: 980,
+            balance: 500000,
+          },
+        ],
+      };
+      const created = await connect().expect(201);
+      const jar = created.body.accounts.find(
+        (a: { kind: string }) => a.kind === 'jar',
+      );
+
+      const res = await request(app.getHttpServer())
+        .patch(`/monobank/connections/${created.body.id}/accounts/${jar.id}`)
+        .set('X-Household-Id', H)
+        .send({ enabled: true })
+        .expect(200);
+
+      expect(res.body).toMatchObject({ id: jar.id, syncEnabled: true });
+    });
+
+    it('returns 404 for an account in another household', async () => {
+      const created = await connect().expect(201);
+      const account = created.body.accounts[0];
+
+      await request(app.getHttpServer())
+        .patch(
+          `/monobank/connections/${created.body.id}/accounts/${account.id}`,
+        )
+        .set('X-Household-Id', 'other-household')
+        .send({ enabled: false })
+        .expect(404);
+    });
+  });
+
   describe('DELETE /monobank/connections/:id', () => {
     it('deletes a connection', async () => {
       const created = await connect();
@@ -185,24 +317,27 @@ describe('Bank connections (integration)', () => {
   });
 
   describe('POST /monobank/connections/:id/sync', () => {
-    it('fetches the statement, stores external transactions, and emits Kafka events', async () => {
+    it('enqueues a run, syncs the account, and emits Kafka events', async () => {
       const created = await connect();
 
       const res = await request(app.getHttpServer())
         .post(`/monobank/connections/${created.body.id}/sync`)
         .set('X-Household-Id', H)
-        .expect(201);
-
+        .expect(202);
       expect(res.body).toMatchObject({
-        status: 'success',
-        transactionsCount: 1,
+        status: 'queued',
+        accountsTotal: 1,
+        accountsDone: 0,
       });
 
       expect(mockKafkaProducer.emit).toHaveBeenCalledWith(
         'integration.monobank.sync.started',
-        { connectionId: created.body.id },
+        { connectionId: created.body.id, accountsTotal: 1 },
         expect.objectContaining({ householdId: H }),
       );
+
+      await drainSyncs();
+
       expect(mockKafkaProducer.emit).toHaveBeenCalledWith(
         'integration.monobank.sync.completed',
         { connectionId: created.body.id, transactionsCount: 1 },
@@ -213,6 +348,17 @@ describe('Bank connections (integration)', () => {
         .get('/monobank/connections')
         .set('X-Household-Id', H);
       expect(connections.body[0].lastSyncAt).not.toBeNull();
+      expect(connections.body[0].accounts[0].lastSyncAt).not.toBeNull();
+
+      const logs = await request(app.getHttpServer())
+        .get(`/monobank/connections/${created.body.id}/logs`)
+        .set('X-Household-Id', H);
+      expect(logs.body[0]).toMatchObject({
+        status: 'success',
+        transactionsCount: 1,
+        accountsDone: 1,
+        accountsTotal: 1,
+      });
     });
 
     it('returns 404 for a connection in another household', async () => {
@@ -224,11 +370,7 @@ describe('Bank connections (integration)', () => {
     });
 
     it('rejects a second sync within 60s of the last one', async () => {
-      const created = await connect();
-      await request(app.getHttpServer())
-        .post(`/monobank/connections/${created.body.id}/sync`)
-        .set('X-Household-Id', H)
-        .expect(201);
+      const created = await connectAndSync();
 
       await request(app.getHttpServer())
         .post(`/monobank/connections/${created.body.id}/sync`)
@@ -236,9 +378,12 @@ describe('Bank connections (integration)', () => {
         .expect(409);
     });
 
-    it('rejects a sync while another one holds the lock', async () => {
+    it('rejects enqueueing while a run is already queued/running', async () => {
       const created = await connect();
-      await redis.set(`sync:lock:${created.body.id}`, '1', 'EX', 60, 'NX');
+      await request(app.getHttpServer())
+        .post(`/monobank/connections/${created.body.id}/sync`)
+        .set('X-Household-Id', H)
+        .expect(202);
 
       await request(app.getHttpServer())
         .post(`/monobank/connections/${created.body.id}/sync`)
@@ -246,14 +391,25 @@ describe('Bank connections (integration)', () => {
         .expect(409);
     });
 
-    it('marks the sync failed and emits sync.failed when Monobank errors', async () => {
+    it('rejects when the connection has no accounts enabled for sync', async () => {
+      fakeMonobank.clientInfo = { ...fakeMonobank.clientInfo, accounts: [] };
+      const created = await connect();
+
+      await request(app.getHttpServer())
+        .post(`/monobank/connections/${created.body.id}/sync`)
+        .set('X-Household-Id', H)
+        .expect(409);
+    });
+
+    it('marks the run failed and emits sync.failed when Monobank errors', async () => {
       const created = await connect();
       fakeMonobank.shouldFailStatement = true;
 
       await request(app.getHttpServer())
         .post(`/monobank/connections/${created.body.id}/sync`)
         .set('X-Household-Id', H)
-        .expect(502);
+        .expect(202);
+      await drainSyncs();
 
       expect(mockKafkaProducer.emit).toHaveBeenCalledWith(
         'integration.monobank.sync.failed',
@@ -272,19 +428,111 @@ describe('Bank connections (integration)', () => {
       expect(logs.body[0]).toMatchObject({ status: 'failed' });
     });
 
-    it('releases the lock after a failed sync so a retry can proceed', async () => {
+    it('syncs multiple accounts one at a time across ticks, respecting the per-token gate', async () => {
+      fakeMonobank.clientInfo = {
+        clientId: 'mono-client-1',
+        name: 'Test User',
+        accounts: [
+          {
+            id: 'acc-1',
+            balance: 100000,
+            currencyCode: 980,
+            type: 'black',
+            maskedPan: ['444455******1234'],
+            iban: 'UA1',
+          },
+          {
+            id: 'acc-2',
+            balance: 200000,
+            currencyCode: 840,
+            type: 'white',
+            maskedPan: ['555566******5678'],
+            iban: 'UA2',
+          },
+        ],
+      };
+      fakeMonobank.statementItems = {
+        'acc-1': [
+          {
+            id: 'tx-1',
+            time: Math.floor(Date.now() / 1000),
+            description: 'Coffee',
+            mcc: 5814,
+            amount: -5000,
+            operationAmount: -5000,
+            currencyCode: 980,
+            balance: 95000,
+          },
+        ],
+        'acc-2': [
+          {
+            id: 'tx-2',
+            time: Math.floor(Date.now() / 1000),
+            description: 'Groceries',
+            mcc: 5411,
+            amount: -3000,
+            operationAmount: -3000,
+            currencyCode: 840,
+            balance: 197000,
+          },
+        ],
+      };
       const created = await connect();
-      fakeMonobank.shouldFailStatement = true;
-      await request(app.getHttpServer())
-        .post(`/monobank/connections/${created.body.id}/sync`)
-        .set('X-Household-Id', H)
-        .expect(502);
 
-      fakeMonobank.shouldFailStatement = false;
       await request(app.getHttpServer())
         .post(`/monobank/connections/${created.body.id}/sync`)
         .set('X-Household-Id', H)
-        .expect(201);
+        .expect(202);
+
+      // First tick: one account syncs, connection.lastSyncAt is now set, so
+      // the run stays active but the second account waits for the 60s gate.
+      const runBeforeSecondTick = (
+        await syncLogRepo.find({
+          where: [
+            { status: SyncStatus.RUNNING },
+            { status: SyncStatus.QUEUED },
+          ],
+        })
+      )[0];
+      await scheduler.advanceRun(runBeforeSecondTick);
+
+      const midway = await request(app.getHttpServer())
+        .get(`/monobank/connections/${created.body.id}/logs`)
+        .set('X-Household-Id', H);
+      expect(midway.body[0]).toMatchObject({
+        status: 'running',
+        accountsDone: 1,
+        accountsTotal: 2,
+      });
+
+      const secondTick = await syncLogRepo.findOneOrFail({
+        where: { connectionId: created.body.id },
+      });
+      await scheduler.advanceRun(secondTick); // gated — under 60s since acc-1's call
+      const stillMidway = await request(app.getHttpServer())
+        .get(`/monobank/connections/${created.body.id}/logs`)
+        .set('X-Household-Id', H);
+      expect(stillMidway.body[0].accountsDone).toBe(1);
+
+      // Force the gate open, as a real 60s wait would.
+      const connectionRepo = app.get<Repository<BankConnection>>(
+        getRepositoryToken(BankConnection),
+      );
+      await connectionRepo.update(created.body.id, {
+        lastSyncAt: new Date(Date.now() - 61_000),
+      });
+      await scheduler.advanceRun(secondTick);
+      await scheduler.advanceRun(secondTick); // finalize tick
+
+      const final = await request(app.getHttpServer())
+        .get(`/monobank/connections/${created.body.id}/logs`)
+        .set('X-Household-Id', H);
+      expect(final.body[0]).toMatchObject({
+        status: 'success',
+        accountsDone: 2,
+        accountsTotal: 2,
+        transactionsCount: 2,
+      });
     });
   });
 
@@ -307,6 +555,10 @@ describe('Bank connections (integration)', () => {
     let rotationApp: INestApplication;
     let rotationMonobank: FakeMonobankClient & { receivedToken?: string };
     let connectionRepo: Repository<BankConnection>;
+    let accountRepo: Repository<BankAccount>;
+    let rotationScheduler: SyncScheduler;
+    let rotationSyncLogRepo: Repository<BankSyncLog>;
+    let rotationRedis: Redis;
 
     beforeAll(async () => {
       process.env.TOKEN_ENCRYPTION_KEY_PREV = OLD_KEY;
@@ -316,9 +568,10 @@ describe('Bank connections (integration)', () => {
       rotationMonobank.getStatement = async function (
         this: FakeMonobankClient & { receivedToken?: string },
         token: string,
+        account: string,
       ) {
         this.receivedToken = token;
-        return this.statementItems;
+        return this.statementItems[account] ?? [];
       };
       rotationApp = await createTestApp(AppModule, (b) =>
         b.overrideProvider(MonobankClientService).useValue(rotationMonobank),
@@ -326,6 +579,14 @@ describe('Bank connections (integration)', () => {
       connectionRepo = rotationApp.get<Repository<BankConnection>>(
         getRepositoryToken(BankConnection),
       );
+      accountRepo = rotationApp.get<Repository<BankAccount>>(
+        getRepositoryToken(BankAccount),
+      );
+      rotationScheduler = rotationApp.get<SyncScheduler>(SyncScheduler);
+      rotationSyncLogRepo = rotationApp.get<Repository<BankSyncLog>>(
+        getRepositoryToken(BankSyncLog),
+      );
+      rotationRedis = rotationApp.get<Redis>(REDIS_CLIENT);
     });
 
     afterAll(async () => {
@@ -340,20 +601,46 @@ describe('Bank connections (integration)', () => {
           provider: BankProvider.MONOBANK,
           tokenEncrypted: encryptSecret('mono-token-pre-rotation', OLD_KEY),
           monobankClientId: 'mono-client-1',
-          monobankAccountId: 'acc-1',
-          maskedPan: '444455******1234',
-          accountMappings: {},
           lastSyncAt: null,
           status: BankConnectionStatus.ACTIVE,
+        }),
+      );
+      await accountRepo.save(
+        accountRepo.create({
+          connectionId: created.id,
+          monobankAccountId: 'acc-1',
+          kind: BankAccountKind.ACCOUNT,
+          maskedPan: '444455******1234',
+          syncEnabled: true,
+          lastSyncAt: null,
         }),
       );
 
       const res = await request(rotationApp.getHttpServer())
         .post(`/monobank/connections/${created.id}/sync`)
         .set('X-Household-Id', H)
-        .expect(201);
+        .expect(202);
 
-      expect(res.body).toMatchObject({ status: 'success' });
+      // A single-account run always takes two ticks: one to sync the
+      // account, one more to notice nothing is left due and finalize — see
+      // the comment on SyncScheduler.advanceRun's "no account left" branch.
+      let finished = await rotationSyncLogRepo.findOneOrFail({
+        where: { id: res.body.id },
+      });
+      for (
+        let i = 0;
+        i < 5 && finished.status !== 'success' && finished.status !== 'failed';
+        i++
+      ) {
+        const lockKeys = await rotationRedis.keys('sync:lock:*');
+        if (lockKeys.length > 0) await rotationRedis.del(...lockKeys);
+        await rotationScheduler.advanceRun(finished);
+        finished = await rotationSyncLogRepo.findOneOrFail({
+          where: { id: res.body.id },
+        });
+      }
+
+      expect(finished.status).toBe('success');
       expect(rotationMonobank.receivedToken).toBe('mono-token-pre-rotation');
     });
   });
@@ -412,6 +699,22 @@ describe('Bank connections (integration)', () => {
         .expect(204);
     });
 
+    it('the scheduler does no work while disabled', async () => {
+      const created = await connect();
+      await request(app.getHttpServer())
+        .post(`/monobank/connections/${created.body.id}/sync`)
+        .set('X-Household-Id', H)
+        .expect(202);
+
+      await disableFlag();
+      await scheduler.advancePendingSyncs();
+
+      const logs = await request(app.getHttpServer())
+        .get(`/monobank/connections/${created.body.id}/logs`)
+        .set('X-Household-Id', H);
+      expect(logs.body[0]).toMatchObject({ status: 'queued', accountsDone: 0 });
+    });
+
     it('resumes normal operation once the flag is re-enabled', async () => {
       const created = await connect();
       await disableFlag();
@@ -425,7 +728,7 @@ describe('Bank connections (integration)', () => {
       await request(app.getHttpServer())
         .post(`/monobank/connections/${created.body.id}/sync`)
         .set('X-Household-Id', H)
-        .expect(201);
+        .expect(202);
     });
   });
 });

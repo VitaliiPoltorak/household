@@ -14,10 +14,19 @@ export interface MonobankAccount {
   iban: string;
 }
 
+export interface MonobankJar {
+  id: string;
+  sendId: string;
+  title: string;
+  currencyCode: number; // ISO 4217 numeric
+  balance: number; // kopecks
+}
+
 export interface MonobankClientInfo {
   clientId: string;
   name: string;
   accounts: MonobankAccount[];
+  jars?: MonobankJar[];
 }
 
 export interface MonobankStatementItem {

@@ -156,8 +156,18 @@ export const MOCK_BANK_CONNECTION: BankConnection = {
   id: 'conn-1',
   provider: 'monobank',
   monobankClientId: 'mono-client-1',
-  monobankAccountId: 'acc-mono-1',
-  maskedPan: '444455******1234',
+  accounts: [
+    {
+      id: 'acc-1',
+      kind: 'account',
+      maskedPan: '444455******1234',
+      title: null,
+      currencyCode: 980,
+      syncEnabled: true,
+      lastSyncAt: null,
+      lastError: null,
+    },
+  ],
   lastSyncAt: null,
   status: 'active',
   createdAt: '2026-07-01T00:00:00Z',
@@ -171,6 +181,8 @@ export const MOCK_SYNC_LOG: BankSyncLog = {
   status: 'success',
   error: null,
   transactionsCount: 3,
+  accountsTotal: 1,
+  accountsDone: 1,
   createdAt: '2026-07-01T00:00:00Z',
 };
 
