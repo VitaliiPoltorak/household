@@ -368,6 +368,105 @@ describe('POST /auth/login with email + password (integration)', () => {
     });
   });
 
+  describe('mobile clients (X-Client-Platform: mobile, #356)', () => {
+    it('returns sessionId + refreshToken in the body and sets no cookies', async () => {
+      const { email, password } = await seedVerified();
+
+      const res = await request(app.getHttpServer())
+        .post('/auth/login')
+        .set('X-Client-Platform', 'mobile')
+        .send({ email, password })
+        .expect(200);
+
+      expect(res.body).toEqual({
+        accessToken: expect.any(String),
+        expiresIn: expect.any(Number),
+        sessionId: expect.any(String),
+        refreshToken: expect.any(String),
+      });
+      expect(res.headers['set-cookie']).toBeUndefined();
+    });
+
+    it('POST /auth/refresh accepts sessionId/refreshToken in the body, no CSRF header needed', async () => {
+      const { email, password } = await seedVerified();
+
+      const login = await request(app.getHttpServer())
+        .post('/auth/login')
+        .set('X-Client-Platform', 'mobile')
+        .send({ email, password })
+        .expect(200);
+
+      const refresh = await request(app.getHttpServer())
+        .post('/auth/refresh')
+        .set('X-Client-Platform', 'mobile')
+        .send({
+          sessionId: login.body.sessionId,
+          refreshToken: login.body.refreshToken,
+        })
+        // No @HttpCode on /auth/refresh — default POST status (201), same as
+        // the existing web/cookie path.
+        .expect(201);
+
+      expect(refresh.body).toEqual({
+        accessToken: expect.any(String),
+        expiresIn: expect.any(Number),
+        sessionId: expect.any(String),
+        refreshToken: expect.any(String),
+      });
+    });
+
+    it('POST /auth/refresh 401s a mobile client with no body', async () => {
+      await request(app.getHttpServer())
+        .post('/auth/refresh')
+        .set('X-Client-Platform', 'mobile')
+        .send({})
+        .expect(401);
+    });
+
+    it('POST /auth/logout with sessionId in the body revokes the session (refresh then fails)', async () => {
+      const { email, password } = await seedVerified();
+
+      const login = await request(app.getHttpServer())
+        .post('/auth/login')
+        .set('X-Client-Platform', 'mobile')
+        .send({ email, password })
+        .expect(200);
+
+      await request(app.getHttpServer())
+        .post('/auth/logout')
+        .set('X-Client-Platform', 'mobile')
+        .send({ sessionId: login.body.sessionId })
+        .expect(204);
+
+      await request(app.getHttpServer())
+        .post('/auth/refresh')
+        .set('X-Client-Platform', 'mobile')
+        .send({
+          sessionId: login.body.sessionId,
+          refreshToken: login.body.refreshToken,
+        })
+        .expect(401);
+    });
+
+    it('the web (cookie) path is unaffected when the header is absent', async () => {
+      const { email, password } = await seedVerified();
+
+      const res = await request(app.getHttpServer())
+        .post('/auth/login')
+        .send({ email, password })
+        .expect(200);
+
+      expect(res.body).toEqual({
+        accessToken: expect.any(String),
+        expiresIn: expect.any(Number),
+      });
+      const cookies = res.headers['set-cookie'] as unknown as string[];
+      expect(cookies.some((c) => c.startsWith('household_refresh='))).toBe(
+        true,
+      );
+    });
+  });
+
   describe('rehash-on-login (Argon2 policy migration)', () => {
     it('rewrites the stored hash if PasswordHasherService.needsRehash returns true', async () => {
       // Seed the user under the current (test-env floor) parameters — the

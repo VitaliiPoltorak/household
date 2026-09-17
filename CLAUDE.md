@@ -61,6 +61,8 @@ Uses **TypeORM** (not Prisma). OAuth strategies for Google, Apple, Facebook live
 
 Env: `AUTH_COOKIE_SECURE=true` (default). Set to `false` only for http:// dev on non-localhost.
 
+**Mobile token flow (#356, Phase 5):** React Native has no browser cookie jar, so every login/refresh endpoint (`apps/auth-service/src/auth/auth.controller.ts`, see `client-platform.ts`) branches on the `X-Client-Platform: mobile` header. When present: no cookies are set at all, and `sessionId` + `refreshToken` are returned directly in the response body for the client to hold in `expo-secure-store`. `POST /auth/refresh` and `POST /auth/logout` accept `sessionId`/`refreshToken` in the body instead of reading the cookie, and skip the CSRF check (CSRF targets ambient cookie auth, which this path doesn't use). Omitting the header (the web SPA never sends it) keeps the existing cookie-only behavior untouched.
+
 ### Kafka event envelope
 
 All inter-service events use a shared schema (`eventId`, `eventType`, `householdId?`, `userId?`, `payload`, `createdAt`) — defined in `libs/contracts` when built.
