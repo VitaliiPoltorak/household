@@ -11,7 +11,10 @@ import { BankAccount } from './entities/bank-account.entity';
 import { BankSyncLog, SyncStatus } from './entities/bank-sync-log.entity';
 import { ExternalTransaction } from '../external-transactions/entities/external-transaction.entity';
 import { BankConnectionsService } from './bank-connections.service';
-import { MonobankClientService } from '../monobank/monobank-client.service';
+import {
+  MonobankClientService,
+  MonobankStatementItem,
+} from '../monobank/monobank-client.service';
 
 export const MIN_SYNC_INTERVAL_MS = 60_000; // Monobank: 1 statement request / 60s / token
 export const MAX_LOOKBACK_MS = (31 * 24 + 1) * 60 * 60 * 1000; // Monobank: 31 days + 1 hour max range
@@ -27,8 +30,8 @@ export interface AccountSyncResult {
  * entry point. Actually walking a queued run's accounts one at a time,
  * spaced 60s apart, is SyncScheduler's job — this service only knows how to
  * enqueue a run and how to sync exactly one account, so both the scheduler
- * (polling) and, later, the webhook handler (#292) can share the one upsert
- * path rather than duplicating it.
+ * (polling) and the webhook handler (#292, applyWebhookEvent) share the one
+ * upsertItems() path rather than duplicating it.
  */
 @Injectable()
 export class SyncService {
@@ -115,9 +118,10 @@ export class SyncService {
   /**
    * Fetches and upserts one account's statement since its last sync (or the
    * 31-day lookback cap for a first sync). Never throws for a normal
-   * Monobank/decrypt failure — callers (SyncScheduler, and the #292 webhook
-   * handler once it lands) get a typed result instead, since a single bad
-   * account must not abort whichever loop is driving it.
+   * Monobank/decrypt failure — callers (SyncScheduler) get a typed result
+   * instead, since a single bad account must not abort whichever loop is
+   * driving it. The webhook path (#292) doesn't call Monobank at all, so it
+   * uses applyWebhookEvent() below instead, sharing only upsertItems().
    */
   async syncAccount(
     connection: BankConnection,
@@ -136,18 +140,7 @@ export class SyncService {
         Math.floor(clampedFromMs / 1000),
       );
 
-      if (items.length > 0) {
-        // TypeORM's QueryDeepPartialEntity recurses into jsonb-typed columns
-        // instead of accepting a plain object for them — cast rather than
-        // fight the upsert() typing for a column that's genuinely a JSON blob.
-        const rows = items.map((item) => ({
-          connectionId: connection.id,
-          bankAccountId: account.id,
-          externalId: item.id,
-          rawData: item as unknown as Record<string, unknown>,
-        })) as unknown as QueryDeepPartialEntity<ExternalTransaction>[];
-        await this.externalTxRepo.upsert(rows, ['connectionId', 'externalId']);
-      }
+      await this.upsertItems(connection.id, account.id, items);
 
       await this.accountRepo.update(account.id, {
         lastSyncAt: new Date(),
@@ -175,6 +168,61 @@ export class SyncService {
         lastSyncAt: new Date(),
       });
     }
+  }
+
+  /**
+   * Applies one Monobank `StatementItem` webhook event (#292). Unlike
+   * syncAccount(), this never calls Monobank — the item already arrived in
+   * the push — so connection.lastSyncAt (the 60s-per-token polling gate)
+   * is deliberately left untouched; bumping it here would eat into
+   * SyncScheduler's polling budget for a request Monobank made, not us.
+   * Returns null (not an error) when monobankAccountId doesn't match any
+   * account we track, or matches one with sync disabled — a household may
+   * have jars under this token it never opted into syncing.
+   */
+  async applyWebhookEvent(
+    connection: BankConnection,
+    monobankAccountId: string,
+    item: MonobankStatementItem,
+  ): Promise<AccountSyncResult | null> {
+    const account = await this.accountRepo.findOne({
+      where: { connectionId: connection.id, monobankAccountId },
+    });
+    if (!account || !account.syncEnabled) return null;
+
+    await this.upsertItems(connection.id, account.id, [item]);
+    await this.accountRepo.update(account.id, {
+      lastSyncAt: new Date(),
+      lastError: null,
+    });
+
+    await this.events.emit(
+      'integration.monobank.sync.completed',
+      { connectionId: connection.id, transactionsCount: 1 },
+      { householdId: connection.householdId },
+    );
+    return { ok: true, transactionsCount: 1 };
+  }
+
+  // Shared by syncAccount() (a Monobank statement response) and
+  // applyWebhookEvent() (a single pushed item) — the one place that knows
+  // how a MonobankStatementItem becomes an ExternalTransaction row.
+  private async upsertItems(
+    connectionId: string,
+    bankAccountId: string,
+    items: MonobankStatementItem[],
+  ): Promise<void> {
+    if (items.length === 0) return;
+    // TypeORM's QueryDeepPartialEntity recurses into jsonb-typed columns
+    // instead of accepting a plain object for them — cast rather than fight
+    // the upsert() typing for a column that's genuinely a JSON blob.
+    const rows = items.map((item) => ({
+      connectionId,
+      bankAccountId,
+      externalId: item.id,
+      rawData: item as unknown as Record<string, unknown>,
+    })) as unknown as QueryDeepPartialEntity<ExternalTransaction>[];
+    await this.externalTxRepo.upsert(rows, ['connectionId', 'externalId']);
   }
 
   async finalizeRun(

@@ -41,6 +41,18 @@ export interface MonobankStatementItem {
   comment?: string;
 }
 
+// Body of the POST Monobank makes to our registered webhook URL (#292).
+// `type` is always 'StatementItem' today per Monobank's docs, but modeled as
+// a union so a future event type fails typing here rather than silently
+// being treated as a statement push.
+export interface MonobankWebhookEvent {
+  type: 'StatementItem';
+  data: {
+    account: string;
+    statementItem: MonobankStatementItem;
+  };
+}
+
 const DEFAULT_BASE_URL = 'https://api.monobank.ua';
 
 /**
@@ -65,6 +77,20 @@ export class MonobankClientService {
   }
 
   /**
+   * Registers `webhookUrl` as this token's statement-push callback.
+   * Monobank itself makes a GET request to `webhookUrl` to confirm it
+   * responds 200 before accepting the registration — that check happens
+   * inside this call, not something callers need to orchestrate.
+   */
+  async registerWebhook(token: string, webhookUrl: string): Promise<void> {
+    await this.request('/personal/webhook', token, {
+      method: 'POST',
+      body: JSON.stringify({ webHookUrl: webhookUrl }),
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
+  /**
    * Monobank allows at most 31 days + 1 hour per statement request.
    * `fromSeconds`/`toSeconds` are unix seconds; `toSeconds` defaults to now.
    */
@@ -81,11 +107,16 @@ export class MonobankClientService {
     return res.json() as Promise<MonobankStatementItem[]>;
   }
 
-  private async request(path: string, token: string): Promise<Response> {
+  private async request(
+    path: string,
+    token: string,
+    init?: RequestInit,
+  ): Promise<Response> {
     let res: Response;
     try {
       res = await fetch(`${this.baseUrl}${path}`, {
-        headers: { 'X-Token': token },
+        ...init,
+        headers: { ...init?.headers, 'X-Token': token },
       });
     } catch {
       throw new BadGatewayException('Could not reach Monobank');

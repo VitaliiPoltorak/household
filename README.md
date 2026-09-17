@@ -28,7 +28,7 @@ Shared libraries in `libs/`: `common` (config, filters, JWT verify, gateway sign
 | household-service | 3002 | Households, members, roles, invites |
 | finance-service | 3003 | Accounts (opening balance, opt-in overdraft), transactions (incl. cross-currency transfers), categories (seeded per household, editable), recurring payments |
 | shopping-service | 3004 | Stores, products, shopping lists |
-| integration-service | 3005 | Monobank connection, multi-account statement sync (#293, background job), mapping to accounts (#21) |
+| integration-service | 3005 | Monobank connection, multi-account statement sync (#293, background job) or push via webhook (#292), mapping to accounts (#21) |
 | realtime-gateway | 3010 | Socket.IO, presence, live updates |
 | mailpit *(dev only)* | 1025 / 8025 | Local mail catcher — receives the verification codes and unlock links `auth-service` sends, readable at http://localhost:8025 |
 | **web** | **5173** | **React SPA — dashboard, finance, shopping, household, email/password auth (register + verify + login + unlock + password change), first-run guided tour (#347)** |
@@ -163,6 +163,7 @@ Copy `.env.example` to `.env`. Full annotated reference lives in [`.env.example`
 | `AUTH_SERVICE_PORT`, `HOUSEHOLD_SERVICE_PORT`, `FINANCE_SERVICE_PORT`, `SHOPPING_SERVICE_PORT`, `INTEGRATION_SERVICE_PORT`, `REALTIME_GATEWAY_PORT` | `3001`–`3005`, `3010` | |
 | `AUTH_SERVICE_URL` … `INTEGRATION_SERVICE_URL` | `http://localhost:300x` | Used by `api-gateway` for proxying. |
 | `MONOBANK_API_BASE_URL` | `https://api.monobank.ua` | Override only for testing `integration-service` against a stub/mock server. |
+| `MONOBANK_WEBHOOK_BASE_URL` | unset | Public HTTPS base URL `api-gateway` is reachable at, used to register Monobank's push webhook (#292) — see `/integrations/monobank/connections/:id/webhook` below. Unset means "enable real-time" 400s and connections stay polling-only; for local dev, point it at an HTTPS tunnel (e.g. ngrok). |
 | `PROXY_ROUTES_JSON` / `PROXY_ROUTES_PATH` | ships with `apps/api-gateway/src/proxy/routes.default.json` | Override the gateway's proxy table without recompiling (#88). |
 | `THROTTLE_TTL` / `THROTTLE_LIMIT` | `60` / `100` | Redis rate limiting on `api-gateway`. |
 | `APPLE_CLIENT_ID` | — | Required for Apple login (App Store mandatory once other providers are enabled). |

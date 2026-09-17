@@ -560,6 +560,10 @@
     "transactionCount_few": "{{count}} транзакції",
     "transactionCount_many": "{{count}} транзакцій",
     "accountsProgress": "{{done}} з {{total}} рахунків",
-    "syncEnabled": "Синхронізація"
+    "syncEnabled": "Синхронізація",
+    "realtime": "Реальний час",
+    "enableRealtime": "Увімкнути реальний час",
+    "disableRealtime": "Вимкнути реальний час",
+    "webhookNoPublicUrl": "Не налаштовано публічну URL-адресу для вебхуків — це підключення продовжить синхронізацію через опитування"
   }
 }

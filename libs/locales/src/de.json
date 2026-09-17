@@ -553,6 +553,10 @@
     "transactionCount_one": "{{count}} Transaktion",
     "transactionCount_other": "{{count}} Transaktionen",
     "accountsProgress": "{{done}} von {{total}} Konten",
-    "syncEnabled": "Sync"
+    "syncEnabled": "Sync",
+    "realtime": "Echtzeit",
+    "enableRealtime": "Echtzeit aktivieren",
+    "disableRealtime": "Echtzeit deaktivieren",
+    "webhookNoPublicUrl": "Keine öffentliche URL für Webhooks konfiguriert — diese Verbindung synchronisiert weiterhin per Polling"
   }
 }

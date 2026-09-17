@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { randomBytes, timingSafeEqual } from 'crypto';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
@@ -27,6 +32,11 @@ export class BankConnectionsService {
   // Optional fallback for key rotation — set only while TOKEN_ENCRYPTION_KEY
   // is being rotated. See decryptToken().
   private readonly previousEncryptionKey?: string;
+  // Public base URL the gateway is reachable at (e.g. https://api.example.com
+  // or an ngrok tunnel in dev) — undefined means "no public URL available",
+  // so enableWebhook() refuses rather than registering a callback Monobank
+  // can never reach.
+  private readonly webhookBaseUrl?: string;
 
   constructor(
     @InjectRepository(BankConnection)
@@ -42,6 +52,7 @@ export class BankConnectionsService {
     this.previousEncryptionKey = config.get<string>(
       'TOKEN_ENCRYPTION_KEY_PREV',
     );
+    this.webhookBaseUrl = config.get<string>('MONOBANK_WEBHOOK_BASE_URL');
   }
 
   async connect(
@@ -180,6 +191,72 @@ export class BankConnectionsService {
       order: { startedAt: 'DESC' },
       take: LIST_HARD_LIMIT,
     });
+  }
+
+  // Registers our callback URL with Monobank (#292). Monobank's
+  // POST /personal/webhook call includes its own synchronous GET check of
+  // that URL, so a thrown BadGatewayException/UnauthorizedException here
+  // means Monobank never confirmed reachability — we only persist the
+  // secret once registration actually succeeded.
+  async enableWebhook(
+    id: string,
+    householdId: string,
+  ): Promise<BankConnection> {
+    const connection = await this.findOne(id, householdId);
+    if (!this.webhookBaseUrl) {
+      throw new BadRequestException(
+        'No public webhook URL configured (MONOBANK_WEBHOOK_BASE_URL) — this connection will keep polling. See #292 for local-dev setup with a tunnel.',
+      );
+    }
+
+    const secret = randomBytes(32).toString('hex');
+    const callbackUrl = `${this.webhookBaseUrl.replace(/\/$/, '')}/api/v1/integrations/monobank/webhook/${connection.id}/${secret}`;
+    const token = this.decryptToken(connection);
+    await this.monobank.registerWebhook(token, callbackUrl);
+
+    connection.webhookSecret = secret;
+    connection.webhookEnabledAt = new Date();
+    return this.repo.save(connection);
+  }
+
+  // Monobank exposes no "delete webhook" call — re-registering a different
+  // URL is the only bank-side way to redirect/stop pushes. Clearing our own
+  // webhookSecret is what actually stops us from acting on further
+  // deliveries: verifyWebhookSecret() can never match once it's null, so the
+  // webhook routes start 404ing for this connection immediately.
+  async disableWebhook(
+    id: string,
+    householdId: string,
+  ): Promise<BankConnection> {
+    const connection = await this.findOne(id, householdId);
+    connection.webhookSecret = null;
+    connection.webhookEnabledAt = null;
+    return this.repo.save(connection);
+  }
+
+  // Deliberately unscoped by householdId — the inbound webhook request from
+  // Monobank carries none. verifyWebhookSecret() is what actually authorizes
+  // the caller; this only looks the row up. Returns null (never throws) on
+  // an unknown or malformed id so callers can respond with a uniform 404.
+  async findForWebhook(connectionId: string): Promise<BankConnection | null> {
+    try {
+      return await this.repo.findOne({ where: { id: connectionId } });
+    } catch {
+      return null;
+    }
+  }
+
+  // Constant-time comparison — the secret IS the auth mechanism for this
+  // endpoint (see BankConnection.webhookSecret), so a length/short-circuit
+  // timing leak would matter here in a way it wouldn't for an internal call.
+  verifyWebhookSecret(connection: BankConnection, secret: string): boolean {
+    if (!connection.webhookSecret || !connection.webhookEnabledAt) {
+      return false;
+    }
+    const stored = Buffer.from(connection.webhookSecret);
+    const provided = Buffer.from(secret);
+    if (stored.length !== provided.length) return false;
+    return timingSafeEqual(stored, provided);
   }
 
   decryptToken(connection: BankConnection): string {
