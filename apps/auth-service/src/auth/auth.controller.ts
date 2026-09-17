@@ -35,6 +35,8 @@ import { LoginWithPasswordDto } from './dto/login-with-password.dto';
 import { UnlockAccountDto } from './dto/unlock-account.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { SetPasswordDto } from './dto/set-password.dto';
+import { RefreshDto } from './dto/refresh.dto';
+import { LogoutDto } from './dto/logout.dto';
 import {
   clearAuthCookies,
   generateCsrfToken,
@@ -42,10 +44,15 @@ import {
   setAuthCookies,
   verifyCsrf,
 } from './cookies';
+import { CLIENT_PLATFORM_HEADER, isMobileClient } from './client-platform';
 
 interface LoginResponse {
   accessToken: string;
   expiresIn: number;
+  // Present only when X-Client-Platform: mobile — web relies on the HttpOnly
+  // refresh cookie instead and never gets these in the body. See #356.
+  sessionId?: string;
+  refreshToken?: string;
 }
 
 @ApiTags('Auth')
@@ -96,13 +103,14 @@ export class AuthController {
   async verifyEmail(
     @Body() dto: VerifyEmailDto,
     @Res({ passthrough: true }) res: Response,
+    @Headers(CLIENT_PLATFORM_HEADER) platform?: string,
   ): Promise<LoginResponse> {
     const tokens = await this.auth.verifyEmail({
       email: dto.email,
       code: dto.code,
       deviceInfo: dto.deviceInfo,
     });
-    return this.buildLoginResponse(tokens, res);
+    return this.buildLoginResponse(tokens, res, platform);
   }
 
   @Post('verify-email/resend')
@@ -121,13 +129,14 @@ export class AuthController {
   async login(
     @Body() dto: LoginWithPasswordDto,
     @Res({ passthrough: true }) res: Response,
+    @Headers(CLIENT_PLATFORM_HEADER) platform?: string,
   ): Promise<LoginResponse> {
     const tokens = await this.auth.loginWithPassword({
       email: dto.email,
       password: dto.password,
       deviceInfo: dto.deviceInfo,
     });
-    return this.buildLoginResponse(tokens, res);
+    return this.buildLoginResponse(tokens, res, platform);
   }
 
   @Post('unlock')
@@ -151,6 +160,7 @@ export class AuthController {
     @Headers('x-user-id') userId: string,
     @Body() dto: ChangePasswordDto,
     @Res({ passthrough: true }) res: Response,
+    @Headers(CLIENT_PLATFORM_HEADER) platform?: string,
   ): Promise<LoginResponse> {
     this.requireUserId(userId);
     const tokens = await this.auth.changePassword(userId, {
@@ -158,7 +168,7 @@ export class AuthController {
       newPassword: dto.newPassword,
       deviceInfo: dto.deviceInfo,
     });
-    return this.buildLoginResponse(tokens, res);
+    return this.buildLoginResponse(tokens, res, platform);
   }
 
   @Post('password/set')
@@ -189,10 +199,11 @@ export class AuthController {
   async googleAuth(
     @Body() dto: GoogleAuthDto,
     @Res({ passthrough: true }) res: Response,
+    @Headers(CLIENT_PLATFORM_HEADER) platform?: string,
   ): Promise<LoginResponse> {
     const profile = await this.registry.get('google').validate(dto.idToken);
     const tokens = await this.auth.loginWithOAuth(profile, dto.deviceInfo);
-    return this.buildLoginResponse(tokens, res);
+    return this.buildLoginResponse(tokens, res, platform);
   }
 
   @Post('apple')
@@ -200,13 +211,14 @@ export class AuthController {
   async appleAuth(
     @Body() dto: AppleAuthDto,
     @Res({ passthrough: true }) res: Response,
+    @Headers(CLIENT_PLATFORM_HEADER) platform?: string,
   ): Promise<LoginResponse> {
     const profile = await this.registry.get('apple').validate(dto.idToken, {
       firstName: dto.firstName,
       lastName: dto.lastName,
     });
     const tokens = await this.auth.loginWithOAuth(profile, dto.deviceInfo);
-    return this.buildLoginResponse(tokens, res);
+    return this.buildLoginResponse(tokens, res, platform);
   }
 
   @Post('facebook')
@@ -214,12 +226,13 @@ export class AuthController {
   async facebookAuth(
     @Body() dto: FacebookAuthDto,
     @Res({ passthrough: true }) res: Response,
+    @Headers(CLIENT_PLATFORM_HEADER) platform?: string,
   ): Promise<LoginResponse> {
     const profile = await this.registry
       .get('facebook')
       .validate(dto.accessToken);
     const tokens = await this.auth.loginWithOAuth(profile, dto.deviceInfo);
-    return this.buildLoginResponse(tokens, res);
+    return this.buildLoginResponse(tokens, res, platform);
   }
 
   /**
@@ -237,22 +250,36 @@ export class AuthController {
     @Param('provider') provider: string,
     @Body() dto: OAuthAuthDto,
     @Res({ passthrough: true }) res: Response,
+    @Headers(CLIENT_PLATFORM_HEADER) platform?: string,
   ): Promise<LoginResponse> {
     const profile = await this.registry
       .get(provider)
       .validate(dto.token, dto.meta);
     const tokens = await this.auth.loginWithOAuth(profile, dto.deviceInfo);
-    return this.buildLoginResponse(tokens, res);
+    return this.buildLoginResponse(tokens, res, platform);
   }
 
   @Post('refresh')
   @ApiOperation({
-    summary: 'Refresh access token (reads HttpOnly cookie + CSRF header)',
+    summary:
+      'Refresh access token. Web: reads HttpOnly cookie + CSRF header. Mobile (X-Client-Platform: mobile): reads sessionId/refreshToken from the body instead — see #356.',
   })
   async refresh(
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
+    @Headers(CLIENT_PLATFORM_HEADER) platform?: string,
+    @Body() dto?: RefreshDto,
   ): Promise<LoginResponse> {
+    if (isMobileClient(platform)) {
+      // No CSRF check: CSRF exploits ambient cookie auth, which mobile
+      // doesn't have — the refresh token here only travels because the app
+      // itself puts it in the body.
+      if (!dto?.sessionId || !dto?.refreshToken) {
+        throw new UnauthorizedException('Missing sessionId/refreshToken');
+      }
+      const tokens = await this.auth.refresh(dto.sessionId, dto.refreshToken);
+      return this.buildLoginResponse(tokens, res, platform);
+    }
     // Double-submit CSRF: cookie value must match X-CSRF-Token header. This
     // is the only endpoint with cookie-auth on the request side, so it's the
     // only endpoint that needs CSRF. Bearer-auth endpoints are already
@@ -268,20 +295,29 @@ export class AuthController {
       payload.sessionId,
       payload.refreshToken,
     );
-    return this.buildLoginResponse(tokens, res);
+    return this.buildLoginResponse(tokens, res, platform);
   }
 
   @Post('logout')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
-    summary: 'Invalidate refresh cookie for the current session',
+    summary:
+      'Invalidate the current session. Web: reads the refresh cookie. Mobile: reads sessionId from the body — see #356.',
   })
   async logout(
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
+    @Headers(CLIENT_PLATFORM_HEADER) platform?: string,
+    @Body() dto?: LogoutDto,
   ): Promise<void> {
     // No CSRF check on logout: worst case an attacker forces a logout, which
     // is annoying but not a data-integrity problem. Keeps the client simple.
+    if (isMobileClient(platform)) {
+      if (dto?.sessionId) {
+        await this.auth.logout(dto.sessionId);
+      }
+      return;
+    }
     const payload = readRefreshCookie(req);
     if (payload) {
       await this.auth.logout(payload.sessionId);
@@ -380,10 +416,30 @@ export class AuthController {
     if (!userId) throw new UnauthorizedException('Missing X-User-Id header');
   }
 
-  // Common tail for all login / refresh endpoints: stamp the HttpOnly refresh
-  // cookie + the readable CSRF cookie, return only the access token in the
-  // body. Session id and refresh token never touch the response body.
-  private buildLoginResponse(tokens: TokenPair, res: Response): LoginResponse {
+  // Common tail for all login / refresh endpoints.
+  //
+  // Web (default): stamp the HttpOnly refresh cookie + the readable CSRF
+  // cookie, return only the access token in the body. Session id and refresh
+  // token never touch the response body.
+  //
+  // Mobile (X-Client-Platform: mobile, #356): no browser cookie jar exists to
+  // receive Set-Cookie, so the refresh token + session id go in the body
+  // instead, for the client to store in expo-secure-store. No CSRF cookie is
+  // set either — CSRF exploits ambient cookie auth, which this path doesn't
+  // use.
+  private buildLoginResponse(
+    tokens: TokenPair,
+    res: Response,
+    platform?: string,
+  ): LoginResponse {
+    if (isMobileClient(platform)) {
+      return {
+        accessToken: tokens.accessToken,
+        expiresIn: tokens.expiresIn,
+        sessionId: tokens.sessionId,
+        refreshToken: tokens.refreshToken,
+      };
+    }
     setAuthCookies(
       res,
       { sessionId: tokens.sessionId, refreshToken: tokens.refreshToken },
