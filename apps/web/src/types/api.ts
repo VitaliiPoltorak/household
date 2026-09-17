@@ -334,6 +334,7 @@ export interface BankConnection {
   lastSyncAt: string | null;
   status: BankConnectionStatus;
   createdAt: string;
+  webhookEnabledAt: string | null;
 }
 
 export type SyncStatus = 'queued' | 'running' | 'success' | 'failed';

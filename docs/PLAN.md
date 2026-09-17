@@ -761,6 +761,9 @@ Finance Service → Kafka: finance.transaction.created
 | PATCH | `/integrations/monobank/connections/:id/accounts/:accountId` | Enable/disable sync for one account (e.g. opt a jar in) |
 | POST | `/integrations/monobank/connections/:id/sync` | Enqueue a sync run — 202, not synchronous (#293) |
 | GET | `/integrations/monobank/connections/:id/logs` | Sync run history, with per-run accountsTotal/accountsDone |
+| POST | `/integrations/monobank/connections/:id/webhook` | Register a push callback with Monobank (#292) — 400 if no public URL is configured |
+| DELETE | `/integrations/monobank/connections/:id/webhook` | Disable push delivery, falling back to polling only |
+| GET/POST | `/integrations/monobank/webhook/:connectionId/:secret` | Public — Monobank's URL check (GET) and statement push (POST); never called by the client |
 | GET | `/integrations/monobank/transactions` | Unmapped external transactions |
 | POST | `/integrations/monobank/transactions/:id/map` | Link to an account/category — creates the finance-service transaction |
 
@@ -772,7 +775,7 @@ Finance Service → Kafka: finance.transaction.created
 >
 > #348: `connect`, `sync`, and `map` are gated behind the `monobank-integration` kill-switch flag (`@RequireFeature`, 503 when disabled) — an emergency off-switch for a Monobank outage or load spike. `SyncScheduler` checks the flag itself each tick, since the guard only covers the HTTP path. The three `GET`s, `DELETE .../connections/:id`, and the account-toggle `PATCH` are deliberately **not** gated: reads should keep rendering existing state instead of going blank, and disconnecting/toggling are actions a user should still be able to take mid-incident. Toggle the global default with `scripts/feature-flag.js monobank-integration <on|off>`; the web app hides the whole Bank connections section on `HouseholdPage` when the flag resolves off for the caller.
 >
-> Monobank webhooks (#292) remain a follow-up — sync is polling-only for now.
+> #292: webhooks are additive to polling, not a replacement — `SyncScheduler` keeps running regardless. `POST .../connections/:id/webhook` calls Monobank's `POST /personal/webhook` with a callback URL built from `MONOBANK_WEBHOOK_BASE_URL` (unset by default — 400 until a deploy configures a public HTTPS URL, e.g. an ngrok tunnel for local dev); the secret embedded in that URL's path (`webhook/:connectionId/:secret`, random 32 bytes) is the only auth Monobank's calls carry, since Monobank doesn't sign webhook deliveries — `verifyWebhookSecret` compares it constant-time and both webhook routes 404 uniformly on a bad secret, unknown connection, or webhook not enabled. `SyncService.applyWebhookEvent` shares its upsert path with `syncAccount` (same `(connectionId, externalId)` idempotency key, so a Monobank retry at +60s/+600s is a no-op) but deliberately never bumps `connection.lastSyncAt` — a push isn't a `statement` call, so it must not eat into the 60s-per-token polling gate. `DELETE .../webhook` and the receiving `GET`/verification route are not behind the `monobank-integration` kill-switch (same "stay usable mid-incident" reasoning as `DELETE .../connections/:id`); the delivery `POST` is gated, so disabling the flag also stops acting on pushes.
 
 ---
 
@@ -965,7 +968,15 @@ pnpm test:postman                                            # API scenario coll
       `bank_connections.monobank_account_id`/`masked_pan`/`account_mappings`
       columns — destructive, so an image rollback across this deploy needs a
       database restore too (see README's rollback table).
-    □ Monobank webhooks (#292) — follow-up, not MVP scope
+    ✔ Monobank webhooks (#292) — push-based sync alongside polling.
+      `POST .../connections/:id/webhook` registers a callback with Monobank
+      (400 without `MONOBANK_WEBHOOK_BASE_URL` configured — never a hard
+      requirement to connect a bank); the callback's URL embeds a random
+      per-connection secret since Monobank doesn't sign webhook calls.
+      `SyncService.applyWebhookEvent` shares its upsert with the polling
+      path (idempotent on Monobank's +60s/+600s retries) without touching
+      the 60s-per-token polling gate. Web: a "Real-time" badge +
+      enable/disable toggle on `BankConnectionsSection`.
 
 ▷ Apple + Facebook OAuth end-to-end (#22)
     ✔ Strategies implemented (google/apple/facebook.strategy.ts + OAuthStrategyRegistry)

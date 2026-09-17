@@ -43,4 +43,19 @@ export const integrationsApi = {
       `/integrations/monobank/connections/${id}/logs`,
       cfg(hid),
     ),
+
+  // #292 — throws (ApiError, 400) if the deploy has no public webhook URL
+  // configured; caller falls back to explaining that polling stays active.
+  enableWebhook: (id: string, hid: string) =>
+    api.post<BankConnection>(
+      `/integrations/monobank/connections/${id}/webhook`,
+      undefined,
+      cfg(hid),
+    ),
+
+  disableWebhook: (id: string, hid: string) =>
+    api.delete<BankConnection>(
+      `/integrations/monobank/connections/${id}/webhook`,
+      cfg(hid),
+    ),
 };

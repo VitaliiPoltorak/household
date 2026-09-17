@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "Household API",
-    "description": "Family finance & shopping management — automated API scenario collection (#192/#207).\n\n## Setup\n1. `docker compose up -d --wait` (postgres/redis/kafka + all 6 app services)\n2. `docker compose exec -T auth-service node scripts/seed-e2e-user.js` (#204) — seeds the two users this collection logs in as\n3. Import this collection and `household.postman_environment.json`, select the **Household — Local** environment\n4. Run the whole collection: `pnpm test:postman`, or in the Postman app\n\n## Auth flow\nThe **Setup** folder logs in both seeded users (owner + invitee) and captures their tokens/cookies. Every other request uses the `{{accessToken}}` (owner) bearer token by default; the invite-accept request overrides it per-request with `{{accessTokenInvitee}}`.\n\n## Self-cleanup\nEvery entity name includes `{{runId}}` (set once per run) so repeated runs never collide, and the **Cleanup** folder deletes the household (cascading to finance + shopping) and logs out both sessions at the end. **Never run with `--bail`** — it would skip Cleanup on the first failed assertion.\n\n## Deliberately out of scope\nRegistration + email verification and real OAuth consent stay a manual-only flow (#192) — the 6-digit verification code only ever exists in Redis and a service log line, and Google actively blocks scripted OAuth consent.",
+    "description": "Family finance & shopping management — automated API scenario collection (#192/#207).\n\n## Setup\n1. `docker compose up -d --wait` (postgres/redis/kafka + all 6 app services)\n2. `docker compose exec -T auth-service node scripts/seed-e2e-user.js` (#204) — seeds the two users this collection logs in as\n3. Import this collection and `household.postman_environment.json`, select the **Household — Local** environment\n4. Run the whole collection: `pnpm test:postman`, or in the Postman app\n\n## Auth flow\nThe **Setup** folder logs in both seeded users (owner + invitee) and captures their tokens/cookies. Every other request uses the `{{accessToken}}` (owner) bearer token by default; the invite-accept request overrides it per-request with `{{accessTokenInvitee}}`.\n\n## Self-cleanup\nEvery entity name includes `{{runId}}` (set once per run) so repeated runs never collide, and the **Cleanup** folder deletes the household (cascading to finance + shopping) and logs out both sessions at the end. **Never run with `--bail`** — it would skip Cleanup on the first failed assertion.\n\n## Deliberately out of scope\nRegistration + email verification and real OAuth consent stay a manual-only flow (#192) — the 6-digit verification code only ever exists in Redis and a service log line, and Google actively blocks scripted OAuth consent. Real Monobank webhook delivery (#292) is the same story — it needs Monobank actually calling a public HTTPS URL, so only the negative paths (unknown connection/secret, no public URL configured) are covered here; the push→upsert flow itself is covered by `apps/integration-service/test/bank-connections.integration.spec.ts`.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "auth": {
@@ -2692,6 +2692,106 @@
               }
             ],
             "url": "{{baseUrl}}/integrations/monobank/connections/00000000-0000-4000-8000-000000000000"
+          }
+        },
+        {
+          "name": "Reject webhook enable for a nonexistent connection",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 404', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Household-Id",
+                "value": "{{householdId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/integrations/monobank/connections/00000000-0000-4000-8000-000000000000/webhook"
+          }
+        },
+        {
+          "name": "Reject webhook disable for a nonexistent connection",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 404', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "X-Household-Id",
+                "value": "{{householdId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/integrations/monobank/connections/00000000-0000-4000-8000-000000000000/webhook"
+          }
+        },
+        {
+          "name": "Reject webhook verification (GET) for an unknown connection/secret",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 404', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/integrations/monobank/webhook/00000000-0000-4000-8000-000000000000/not-a-real-secret"
+          }
+        },
+        {
+          "name": "Reject webhook delivery (POST) for an unknown connection/secret",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 404', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/integrations/monobank/webhook/00000000-0000-4000-8000-000000000000/not-a-real-secret",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"type\": \"StatementItem\", \"data\": {\"account\": \"acc-1\", \"statementItem\": {\"id\": \"tx-scenario-1\", \"time\": 1735689600, \"description\": \"Scenario probe\", \"mcc\": 5814, \"amount\": -100, \"operationAmount\": -100, \"currencyCode\": 980, \"balance\": 1000}}}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
           }
         },
         {

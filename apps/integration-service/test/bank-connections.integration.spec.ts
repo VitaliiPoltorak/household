@@ -35,6 +35,7 @@ import {
   SyncStatus,
 } from '../src/bank-connections/entities/bank-sync-log.entity';
 import { SyncScheduler } from '../src/bank-connections/sync.scheduler';
+import { ExternalTransaction } from '../src/external-transactions/entities/external-transaction.entity';
 
 function defaultClientInfo(): MonobankClientInfo {
   return {
@@ -76,6 +77,8 @@ class FakeMonobankClient {
     defaultStatementItems();
   shouldFailClientInfo = false;
   shouldFailStatement = false;
+  shouldFailWebhookRegistration = false;
+  registeredWebhookUrl?: string;
 
   async getClientInfo(): Promise<MonobankClientInfo> {
     if (this.shouldFailClientInfo) {
@@ -93,9 +96,21 @@ class FakeMonobankClient {
     }
     return this.statementItems[account] ?? [];
   }
+
+  async registerWebhook(_token: string, webhookUrl: string): Promise<void> {
+    if (this.shouldFailWebhookRegistration) {
+      throw new BadGatewayException('Monobank request failed (500)');
+    }
+    this.registeredWebhookUrl = webhookUrl;
+  }
 }
 
 const H = 'test-household-id';
+// Set before the outer beforeAll creates `app` — BankConnectionsService
+// reads this from ConfigService once, at construction, same as
+// TOKEN_ENCRYPTION_KEY. The "not configured" 400 path (#292) gets its own
+// app instance below with this deleted instead.
+process.env.MONOBANK_WEBHOOK_BASE_URL = 'https://gateway.test.example.com';
 
 describe('Bank connections (integration)', () => {
   let app: INestApplication;
@@ -103,6 +118,7 @@ describe('Bank connections (integration)', () => {
   let redis: Redis;
   let scheduler: SyncScheduler;
   let syncLogRepo: Repository<BankSyncLog>;
+  let externalTxRepo: Repository<ExternalTransaction>;
 
   beforeAll(async () => {
     fakeMonobank = new FakeMonobankClient();
@@ -114,6 +130,9 @@ describe('Bank connections (integration)', () => {
     syncLogRepo = app.get<Repository<BankSyncLog>>(
       getRepositoryToken(BankSyncLog),
     );
+    externalTxRepo = app.get<Repository<ExternalTransaction>>(
+      getRepositoryToken(ExternalTransaction),
+    );
   });
 
   beforeEach(async () => {
@@ -121,6 +140,8 @@ describe('Bank connections (integration)', () => {
     resetKafkaMocks();
     fakeMonobank.shouldFailClientInfo = false;
     fakeMonobank.shouldFailStatement = false;
+    fakeMonobank.shouldFailWebhookRegistration = false;
+    fakeMonobank.registeredWebhookUrl = undefined;
     // Fresh objects each test — several tests mutate clientInfo/statementItems
     // (jars, "no accounts", multi-account) and this fixture is shared across
     // the whole file, so a stale mutation would otherwise leak into every
@@ -543,6 +564,279 @@ describe('Bank connections (integration)', () => {
         .get(`/monobank/connections/${created.body.id}/logs`)
         .set('X-Household-Id', 'other-household')
         .expect(404);
+    });
+  });
+
+  describe('Monobank webhooks (#292)', () => {
+    function webhookUrl(body: { id: string; accounts: { id: string }[] }) {
+      const secret = new URL(fakeMonobank.registeredWebhookUrl!).pathname
+        .split('/')
+        .pop();
+      return `/monobank/webhook/${body.id}/${secret}`;
+    }
+
+    async function connectAndEnableWebhook(householdId = H) {
+      const created = await connect(householdId).expect(201);
+      const res = await request(app.getHttpServer())
+        .post(`/monobank/connections/${created.body.id}/webhook`)
+        .set('X-Household-Id', householdId)
+        .expect(201);
+      return res.body as { id: string; accounts: { id: string }[] };
+    }
+
+    function statementItemEvent(id = 'tx-webhook-1') {
+      return {
+        type: 'StatementItem',
+        data: {
+          account: 'acc-1',
+          statementItem: {
+            id,
+            time: Math.floor(Date.now() / 1000),
+            description: 'Webhook coffee',
+            mcc: 5814,
+            amount: -4200,
+            operationAmount: -4200,
+            currencyCode: 980,
+            balance: 90000,
+          },
+        },
+      };
+    }
+
+    describe('POST /monobank/connections/:id/webhook', () => {
+      it('registers a callback with Monobank and reports webhookEnabledAt', async () => {
+        const created = await connect().expect(201);
+
+        const res = await request(app.getHttpServer())
+          .post(`/monobank/connections/${created.body.id}/webhook`)
+          .set('X-Household-Id', H)
+          .expect(201);
+
+        expect(res.body.webhookEnabledAt).not.toBeNull();
+        // Never leaks the secret to the client — only the timestamp.
+        expect(res.body.webhookSecret).toBeUndefined();
+
+        expect(fakeMonobank.registeredWebhookUrl).toMatch(
+          new RegExp(
+            `^https://gateway\\.test\\.example\\.com/api/v1/integrations/monobank/webhook/${created.body.id}/[0-9a-f]{64}$`,
+          ),
+        );
+      });
+
+      it('propagates a Monobank registration failure without persisting webhookEnabledAt', async () => {
+        const created = await connect().expect(201);
+        fakeMonobank.shouldFailWebhookRegistration = true;
+
+        await request(app.getHttpServer())
+          .post(`/monobank/connections/${created.body.id}/webhook`)
+          .set('X-Household-Id', H)
+          .expect(502);
+
+        const list = await request(app.getHttpServer())
+          .get('/monobank/connections')
+          .set('X-Household-Id', H);
+        expect(list.body[0].webhookEnabledAt).toBeNull();
+      });
+
+      it('returns 404 for a connection in another household', async () => {
+        const created = await connect().expect(201);
+        await request(app.getHttpServer())
+          .post(`/monobank/connections/${created.body.id}/webhook`)
+          .set('X-Household-Id', 'other-household')
+          .expect(404);
+      });
+    });
+
+    describe('no MONOBANK_WEBHOOK_BASE_URL configured', () => {
+      let unconfiguredApp: INestApplication;
+
+      beforeAll(async () => {
+        const saved = process.env.MONOBANK_WEBHOOK_BASE_URL;
+        delete process.env.MONOBANK_WEBHOOK_BASE_URL;
+        unconfiguredApp = await createTestApp(AppModule, (b) =>
+          b
+            .overrideProvider(MonobankClientService)
+            .useValue(new FakeMonobankClient()),
+        );
+        process.env.MONOBANK_WEBHOOK_BASE_URL = saved;
+      });
+
+      afterAll(async () => {
+        await unconfiguredApp.close();
+      });
+
+      it('400s enabling a webhook — connection keeps polling', async () => {
+        await cleanDatabase(unconfiguredApp);
+        const created = await request(unconfiguredApp.getHttpServer())
+          .post('/monobank/connect')
+          .set('X-Household-Id', H)
+          .send({ token: 'mono-token-abc' })
+          .expect(201);
+
+        await request(unconfiguredApp.getHttpServer())
+          .post(`/monobank/connections/${created.body.id}/webhook`)
+          .set('X-Household-Id', H)
+          .expect(400);
+      });
+    });
+
+    describe('DELETE /monobank/connections/:id/webhook', () => {
+      it('clears webhookEnabledAt and 404s further deliveries', async () => {
+        const body = await connectAndEnableWebhook();
+        const url = webhookUrl(body);
+
+        const res = await request(app.getHttpServer())
+          .delete(`/monobank/connections/${body.id}/webhook`)
+          .set('X-Household-Id', H)
+          .expect(200);
+        expect(res.body.webhookEnabledAt).toBeNull();
+
+        await request(app.getHttpServer())
+          .post(url)
+          .send(statementItemEvent())
+          .expect(404);
+      });
+
+      it('is not gated by the kill-switch — stays available mid-incident', async () => {
+        const body = await connectAndEnableWebhook();
+        await redis.set('flag:monobank-integration:default', '0', 'EX', 60);
+        await redis.set(
+          `flag:monobank-integration:household:${H}`,
+          'none',
+          'EX',
+          60,
+        );
+
+        await request(app.getHttpServer())
+          .delete(`/monobank/connections/${body.id}/webhook`)
+          .set('X-Household-Id', H)
+          .expect(200);
+      });
+    });
+
+    describe('GET /monobank/webhook/:connectionId/:secret (Monobank URL check)', () => {
+      it('200s for the registered secret', async () => {
+        const body = await connectAndEnableWebhook();
+        await request(app.getHttpServer()).get(webhookUrl(body)).expect(200);
+      });
+
+      it('404s for a wrong secret', async () => {
+        const body = await connectAndEnableWebhook();
+        await request(app.getHttpServer())
+          .get(`/monobank/webhook/${body.id}/not-the-real-secret`)
+          .expect(404);
+      });
+
+      it('404s for an unknown connection id', async () => {
+        await request(app.getHttpServer())
+          .get('/monobank/webhook/00000000-0000-0000-0000-000000000000/x')
+          .expect(404);
+      });
+    });
+
+    describe('POST /monobank/webhook/:connectionId/:secret (delivery)', () => {
+      it('upserts the pushed item without consuming the polling gate', async () => {
+        const body = await connectAndEnableWebhook();
+        const url = webhookUrl(body);
+        resetKafkaMocks();
+
+        await request(app.getHttpServer())
+          .post(url)
+          .send(statementItemEvent('tx-webhook-1'))
+          .expect(200);
+
+        const rows = await externalTxRepo.find({
+          where: { connectionId: body.id },
+        });
+        expect(rows).toHaveLength(1);
+        expect(rows[0].externalId).toBe('tx-webhook-1');
+
+        expect(mockKafkaProducer.emit).toHaveBeenCalledWith(
+          'integration.monobank.sync.completed',
+          { connectionId: body.id, transactionsCount: 1 },
+          expect.objectContaining({ householdId: H }),
+        );
+
+        // A push must not eat into the 60s-per-token polling gate — a
+        // manual sync right after a webhook delivery must still be allowed.
+        await request(app.getHttpServer())
+          .post(`/monobank/connections/${body.id}/sync`)
+          .set('X-Household-Id', H)
+          .expect(202);
+      });
+
+      it('is idempotent across a retried delivery', async () => {
+        const body = await connectAndEnableWebhook();
+        const url = webhookUrl(body);
+        const event = statementItemEvent('tx-webhook-retry');
+
+        await request(app.getHttpServer()).post(url).send(event).expect(200);
+        await request(app.getHttpServer()).post(url).send(event).expect(200); // Monobank's +60s retry
+
+        const rows = await externalTxRepo.find({
+          where: { connectionId: body.id },
+        });
+        expect(rows).toHaveLength(1);
+      });
+
+      it('acks but skips an account whose sync is disabled (e.g. a jar not opted in)', async () => {
+        fakeMonobank.clientInfo = {
+          ...fakeMonobank.clientInfo,
+          jars: [
+            {
+              id: 'jar-1',
+              sendId: 'send-1',
+              title: 'New car',
+              currencyCode: 980,
+              balance: 500000,
+            },
+          ],
+        };
+        const body = await connectAndEnableWebhook();
+        const url = webhookUrl(body);
+
+        await request(app.getHttpServer())
+          .post(url)
+          .send({
+            type: 'StatementItem',
+            data: {
+              account: 'jar-1',
+              statementItem: {
+                id: 'tx-jar-1',
+                time: Math.floor(Date.now() / 1000),
+                description: 'Jar top-up',
+                mcc: 0,
+                amount: 10000,
+                operationAmount: 10000,
+                currencyCode: 980,
+                balance: 510000,
+              },
+            },
+          })
+          .expect(200);
+
+        const rows = await externalTxRepo.find({
+          where: { connectionId: body.id },
+        });
+        expect(rows).toHaveLength(0);
+      });
+
+      it('503s while the monobank-integration flag is disabled', async () => {
+        const body = await connectAndEnableWebhook();
+        const url = webhookUrl(body);
+        await redis.set('flag:monobank-integration:default', '0', 'EX', 60);
+        await redis.set(
+          `flag:monobank-integration:household:${H}`,
+          'none',
+          'EX',
+          60,
+        );
+
+        await request(app.getHttpServer())
+          .post(url)
+          .send(statementItemEvent())
+          .expect(503);
+      });
     });
   });
 

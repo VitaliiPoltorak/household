@@ -171,6 +171,7 @@ export const MOCK_BANK_CONNECTION: BankConnection = {
   lastSyncAt: null,
   status: 'active',
   createdAt: '2026-07-01T00:00:00Z',
+  webhookEnabledAt: null,
 };
 
 export const MOCK_SYNC_LOG: BankSyncLog = {

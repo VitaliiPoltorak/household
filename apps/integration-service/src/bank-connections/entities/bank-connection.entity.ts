@@ -46,4 +46,19 @@ export class BankConnection extends BaseEntity {
     default: BankConnectionStatus.ACTIVE,
   })
   status: BankConnectionStatus;
+
+  // Bearer embedded in the public webhook callback URL's path (#292) —
+  // Monobank doesn't sign webhook calls, so this is the only thing that
+  // scopes an inbound POST to this connection. Plain, not encrypted: unlike
+  // tokenEncrypted it grants no access to Monobank itself, only to pushing
+  // (already-public-ish) statement items at us.
+  @Column({ name: 'webhook_secret', type: 'varchar', nullable: true })
+  webhookSecret: string | null;
+
+  // Null = no webhook registered with Monobank, sync stays polling-only.
+  // Set by BankConnectionsService.enableWebhook() once Monobank's
+  // POST /personal/webhook call (which includes its own GET verification of
+  // our callback URL) succeeds.
+  @Column({ name: 'webhook_enabled_at', type: 'timestamptz', nullable: true })
+  webhookEnabledAt: Date | null;
 }

@@ -57,6 +57,26 @@ export function BankConnectionsSection({ hid }: { hid: string }) {
     },
   });
 
+  const enableWebhook = useMutation({
+    mutationFn: (id: string) => integrationsApi.enableWebhook(id, hid),
+    onSuccess: () =>
+      qc.invalidateQueries({ queryKey: ['bank-connections', hid] }),
+    onError: (err: unknown, id) => {
+      if (err instanceof ApiError && err.status === 400) {
+        setSyncMessage({
+          id,
+          message: t('bankConnections.webhookNoPublicUrl'),
+        });
+      }
+    },
+  });
+
+  const disableWebhook = useMutation({
+    mutationFn: (id: string) => integrationsApi.disableWebhook(id, hid),
+    onSuccess: () =>
+      qc.invalidateQueries({ queryKey: ['bank-connections', hid] }),
+  });
+
   const toggleAccount = useMutation({
     mutationFn: ({
       connectionId,
@@ -113,6 +133,9 @@ export function BankConnectionsSection({ hid }: { hid: string }) {
                       {c.accounts[0]?.maskedPan ?? c.monobankClientId ?? '—'}
                     </span>
                     <Badge label={c.status} />
+                    {c.webhookEnabledAt && (
+                      <Badge label={t('bankConnections.realtime')} />
+                    )}
                   </div>
                   <p className="text-xs text-gray-400 dark:text-gray-500">
                     {c.lastSyncAt
@@ -141,6 +164,24 @@ export function BankConnectionsSection({ hid }: { hid: string }) {
                     activeSyncs.has(c.id)
                       ? t('bankConnections.syncing')
                       : t('bankConnections.syncNow')}
+                  </button>
+                  <button
+                    onClick={() =>
+                      c.webhookEnabledAt
+                        ? disableWebhook.mutate(c.id)
+                        : enableWebhook.mutate(c.id)
+                    }
+                    disabled={
+                      (enableWebhook.isPending &&
+                        enableWebhook.variables === c.id) ||
+                      (disableWebhook.isPending &&
+                        disableWebhook.variables === c.id)
+                    }
+                    className="text-xs text-primary-600 hover:underline disabled:opacity-50 dark:text-primary-400"
+                  >
+                    {c.webhookEnabledAt
+                      ? t('bankConnections.disableRealtime')
+                      : t('bankConnections.enableRealtime')}
                   </button>
                   <button
                     onClick={() => {

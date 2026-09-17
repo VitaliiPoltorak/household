@@ -5,7 +5,7 @@ import { renderWithProviders } from './wrapper';
 import { server } from './setup';
 import { HouseholdPage } from '../pages/HouseholdPage';
 import { MOCK_BANK_CONNECTION, MOCK_SYNC_LOG } from './handlers';
-import type { BankSyncLog } from '../types/api';
+import type { BankConnection, BankSyncLog } from '../types/api';
 
 describe('HouseholdPage — member display names (#166)', () => {
   const OWNER_ID = 'user-1'; // same as MOCK_USER.id from handlers
@@ -514,6 +514,78 @@ describe('HouseholdPage — bank connections (#291)', () => {
     await userEvent.click(await screen.findByText('Sync history'));
 
     expect(await screen.findByText('3 transactions')).toBeInTheDocument();
+  });
+
+  it('enables real-time sync and shows the badge (#292)', async () => {
+    let connection = { ...MOCK_BANK_CONNECTION };
+    server.use(
+      http.get('/api/v1/integrations/monobank/connections', () =>
+        HttpResponse.json([connection]),
+      ),
+      http.post('/api/v1/integrations/monobank/connections/:id/webhook', () => {
+        connection = {
+          ...connection,
+          webhookEnabledAt: '2026-08-01T00:00:00Z',
+        };
+        return HttpResponse.json(connection);
+      }),
+    );
+
+    renderWithProviders(<HouseholdPage />);
+    await userEvent.click(await screen.findByText('Enable real-time'));
+
+    expect(await screen.findByText('Real-time')).toBeInTheDocument();
+    expect(await screen.findByText('Disable real-time')).toBeInTheDocument();
+  });
+
+  it('shows an inline message when no public webhook URL is configured', async () => {
+    server.use(
+      http.get('/api/v1/integrations/monobank/connections', () =>
+        HttpResponse.json([MOCK_BANK_CONNECTION]),
+      ),
+      http.post('/api/v1/integrations/monobank/connections/:id/webhook', () =>
+        HttpResponse.json(
+          { statusCode: 400, message: 'No public webhook URL configured' },
+          { status: 400 },
+        ),
+      ),
+    );
+
+    renderWithProviders(<HouseholdPage />);
+    await userEvent.click(await screen.findByText('Enable real-time'));
+
+    expect(
+      await screen.findByText(
+        'No public URL configured for webhooks — this connection will keep syncing via polling',
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it('disables real-time sync', async () => {
+    let connection: BankConnection = {
+      ...MOCK_BANK_CONNECTION,
+      webhookEnabledAt: '2026-08-01T00:00:00Z',
+    };
+    server.use(
+      http.get('/api/v1/integrations/monobank/connections', () =>
+        HttpResponse.json([connection]),
+      ),
+      http.delete(
+        '/api/v1/integrations/monobank/connections/:id/webhook',
+        () => {
+          connection = { ...connection, webhookEnabledAt: null };
+          return HttpResponse.json(connection);
+        },
+      ),
+    );
+
+    renderWithProviders(<HouseholdPage />);
+    expect(await screen.findByText('Real-time')).toBeInTheDocument();
+    await userEvent.click(screen.getByText('Disable real-time'));
+
+    await waitFor(() =>
+      expect(screen.queryByText('Real-time')).not.toBeInTheDocument(),
+    );
   });
 });
 

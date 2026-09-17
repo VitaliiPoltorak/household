@@ -29,6 +29,13 @@ export class BankConnectionResponseDto {
   lastSyncAt: Date | null;
   @ApiProperty({ enum: BankConnectionStatus }) status: BankConnectionStatus;
   @ApiProperty() createdAt: Date;
+  @ApiProperty({
+    required: false,
+    nullable: true,
+    description:
+      'When a Monobank webhook was registered for this connection (#292) — null means it still relies on polling only',
+  })
+  webhookEnabledAt: Date | null;
 
   static from(
     connection: BankConnection,
@@ -42,6 +49,7 @@ export class BankConnectionResponseDto {
       lastSyncAt: connection.lastSyncAt,
       status: connection.status,
       createdAt: connection.createdAt,
+      webhookEnabledAt: connection.webhookEnabledAt,
     };
   }
 }
