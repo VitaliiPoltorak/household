@@ -1,4 +1,5 @@
 import { NavLink } from 'react-router-dom';
+import type { NavLinkRenderProps } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import clsx from 'clsx';
 import { useHousehold } from '../../contexts/HouseholdContext';
@@ -61,7 +62,7 @@ export function Sidebar() {
             key={to}
             to={to}
             data-tour={`nav-${to.slice(1)}`}
-            className={({ isActive }) =>
+            className={({ isActive }: NavLinkRenderProps) =>
               clsx(
                 'flex items-center gap-2.5 rounded-md px-3 py-2 text-sm transition-colors',
                 isActive
@@ -82,7 +83,7 @@ export function Sidebar() {
           <NavLink
             key={to}
             to={to}
-            className={({ isActive }) =>
+            className={({ isActive }: NavLinkRenderProps) =>
               clsx(
                 'flex items-center gap-2.5 rounded-md px-3 py-2 text-sm transition-colors',
                 isActive

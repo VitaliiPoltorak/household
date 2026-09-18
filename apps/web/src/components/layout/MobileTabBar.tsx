@@ -1,4 +1,5 @@
 import { NavLink } from 'react-router-dom';
+import type { NavLinkRenderProps } from 'react-router-dom';
 import clsx from 'clsx';
 import { usePrimaryNav } from './primaryNav';
 
@@ -21,7 +22,7 @@ export function MobileTabBar() {
           key={to}
           to={to}
           data-tour={`nav-${to.slice(1)}`}
-          className={({ isActive }) =>
+          className={({ isActive }: NavLinkRenderProps) =>
             clsx(
               'flex flex-1 flex-col items-center gap-0.5 py-1 text-[10px]',
               isActive
