@@ -83,32 +83,52 @@ COPY . .
 RUN pnpm --filter @household/${SERVICE} build
 
 # ─────────────────────────────────────────────────────────────
-# runtime — a genuine prod-only install, plus just this one service's
-# compiled output.
+# runtime — a genuine prod-only install, scoped to just this one service's
+# own dependency subgraph, plus its compiled output.
 # ─────────────────────────────────────────────────────────────
 FROM manifests AS runtime
 ARG SERVICE
 ENV NODE_ENV=production \
     SERVICE=${SERVICE} \
     LISTEN_HOST=0.0.0.0
-# A real --prod install, not "install everything then try to strip dev
-# deps back out" — pnpm has no reliable command for the latter (the
-# previous approach here, `pnpm --filter X... prune --prod`, isn't a real
-# pnpm command; it silently failed with "Unknown option: 'recursive'" and
-# was swallowed by `|| true`, meaning every image had shipped every
-# service's full devDependencies — jest, eslint, ts-node, the works — the
-# whole time). Same cache mount as `build`, so this is a fast cache hit,
-# not a slow re-download.
+# `pnpm deploy` (#377), not `pnpm install --frozen-lockfile --prod` (what
+# this used to be) or a `--filter`-scoped install (tried, doesn't work —
+# see below). Same cache mount as `build`, so this is a fast cache hit on
+# an unchanged lockfile, not a slow re-download.
 #
-# This instruction (and its inputs, from `manifests`) is byte-identical
-# regardless of ${SERVICE}, so unlike the old `COPY --from=build /app ./`
-# (which bundled this same node_modules together with that one service's
-# unique dist/ output into a single per-service layer, defeating sharing),
-# this node_modules layer is genuinely shared across all 6 final images —
-# fixed ~2.8GB of pure duplication measured across the 6 running images
-# (`docker system df -v`: ~470MB "unique" per image, mostly this).
+# Why not a plain scoped install: under node-linker=hoisted (required —
+# see the manifests stage comment above), pnpm flattens EVERY package in
+# pnpm-lock.yaml into node_modules regardless of which workspace members
+# are locally present or `--filter`-selected — hoisted linking mimics
+# npm's whole-lockfile flat resolution, it doesn't prune per project the
+# way the default isolated linker does. Landing apps/mobile (#357) made
+# this concrete: every backend image gained apps/mobile's entire
+# Expo/React Native/Metro tree (~300MB, confirmed on auth-service: 338MB →
+# 639MB) even though zero backend code imports any of it.
+#
+# `pnpm deploy` sidesteps this by resolving a real install from just the
+# target project's OWN dependency graph rather than flattening the whole
+# lockfile — apps/mobile never enters the picture. This only works because
+# every app/lib's package.json now declares its actual @household/*
+# workspace deps as `workspace:*` (previously these only existed as
+# tsconfig path aliases — invisible to pnpm's dependency graph, which is
+# exactly why a graph-aware command like `deploy` couldn't have worked
+# before). Deploys into a scratch subdirectory (deploy requires an empty
+# target) and the resulting node_modules is moved up to where classic
+# Node module resolution (walking up from apps/${SERVICE}/dist/**)
+# expects it.
+#
+# Trade-off accepted knowingly: this instruction now contains ${SERVICE},
+# so it's no longer byte-identical across services the way the old
+# whole-workspace install was, which forfeits the cross-image layer
+# sharing a previous fix relied on to save ~2.8GB of duplication. Measured
+# net effect is still a large win — each service's own node_modules is
+# 56-154MB (no react-native/expo present) vs. the 639MB every image
+# carried before, and per-image pull/deploy size is what #377 was about.
 RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
-    pnpm install --frozen-lockfile --prod
+    pnpm --filter "@household/${SERVICE}" deploy --prod --config.frozen-lockfile=true deploy-out && \
+    mv deploy-out/node_modules ./node_modules && \
+    rm -rf deploy-out
 COPY --from=build /app/apps/${SERVICE}/dist ./apps/${SERVICE}/dist
 
 # scripts/seed-e2e-user.js runs inside the auth-service container (`docker

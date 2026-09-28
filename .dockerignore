@@ -34,6 +34,11 @@
 # Web app — built on host, not in these images
 apps/web
 
+# Mobile app (Expo/React Native, #357) — never built into a backend image;
+# its dependency tree stays out via `pnpm deploy` in the runtime stage
+# (#377), this just keeps its source out of the build context too.
+apps/mobile
+
 # Docker + infra config
 Dockerfile
 .dockerignore
