@@ -665,7 +665,7 @@ Finance Service → Kafka: finance.transaction.created
 
 > Implemented in Phase 2 via `TransactionQueryRepository` — the reports service is not coupled to TypeORM (#87).
 
-> #379: `net_worth_snapshots` (finance schema) holds one row per `(household_id, snapshot_date)`, upserted via `INSERT ... ON CONFLICT DO UPDATE` (same pattern as `RatesService.syncToday`) — a manual entry for a date that already has an auto-captured row reconciles it rather than duplicating. `NetWorthSnapshotScheduler` (`@Cron('0 4 1 * *')`, UTC) walks every household with at least one account (`IAccountQueryRepository.listHouseholdIds`) and reuses `ReportsService.getNetWorth`'s balance aggregation — it does not recompute balances itself. A household with no active accounts is skipped, not stored as an empty snapshot. Web: `/settings/net-worth` (`NetWorthHistoryPage`) — a per-currency trend chart, a history list where clicking a row edits that date, and a bulk-import form for backfilling pre-app history.
+> #379: `net_worth_snapshots` (finance schema) holds one row per `(household_id, snapshot_date)`, upserted via `INSERT ... ON CONFLICT DO UPDATE` (same pattern as `RatesService.syncToday`) — a manual entry for a date that already has an auto-captured row reconciles it rather than duplicating. `NetWorthSnapshotScheduler` (`@Cron('0 4 1 * *')`, UTC) walks every household with at least one account (`IAccountQueryRepository.listHouseholdIds`) and reuses `ReportsService.getNetWorth`'s balance aggregation — it does not recompute balances itself. A household with no active accounts is skipped, not stored as an empty snapshot. Web: `/net-worth` (`NetWorthHistoryPage`, a primary nav destination via `usePrimaryNav`) — a per-currency trend chart, a history list where clicking a row edits that date, and a bulk-import form for backfilling pre-app history.
 
 ---
 
@@ -1013,7 +1013,7 @@ pnpm test:postman                                            # API scenario coll
       react-router nav state alone, and when nothing can be recovered the screen asks for it
       instead of redirecting to /register (which answers 409 for the very account being verified)
 ✔ Layout: sidebar, household switcher
-✔ Responsive mobile nav (<768px) — Sidebar replaced by a fixed bottom tab bar (`MobileTabBar`, same 5 destinations via shared `usePrimaryNav`) plus an "account menu" bottom sheet (`MobileMenuSheet`: profile, Invites, Settings, theme, language, sign out) opened from a compact mobile Header; desktop chrome unchanged above the breakpoint
+✔ Responsive mobile nav (<768px) — Sidebar replaced by a fixed bottom tab bar (`MobileTabBar`, same destinations via shared `usePrimaryNav` — 6 as of #379: Dashboard, Accounts, Transactions, Shopping, Household, Net worth) plus an "account menu" bottom sheet (`MobileMenuSheet`: profile, Invites, Settings, theme, language, sign out) opened from a compact mobile Header; desktop chrome unchanged above the breakpoint
 ✔ Pages:
     ✔ Dashboard (balances, upcoming payments)
     ✔ Accounts & Transactions (inline edit, transfer modal, multi-currency totals with PrivatBank rates)

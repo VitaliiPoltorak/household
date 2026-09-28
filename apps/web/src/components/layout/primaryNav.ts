@@ -5,6 +5,7 @@ import {
   TxIcon,
   ListIcon,
   MembersIcon,
+  TrendIcon,
 } from '../brand/icons';
 
 export interface NavItem {
@@ -14,8 +15,10 @@ export interface NavItem {
 }
 
 /**
- * The five primary destinations, shared by Sidebar (desktop) and
- * MobileTabBar (mobile) so they can't drift apart into two different navs.
+ * The primary destinations, shared by Sidebar (desktop) and MobileTabBar
+ * (mobile) so they can't drift apart into two different navs. Net worth
+ * (#379) was promoted here from a Settings sub-link — was the sixth entry
+ * added, so MobileTabBar's five-tab layout now flexes to six.
  */
 export function usePrimaryNav(): NavItem[] {
   const { t } = useTranslation();
@@ -25,5 +28,6 @@ export function usePrimaryNav(): NavItem[] {
     { to: '/transactions', label: t('nav.transactions'), Icon: TxIcon },
     { to: '/shopping', label: t('nav.shopping'), Icon: ListIcon },
     { to: '/household', label: t('nav.household'), Icon: MembersIcon },
+    { to: '/net-worth', label: t('nav.netWorth'), Icon: TrendIcon },
   ];
 }

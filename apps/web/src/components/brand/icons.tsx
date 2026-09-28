@@ -98,6 +98,23 @@ export function ListIcon({ className }: IconProps) {
   );
 }
 
+/** Sidebar nav icon: net worth trend. */
+export function TrendIcon({ className }: IconProps) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className={className}
+      aria-hidden="true"
+      {...shared}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M3.5 16.5l5.5-6 4 3.2 7-7.7" />
+      <path d="M15.5 5.5h4.5v4.5" />
+    </svg>
+  );
+}
+
 /** Budget icon. */
 export function BudgetIcon({ className }: IconProps) {
   return (

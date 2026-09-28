@@ -32,10 +32,12 @@ export const router = createBrowserRouter([
       { path: '/transactions', element: <TransactionsPage /> },
       { path: '/shopping', element: <ShoppingPage /> },
       { path: '/household', element: <HouseholdPage /> },
+      // Promoted to the primary nav (#379 follow-up) — top-level like the
+      // other primary destinations, not nested under /settings anymore.
+      { path: '/net-worth', element: <NetWorthHistoryPage /> },
       { path: '/invites', element: <InvitesPage /> },
       { path: '/settings', element: <SettingsPage /> },
       { path: '/settings/categories', element: <CategoriesPage /> },
-      { path: '/settings/net-worth', element: <NetWorthHistoryPage /> },
     ],
   },
 ]);

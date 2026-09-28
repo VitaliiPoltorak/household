@@ -5,7 +5,7 @@ import { usePrimaryNav } from './primaryNav';
 
 /**
  * Bottom tab bar shown in place of the Sidebar below the `md` breakpoint —
- * same five destinations as Sidebar's primary nav (usePrimaryNav), just a
+ * same destinations as Sidebar's primary nav (usePrimaryNav), just a
  * different chrome. Fixed to the viewport bottom; Layout reserves matching
  * space at the foot of <main> so content never renders underneath it.
  */
