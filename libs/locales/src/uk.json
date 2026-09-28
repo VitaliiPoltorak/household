@@ -196,7 +196,12 @@
       "descriptionPlaceholder": "напр. Перерахунок готівки",
       "hint": "Створює коригувальну транзакцію, щоб історія балансу залишалась узгодженою.",
       "invalidNumber": "Введіть коректне число.",
-      "noChange": "Новий баланс дорівнює поточному."
+      "noChange": "Новий баланс дорівнює поточному.",
+      "modeTarget": "Встановити новий баланс",
+      "modeDelta": "Ввести суму зміни",
+      "deltaAmount": "Сума зміни",
+      "deltaPlaceholder": "напр. 955 або -200",
+      "newBalancePreview": "Новий баланс"
     },
     "rates": {
       "unavailable": "Курси недоступні",
@@ -220,6 +225,13 @@
     "account": "Рахунок",
     "amount": "Сума",
     "amountPlaceholder": "0.00",
+    "modeAmount": "Сума",
+    "modeTarget": "Встановити новий баланс",
+    "newBalanceLabel": "Новий баланс",
+    "newBalancePreview": "Новий баланс буде",
+    "computedAmountPreview": "Сума операції",
+    "targetMustBeHigher": "Новий баланс має бути вищим за поточний для доходу.",
+    "targetMustBeLower": "Новий баланс має бути нижчим за поточний для витрати.",
     "date": "Дата",
     "description": "Опис",
     "category": "Категорія",

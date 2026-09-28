@@ -195,7 +195,12 @@
       "descriptionPlaceholder": "e.g. Cash count correction",
       "hint": "This creates an adjustment transaction so balance history stays consistent.",
       "invalidNumber": "Enter a valid number.",
-      "noChange": "New balance is the same as the current balance."
+      "noChange": "New balance is the same as the current balance.",
+      "modeTarget": "Set new balance",
+      "modeDelta": "Enter change amount",
+      "deltaAmount": "Change amount",
+      "deltaPlaceholder": "e.g. 955 or -200",
+      "newBalancePreview": "New balance"
     },
     "rates": {
       "unavailable": "Exchange rates unavailable",
@@ -219,6 +224,13 @@
     "account": "Account",
     "amount": "Amount",
     "amountPlaceholder": "0.00",
+    "modeAmount": "Amount",
+    "modeTarget": "Set new balance to",
+    "newBalanceLabel": "New balance",
+    "newBalancePreview": "New balance will be",
+    "computedAmountPreview": "Amount to record",
+    "targetMustBeHigher": "New balance must be higher than the current balance for income.",
+    "targetMustBeLower": "New balance must be lower than the current balance for expense.",
     "date": "Date",
     "description": "Description",
     "category": "Category",

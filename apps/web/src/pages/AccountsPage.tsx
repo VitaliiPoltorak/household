@@ -487,7 +487,7 @@ function AccountCard({
         <p className="text-xs text-gray-400 dark:text-gray-500">
           {account.currency}
         </p>
-        <QuickTxDropdown onSelect={onQuickTx} />
+        <QuickTxDropdown onSelect={onQuickTx} onAdjust={onAdjust} />
       </div>
     </div>
   );
@@ -538,7 +538,7 @@ function AccountRow({
       <span className="w-10 text-right text-xs text-gray-400 dark:text-gray-500">
         {account.currency}
       </span>
-      <QuickTxDropdown onSelect={onQuickTx} />
+      <QuickTxDropdown onSelect={onQuickTx} onAdjust={onAdjust} />
       <div className="flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
         <button
           onClick={onEdit}
@@ -564,8 +564,10 @@ function AccountRow({
 // ──────────────────────────────────────────────
 function QuickTxDropdown({
   onSelect,
+  onAdjust,
 }: {
   onSelect: (type: QuickTxType) => void;
+  onAdjust: () => void;
 }) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
@@ -625,8 +627,58 @@ function QuickTxDropdown({
               {label}
             </button>
           ))}
+          {/* #378 — adjustment reuses the existing AdjustBalanceModal rather
+              than the QuickTxType union, since it's a different modal/endpoint
+              from income/expense/transfer. */}
+          <button
+            onClick={() => {
+              onAdjust();
+              setOpen(false);
+            }}
+            className="w-full px-4 py-2.5 text-left text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700"
+          >
+            ± {t('transactions.types.adjustment')}
+          </button>
         </div>
       )}
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────
+// Amount ⇄ target-balance mode toggle, shared by QuickTxModal (income/
+// expense) and AdjustBalanceModal so both input styles read consistently
+// (#378).
+// ──────────────────────────────────────────────
+function EntryModeToggle<T extends string>({
+  value,
+  options,
+  onChange,
+}: {
+  value: T;
+  options: { value: T; label: string }[];
+  onChange: (v: T) => void;
+}) {
+  return (
+    <div className="inline-flex overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700">
+      {options.map((opt) => {
+        const active = opt.value === value;
+        return (
+          <button
+            key={opt.value}
+            type="button"
+            aria-pressed={active}
+            onClick={() => onChange(opt.value)}
+            className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+              active
+                ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/40 dark:text-primary-200'
+                : 'bg-white text-gray-500 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700'
+            }`}
+          >
+            {opt.label}
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -1064,8 +1116,34 @@ function QuickTxModal({
     accounts.find((a) => a.id !== account.id)?.id ?? '',
   );
   const [saving, setSaving] = useState(false);
+  // #378 — income/expense can be entered either as a plain amount or as
+  // "what the balance should become"; both end up as the same `amount` sent
+  // to POST /transactions, this is purely an input convenience.
+  const [entryMode, setEntryMode] = useState<'amount' | 'target'>('amount');
+  const [targetBalance, setTargetBalance] = useState('');
 
   const isTransfer = txType === 'transfer';
+  const currentBalance = Number(account.balance);
+
+  // Target-balance mode is only offered for income/expense (#378) — a
+  // transfer moves money between two accounts, so "set this account's new
+  // balance" isn't a well-defined single-account operation the way it is
+  // for income/expense/adjustment.
+  const targetParsed = parseFloat(targetBalance);
+  const targetDelta = Number.isFinite(targetParsed)
+    ? targetParsed - currentBalance
+    : NaN;
+  // income/adjustment add to the balance, expense subtracts — mirrors
+  // Transaction.computeDelta server-side (see CLAUDE.md).
+  const computedAmount = txType === 'expense' ? -targetDelta : targetDelta;
+  const targetDirectionValid =
+    Number.isFinite(computedAmount) && computedAmount > 0;
+
+  const amountNum = parseFloat(amount);
+  const amountPreviewBalance =
+    !isTransfer && Number.isFinite(amountNum) && amountNum > 0
+      ? currentBalance + (txType === 'expense' ? -amountNum : amountNum)
+      : null;
   // Only income/expense have categories; transfers don't. Ternary lets TS
   // narrow txType so the equality check compiles.
   const filteredCategories = isTransfer
@@ -1121,7 +1199,13 @@ function QuickTxModal({
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!amount || parseFloat(amount) <= 0) return;
+    if (isTransfer) {
+      if (!amount || parseFloat(amount) <= 0) return;
+    } else if (entryMode === 'amount') {
+      if (!amount || amountNum <= 0) return;
+    } else if (!targetDirectionValid) {
+      return;
+    }
     setSaving(true);
     try {
       if (isTransfer) {
@@ -1152,7 +1236,7 @@ function QuickTxModal({
         await financeApi.createTransaction(hid, {
           accountId: account.id,
           type: txType,
-          amount: parseFloat(amount),
+          amount: entryMode === 'target' ? computedAmount : amountNum,
           currency: account.currency,
           description: description || undefined,
           date,
@@ -1200,21 +1284,72 @@ function QuickTxModal({
             </Select>
           ))}
 
-        <Input
-          label={
-            isTransfer
-              ? `${t('transactions.transferSent')} (${fromCcy})`
-              : t('transactions.amount')
-          }
-          type="number"
-          step="0.01"
-          min="0.01"
-          value={amount}
-          onChange={(e) => setAmount(e.target.value)}
-          placeholder="0.00"
-          required
-          autoFocus
-        />
+        {!isTransfer && (
+          <EntryModeToggle
+            value={entryMode}
+            onChange={setEntryMode}
+            options={[
+              { value: 'amount', label: t('transactions.modeAmount') },
+              { value: 'target', label: t('transactions.modeTarget') },
+            ]}
+          />
+        )}
+
+        {isTransfer || entryMode === 'amount' ? (
+          <>
+            <Input
+              label={
+                isTransfer
+                  ? `${t('transactions.transferSent')} (${fromCcy})`
+                  : t('transactions.amount')
+              }
+              type="number"
+              step="0.01"
+              min="0.01"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              placeholder="0.00"
+              required
+              autoFocus
+            />
+            {!isTransfer && amountPreviewBalance !== null && (
+              <p className="pl-1 text-xs text-gray-400 dark:text-gray-500">
+                {t('transactions.newBalancePreview')}:{' '}
+                <span className="font-mono text-gray-600 dark:text-gray-300">
+                  {fmt(amountPreviewBalance, account.currency)}
+                </span>
+              </p>
+            )}
+          </>
+        ) : (
+          <>
+            <Input
+              label={t('transactions.newBalanceLabel')}
+              type="number"
+              step="0.01"
+              value={targetBalance}
+              onChange={(e) => setTargetBalance(e.target.value)}
+              placeholder={currentBalance.toFixed(2)}
+              required
+              autoFocus
+              error={
+                targetBalance !== '' && !targetDirectionValid
+                  ? txType === 'expense'
+                    ? t('transactions.targetMustBeLower')
+                    : t('transactions.targetMustBeHigher')
+                  : undefined
+              }
+            />
+            {targetDirectionValid && (
+              <p className="pl-1 text-xs text-gray-400 dark:text-gray-500">
+                {t('transactions.computedAmountPreview')}:{' '}
+                <span className="font-mono text-gray-600 dark:text-gray-300">
+                  {fmt(computedAmount, account.currency)}
+                </span>
+              </p>
+            )}
+          </>
+        )}
 
         {isCrossCurrency && (
           <div className="space-y-1">
@@ -1315,7 +1450,11 @@ function QuickTxModal({
             className="flex-1"
             disabled={
               saving ||
-              !amount ||
+              (isTransfer
+                ? !amount
+                : entryMode === 'amount'
+                  ? !amount
+                  : !targetDirectionValid) ||
               (isTransfer && !toAccountId) ||
               (isCrossCurrency &&
                 (!toAmount || !Number.isFinite(toNum) || toNum <= 0))
@@ -1345,12 +1484,22 @@ function AdjustBalanceModal({
 }) {
   const { t } = useTranslation();
   const currentBalance = Number(account.balance);
+  const [entryMode, setEntryMode] = useState<'target' | 'delta'>('target');
   const [newBalance, setNewBalance] = useState(currentBalance.toFixed(2));
+  // #378 — alternative to typing the target total: type the signed change
+  // directly (e.g. "+955" or "-200") and let the new balance be derived.
+  const [deltaInput, setDeltaInput] = useState('');
   const [description, setDescription] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const parsed = parseFloat(newBalance);
+  const deltaParsed = parseFloat(deltaInput);
+  const parsed =
+    entryMode === 'target'
+      ? parseFloat(newBalance)
+      : Number.isFinite(deltaParsed)
+        ? currentBalance + deltaParsed
+        : NaN;
   const delta = Number.isFinite(parsed) ? parsed - currentBalance : 0;
   const deltaClass =
     delta > 0
@@ -1398,25 +1547,58 @@ function AdjustBalanceModal({
           </span>
         </div>
 
-        <Input
-          label={t('accounts.adjust.newBalance')}
-          type="number"
-          step="0.01"
-          value={newBalance}
-          onChange={(e) => setNewBalance(e.target.value)}
-          required
-          autoFocus
+        <EntryModeToggle
+          value={entryMode}
+          onChange={setEntryMode}
+          options={[
+            { value: 'target', label: t('accounts.adjust.modeTarget') },
+            { value: 'delta', label: t('accounts.adjust.modeDelta') },
+          ]}
         />
 
-        <div className="text-sm">
-          <span className="text-gray-500 dark:text-gray-400">
-            {t('accounts.adjust.delta')}:
-          </span>{' '}
-          <span className={`font-mono font-semibold ${deltaClass}`}>
-            {deltaSign}
-            {fmt(delta, account.currency)}
-          </span>
-        </div>
+        {entryMode === 'target' ? (
+          <>
+            <Input
+              label={t('accounts.adjust.newBalance')}
+              type="number"
+              step="0.01"
+              value={newBalance}
+              onChange={(e) => setNewBalance(e.target.value)}
+              required
+              autoFocus
+            />
+            <div className="text-sm">
+              <span className="text-gray-500 dark:text-gray-400">
+                {t('accounts.adjust.delta')}:
+              </span>{' '}
+              <span className={`font-mono font-semibold ${deltaClass}`}>
+                {deltaSign}
+                {fmt(delta, account.currency)}
+              </span>
+            </div>
+          </>
+        ) : (
+          <>
+            <Input
+              label={t('accounts.adjust.deltaAmount')}
+              type="number"
+              step="0.01"
+              value={deltaInput}
+              onChange={(e) => setDeltaInput(e.target.value)}
+              placeholder={t('accounts.adjust.deltaPlaceholder')}
+              required
+              autoFocus
+            />
+            <div className="text-sm">
+              <span className="text-gray-500 dark:text-gray-400">
+                {t('accounts.adjust.newBalancePreview')}:
+              </span>{' '}
+              <span className="font-mono font-semibold text-gray-800 dark:text-gray-200">
+                {Number.isFinite(parsed) ? fmt(parsed, account.currency) : '—'}
+              </span>
+            </div>
+          </>
+        )}
 
         <Input
           label={`${t('transactions.description')} (${t('common.optional')})`}
