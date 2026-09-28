@@ -659,8 +659,13 @@ Finance Service → Kafka: finance.transaction.created
 | GET | `/reports/monthly?year=&month=` | Income / expenses for a month |
 | GET | `/reports/by-category?from=&to=` | Breakdown by category |
 | GET | `/reports/net-worth` | Total net worth (sum across all accounts, optional conversion) |
+| GET | `/reports/net-worth/snapshots?from=&to=` | Persisted net-worth history (#379) |
+| POST | `/reports/net-worth/snapshots` | Manual snapshot — upserts by `(household, date)`, so it also edits an existing one |
+| POST | `/reports/net-worth/snapshots/bulk` | Backfill several months in one request |
 
 > Implemented in Phase 2 via `TransactionQueryRepository` — the reports service is not coupled to TypeORM (#87).
+
+> #379: `net_worth_snapshots` (finance schema) holds one row per `(household_id, snapshot_date)`, upserted via `INSERT ... ON CONFLICT DO UPDATE` (same pattern as `RatesService.syncToday`) — a manual entry for a date that already has an auto-captured row reconciles it rather than duplicating. `NetWorthSnapshotScheduler` (`@Cron('0 4 1 * *')`, UTC) walks every household with at least one account (`IAccountQueryRepository.listHouseholdIds`) and reuses `ReportsService.getNetWorth`'s balance aggregation — it does not recompute balances itself. A household with no active accounts is skipped, not stored as an empty snapshot. Web: `/settings/net-worth` (`NetWorthHistoryPage`) — a per-currency trend chart, a history list where clicking a row edits that date, and a bulk-import form for backfilling pre-app history.
 
 ---
 
@@ -942,6 +947,7 @@ pnpm test:postman                                            # API scenario coll
 ✔ Cross-service Kafka consumers
 ✔ Redis rate limiting on the Gateway (global + per-auth-endpoint #54)
 ✔ Finance reports (monthly, by-category, net-worth)
+✔ Net-worth snapshot history — monthly auto-capture + manual backfill (#379)
 ✔ Realtime Gateway: Socket.IO + JWT auth + rooms + presence + editing indicators + Kafka bridge
 □ Shopping suggest endpoint (moved to Phase 2+ / backlog)
 ```

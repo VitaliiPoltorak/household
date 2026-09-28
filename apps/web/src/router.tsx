@@ -13,6 +13,7 @@ import { HouseholdPage } from './pages/HouseholdPage';
 import { InvitesPage } from './pages/InvitesPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { CategoriesPage } from './pages/CategoriesPage';
+import { NetWorthHistoryPage } from './pages/NetWorthHistoryPage';
 
 export const router = createBrowserRouter([
   // Public auth routes — outside the authenticated Layout wrapper because
@@ -34,6 +35,7 @@ export const router = createBrowserRouter([
       { path: '/invites', element: <InvitesPage /> },
       { path: '/settings', element: <SettingsPage /> },
       { path: '/settings/categories', element: <CategoriesPage /> },
+      { path: '/settings/net-worth', element: <NetWorthHistoryPage /> },
     ],
   },
 ]);

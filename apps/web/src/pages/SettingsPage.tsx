@@ -424,6 +424,19 @@ function ManageSection() {
             </span>
           </Link>
         </li>
+        <li>
+          <Link
+            to="/settings/net-worth"
+            className="flex items-center justify-between px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800"
+          >
+            <span className="text-sm text-gray-900 dark:text-gray-100">
+              {t('netWorthHistory.title')}
+            </span>
+            <span className="text-gray-400 dark:text-gray-500" aria-hidden>
+              ›
+            </span>
+          </Link>
+        </li>
       </ul>
     </Section>
   );

@@ -253,6 +253,19 @@ export interface NetWorthReport {
   accounts: Pick<Account, 'id' | 'name' | 'type' | 'currency' | 'balance'>[];
 }
 
+// #379 — persisted net-worth history (monthly auto-capture + manual backfill).
+export type NetWorthSnapshotSource = 'auto' | 'manual';
+
+export interface NetWorthSnapshot {
+  id: string;
+  householdId: string;
+  snapshotDate: string;
+  byCurrency: Record<string, number>;
+  source: NetWorthSnapshotSource;
+  createdAt: string;
+  updatedAt: string;
+}
+
 // Shopping
 export type StoreType = 'supermarket' | 'greengrocer' | 'pharmacy' | 'other';
 export type ListStatus = 'active' | 'completed' | 'archived';

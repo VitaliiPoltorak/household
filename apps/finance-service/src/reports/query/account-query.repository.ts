@@ -14,4 +14,7 @@ export const ACCOUNT_QUERY_REPOSITORY = Symbol('ACCOUNT_QUERY_REPOSITORY');
 export interface IAccountQueryRepository {
   listActive(householdId: string): Promise<Account[]>;
   getBalancesByCurrency(householdId: string): Promise<CurrencyTotal[]>;
+  /** Distinct household ids with at least one account (archived or not) —
+   *  drives NetWorthSnapshotScheduler's monthly capture (#379). */
+  listHouseholdIds(): Promise<string[]>;
 }

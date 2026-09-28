@@ -25,10 +25,20 @@ export class TypeormAccountQueryRepository implements IAccountQueryRepository {
       .createQueryBuilder('a')
       .select('a.currency', 'currency')
       .addSelect('COALESCE(SUM(a.balance), 0)', 'total')
-      .where('a.household_id = :hid AND a.is_archived = false', { hid: householdId })
+      .where('a.household_id = :hid AND a.is_archived = false', {
+        hid: householdId,
+      })
       .groupBy('a.currency')
       .getRawMany<{ currency: string; total: string }>();
 
     return rows.map((r) => ({ currency: r.currency, total: Number(r.total) }));
+  }
+
+  async listHouseholdIds(): Promise<string[]> {
+    const rows = await this.repo
+      .createQueryBuilder('a')
+      .select('DISTINCT a.household_id', 'householdId')
+      .getRawMany<{ householdId: string }>();
+    return rows.map((r) => r.householdId);
   }
 }

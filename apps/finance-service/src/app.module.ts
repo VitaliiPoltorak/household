@@ -12,6 +12,7 @@ import { CategoriesModule } from './categories/categories.module';
 import { IncomeSourcesModule } from './income-sources/income-sources.module';
 import { RecurringPaymentsModule } from './recurring-payments/recurring-payments.module';
 import { ReportsModule } from './reports/reports.module';
+import { NetWorthSnapshotsModule } from './net-worth-snapshots/net-worth-snapshots.module';
 import { EventsModule } from './events/events.module';
 import { RatesModule } from './rates/rates.module';
 import { CurrenciesModule } from './currencies/currencies.module';
@@ -50,6 +51,7 @@ import { entities } from './config/entities';
     IncomeSourcesModule,
     RecurringPaymentsModule,
     ReportsModule,
+    NetWorthSnapshotsModule,
     RatesModule,
     CurrenciesModule,
     AccountTypesModule,
