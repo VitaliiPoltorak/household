@@ -166,7 +166,7 @@ Built (#348) — `libs/contracts/src/feature-flags/registry.ts` is the static, i
 
 **Web app** (`apps/web`, port 5173):
 - React 18 + Vite 5 + TanStack Query + Tailwind CSS (light/dark/system) + react-i18next
-- Pages: Dashboard, Accounts, Transactions (with transfer), Categories, Shopping lists, Household settings (incl. Invites, Bank connections), Settings, Login/Register/Verify-email/Unlock-account
+- Pages: Dashboard, Accounts, Transactions (with transfer), Net worth history, Categories, Shopping lists, Household settings (incl. Invites, Bank connections), Settings, Login/Register/Verify-email/Unlock-account
 - Auth: Google OAuth + email/password, access token kept in memory, auto refresh via HttpOnly cookie
 - Real-time: Socket.IO client (entity updates, presence avatars, editing indicators)
 - i18n: 4 languages, language switcher in Header, user.locale sync
