@@ -536,6 +536,22 @@
     "noParent": "Sin categoría principal (nivel superior)",
     "seededHint": "Se creó un conjunto inicial con este hogar. Renómbralas, archívalas o añade las tuyas."
   },
+  "netWorthHistory": {
+    "title": "Historial de patrimonio",
+    "addEntry": "Añadir entrada",
+    "editEntry": "Editar entrada",
+    "bulkAdd": "Importación masiva",
+    "addRow": "+ Añadir fila",
+    "trend": "Tendencia",
+    "history": "Historial",
+    "auto": "Automático",
+    "manual": "Manual",
+    "empty": "Aún no hay historial de patrimonio. Añade una entrada o espera la instantánea automática del día 1 del próximo mes.",
+    "entryHint": "Deja una moneda en blanco para omitirla. Guardar una entrada para una fecha que ya tiene una la reemplaza.",
+    "needOneCurrency": "Ingresa al menos un monto en una moneda.",
+    "needOneRow": "Ingresa al menos una fila con fecha y monto.",
+    "bulkHint": "Importa varios meses a la vez — útil para completar el historial anterior al uso de la app."
+  },
   "invites": {
     "title": "Invitaciones",
     "empty": "No hay invitaciones pendientes.",

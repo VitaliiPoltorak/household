@@ -536,6 +536,22 @@
     "noParent": "Keine übergeordnete (oberste Ebene)",
     "seededHint": "Mit diesem Zuhause wurde ein Startsatz angelegt. Umbenennen, archivieren oder eigene hinzufügen."
   },
+  "netWorthHistory": {
+    "title": "Vermögensverlauf",
+    "addEntry": "Eintrag hinzufügen",
+    "editEntry": "Eintrag bearbeiten",
+    "bulkAdd": "Massenimport",
+    "addRow": "+ Zeile hinzufügen",
+    "trend": "Verlauf",
+    "history": "Historie",
+    "auto": "Automatisch",
+    "manual": "Manuell",
+    "empty": "Noch kein Vermögensverlauf. Fügen Sie einen Eintrag hinzu oder warten Sie auf den automatischen Schnappschuss am 1. des nächsten Monats.",
+    "entryHint": "Lassen Sie eine Währung leer, um sie auszulassen. Ein Eintrag für ein bereits vorhandenes Datum ersetzt den vorherigen.",
+    "needOneCurrency": "Geben Sie mindestens einen Währungsbetrag ein.",
+    "needOneRow": "Geben Sie mindestens eine Zeile mit Datum und Betrag ein.",
+    "bulkHint": "Importieren Sie mehrere Monate auf einmal — praktisch, um Verlauf von vor der App-Nutzung nachzutragen."
+  },
   "invites": {
     "title": "Einladungen",
     "empty": "Keine ausstehenden Einladungen.",

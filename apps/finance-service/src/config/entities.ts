@@ -9,6 +9,7 @@ import { Currency } from '../currencies/entities/currency.entity';
 import { HouseholdCurrency } from '../currencies/entities/household-currency.entity';
 import { AccountTypeCatalog } from '../account-types/entities/account-type-catalog.entity';
 import { HouseholdAccountType } from '../account-types/entities/household-account-type.entity';
+import { NetWorthSnapshot } from '../net-worth-snapshots/entities/net-worth-snapshot.entity';
 
 export const entities = [
   Account,
@@ -21,5 +22,6 @@ export const entities = [
   HouseholdCurrency,
   AccountTypeCatalog,
   HouseholdAccountType,
+  NetWorthSnapshot,
   AuditLog,
 ];

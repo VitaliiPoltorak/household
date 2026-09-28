@@ -8,6 +8,7 @@ import type {
   RecurringPayment,
   MonthlyReport,
   NetWorthReport,
+  NetWorthSnapshot,
   AccountTypeCatalogEntry,
   EnabledAccountType,
 } from '../types/api';
@@ -144,6 +145,32 @@ export const financeApi = {
 
   getNetWorth: (hid: string) =>
     api.get<NetWorthReport>('/reports/net-worth', cfg(hid)),
+
+  // Net-worth snapshot history (#379)
+  getNetWorthSnapshots: (
+    hid: string,
+    params?: { from?: string; to?: string },
+  ) =>
+    api.get<NetWorthSnapshot[]>('/reports/net-worth/snapshots', {
+      ...cfg(hid),
+      params,
+    }),
+
+  createNetWorthSnapshot: (
+    hid: string,
+    data: { date: string; byCurrency: Record<string, number> },
+  ) =>
+    api.post<NetWorthSnapshot>('/reports/net-worth/snapshots', data, cfg(hid)),
+
+  createNetWorthSnapshotsBulk: (
+    hid: string,
+    data: { snapshots: { date: string; byCurrency: Record<string, number> }[] },
+  ) =>
+    api.post<{ count: number }>(
+      '/reports/net-worth/snapshots/bulk',
+      data,
+      cfg(hid),
+    ),
 
   // Account types (#227)
   getAccountTypes: () => api.get<AccountTypeCatalogEntry[]>('/account-types'),

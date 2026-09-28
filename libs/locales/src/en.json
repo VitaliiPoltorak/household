@@ -536,6 +536,22 @@
     "noParent": "No parent (top level)",
     "seededHint": "A starter set was created with this home. Rename, archive or add your own."
   },
+  "netWorthHistory": {
+    "title": "Net worth history",
+    "addEntry": "Add entry",
+    "editEntry": "Edit entry",
+    "bulkAdd": "Bulk import",
+    "addRow": "+ Add row",
+    "trend": "Trend",
+    "history": "History",
+    "auto": "Auto",
+    "manual": "Manual",
+    "empty": "No net-worth history yet. Add an entry, or wait for the automatic snapshot on the 1st of next month.",
+    "entryHint": "Leave a currency blank to omit it. Saving an entry for a date that already has one replaces it.",
+    "needOneCurrency": "Enter at least one currency amount.",
+    "needOneRow": "Enter at least one row with a date and an amount.",
+    "bulkHint": "Import several months at once — handy for backfilling history from before you started using the app."
+  },
   "invites": {
     "title": "Invites",
     "empty": "No pending invites.",

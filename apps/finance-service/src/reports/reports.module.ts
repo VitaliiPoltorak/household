@@ -15,8 +15,17 @@ import { TypeormTransactionQueryRepository } from './query/typeorm-transaction-q
   controllers: [ReportsController],
   providers: [
     ReportsService,
-    { provide: TRANSACTION_QUERY_REPOSITORY, useClass: TypeormTransactionQueryRepository },
-    { provide: ACCOUNT_QUERY_REPOSITORY, useClass: TypeormAccountQueryRepository },
+    {
+      provide: TRANSACTION_QUERY_REPOSITORY,
+      useClass: TypeormTransactionQueryRepository,
+    },
+    {
+      provide: ACCOUNT_QUERY_REPOSITORY,
+      useClass: TypeormAccountQueryRepository,
+    },
   ],
+  // NetWorthSnapshotsModule (#379) reuses getNetWorth's aggregation and the
+  // account query repository's household listing for its monthly capture.
+  exports: [ReportsService, ACCOUNT_QUERY_REPOSITORY],
 })
 export class ReportsModule {}
