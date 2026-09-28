@@ -114,4 +114,17 @@ export class Transaction extends BaseEntity {
         return 0;
     }
   }
+
+  /**
+   * Whether `amount` is legal for `type`. Income/expense amounts are always
+   * a positive magnitude — the sign of their effect on the balance comes
+   * from `type` alone (see computeDelta). Adjustment amounts ARE the signed
+   * delta itself (createAdjustment stores the raw newBalance-currentBalance
+   * difference), so a negative value is a legitimate downward correction —
+   * only zero (no-op) is invalid.
+   */
+  static isValidAmount(type: TransactionType, amount: number): boolean {
+    if (type === TransactionType.ADJUSTMENT) return amount !== 0;
+    return amount > 0;
+  }
 }

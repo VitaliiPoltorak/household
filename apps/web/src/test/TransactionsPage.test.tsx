@@ -14,21 +14,29 @@ describe('TransactionsPage', () => {
     localStorage.removeItem('accounts:ratesCache');
   });
 
-
   it('renders list of transactions from API', async () => {
     renderWithProviders(<TransactionsPage />);
-    await waitFor(() => expect(screen.getByText('Salary')).toBeInTheDocument(), { timeout: 3000 });
+    await waitFor(
+      () => expect(screen.getByText('Salary')).toBeInTheDocument(),
+      { timeout: 3000 },
+    );
     expect(screen.getAllByText('income').length).toBeGreaterThan(0);
   });
 
   it('shows empty state when no transactions', async () => {
     server.use(http.get('/api/v1/transactions', () => HttpResponse.json([])));
     renderWithProviders(<TransactionsPage />);
-    await waitFor(() => expect(screen.getByText('No transactions found.')).toBeInTheDocument(), { timeout: 3000 });
+    await waitFor(
+      () =>
+        expect(screen.getByText('No transactions found.')).toBeInTheDocument(),
+      { timeout: 3000 },
+    );
   });
 
   it('opens create transaction modal', async () => {
-    server.use(http.get('/api/v1/accounts', () => HttpResponse.json([MOCK_ACCOUNT])));
+    server.use(
+      http.get('/api/v1/accounts', () => HttpResponse.json([MOCK_ACCOUNT])),
+    );
     renderWithProviders(<TransactionsPage />);
 
     await waitFor(() => screen.getByText('+ New'), { timeout: 3000 });
@@ -39,7 +47,9 @@ describe('TransactionsPage', () => {
   });
 
   it('creates a transaction and closes modal', async () => {
-    server.use(http.get('/api/v1/accounts', () => HttpResponse.json([MOCK_ACCOUNT])));
+    server.use(
+      http.get('/api/v1/accounts', () => HttpResponse.json([MOCK_ACCOUNT])),
+    );
     renderWithProviders(<TransactionsPage />);
     await waitFor(() => screen.getByText('+ New'), { timeout: 3000 });
     await userEvent.click(screen.getByText('+ New'));
@@ -50,7 +60,11 @@ describe('TransactionsPage', () => {
     await userEvent.type(screen.getByLabelText('Amount'), '1500');
     await userEvent.click(screen.getByRole('button', { name: 'Add' }));
 
-    await waitFor(() => expect(screen.queryByText('New transaction')).not.toBeInTheDocument(), { timeout: 3000 });
+    await waitFor(
+      () =>
+        expect(screen.queryByText('New transaction')).not.toBeInTheDocument(),
+      { timeout: 3000 },
+    );
   });
 
   // #325: the category selector used to be gated on a non-empty list, so a
@@ -58,8 +72,24 @@ describe('TransactionsPage', () => {
   // the product hinted that categories existed.
   describe('category selector (#325)', () => {
     const CATEGORIES = [
-      { id: 'c-1', householdId: 'hh-1', name: 'Groceries', type: 'expense', icon: '🛒', parentId: null, isArchived: false },
-      { id: 'c-2', householdId: 'hh-1', name: 'Salary', type: 'income', icon: null, parentId: null, isArchived: false },
+      {
+        id: 'c-1',
+        householdId: 'hh-1',
+        name: 'Groceries',
+        type: 'expense',
+        icon: '🛒',
+        parentId: null,
+        isArchived: false,
+      },
+      {
+        id: 'c-2',
+        householdId: 'hh-1',
+        name: 'Salary',
+        type: 'income',
+        icon: null,
+        parentId: null,
+        isArchived: false,
+      },
     ];
 
     const openCreateModal = async () => {
@@ -91,12 +121,20 @@ describe('TransactionsPage', () => {
       await openCreateModal();
 
       await userEvent.selectOptions(screen.getByLabelText('Type'), 'expense');
-      expect(screen.getByRole('option', { name: /Groceries/ })).toBeInTheDocument();
-      expect(screen.queryByRole('option', { name: /Salary/ })).not.toBeInTheDocument();
+      expect(
+        screen.getByRole('option', { name: /Groceries/ }),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole('option', { name: /Salary/ }),
+      ).not.toBeInTheDocument();
 
       await userEvent.selectOptions(screen.getByLabelText('Type'), 'income');
-      expect(screen.getByRole('option', { name: /Salary/ })).toBeInTheDocument();
-      expect(screen.queryByRole('option', { name: /Groceries/ })).not.toBeInTheDocument();
+      expect(
+        screen.getByRole('option', { name: /Salary/ }),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole('option', { name: /Groceries/ }),
+      ).not.toBeInTheDocument();
     });
 
     it('persists the chosen categoryId on the created transaction', async () => {
@@ -126,16 +164,26 @@ describe('TransactionsPage', () => {
         http.get('/api/v1/categories', () => HttpResponse.json([])),
         http.post('/api/v1/categories', () =>
           HttpResponse.json({
-            id: 'c-new', householdId: 'hh-1', name: 'Transport',
-            type: 'expense', icon: null, parentId: null, isArchived: false,
+            id: 'c-new',
+            householdId: 'hh-1',
+            name: 'Transport',
+            type: 'expense',
+            icon: null,
+            parentId: null,
+            isArchived: false,
           }),
         ),
       );
       await openCreateModal();
       await userEvent.selectOptions(screen.getByLabelText('Type'), 'expense');
 
-      await userEvent.selectOptions(screen.getByLabelText(/Category/), '__add_category__');
-      await waitFor(() => expect(screen.getByText('New category')).toBeInTheDocument());
+      await userEvent.selectOptions(
+        screen.getByLabelText(/Category/),
+        '__add_category__',
+      );
+      await waitFor(() =>
+        expect(screen.getByText('New category')).toBeInTheDocument(),
+      );
 
       await userEvent.type(screen.getByLabelText('Name'), 'Transport');
       await userEvent.click(screen.getByRole('button', { name: 'Create' }));
@@ -145,13 +193,17 @@ describe('TransactionsPage', () => {
       // still returns [] here, so this also pins that the selection survives
       // before the parent's refetch has landed.
       await waitFor(
-        () => expect(screen.queryByText('New category')).not.toBeInTheDocument(),
+        () =>
+          expect(screen.queryByText('New category')).not.toBeInTheDocument(),
         { timeout: 3000 },
       );
       expect(screen.getByText('New transaction')).toBeInTheDocument();
-      await waitFor(() => expect(screen.getByLabelText(/Category/)).toHaveValue('c-new'), {
-        timeout: 3000,
-      });
+      await waitFor(
+        () => expect(screen.getByLabelText(/Category/)).toHaveValue('c-new'),
+        {
+          timeout: 3000,
+        },
+      );
     });
   });
 
@@ -164,7 +216,8 @@ describe('TransactionsPage', () => {
         {
           statusCode: 409,
           code: 'INSUFFICIENT_FUNDS',
-          message: '"Mono Card" holds 22.65 UAH, which does not cover a withdrawal of 999999 UAH.',
+          message:
+            '"Mono Card" holds 22.65 UAH, which does not cover a withdrawal of 999999 UAH.',
           accountId: 'acc-1',
           available: 22.65,
           requested: 999999,
@@ -189,7 +242,9 @@ describe('TransactionsPage', () => {
       await waitFor(
         () =>
           expect(
-            screen.getByText('Not enough in this account — it holds 22.65 UAH.'),
+            screen.getByText(
+              'Not enough in this account — it holds 22.65 UAH.',
+            ),
           ).toBeInTheDocument(),
         { timeout: 3000 },
       );
@@ -214,7 +269,9 @@ describe('TransactionsPage', () => {
       await waitFor(
         () =>
           expect(
-            screen.getByText('Not enough in this account — it holds 22.65 UAH.'),
+            screen.getByText(
+              'Not enough in this account — it holds 22.65 UAH.',
+            ),
           ).toBeInTheDocument(),
         { timeout: 3000 },
       );
@@ -229,7 +286,10 @@ describe('TransactionsPage', () => {
       server.use(
         http.get('/api/v1/accounts', () => HttpResponse.json([MOCK_ACCOUNT])),
         http.post('/api/v1/transactions', () =>
-          HttpResponse.json({ statusCode: 500, message: 'Boom' }, { status: 500 }),
+          HttpResponse.json(
+            { statusCode: 500, message: 'Boom' },
+            { status: 500 },
+          ),
         ),
       );
       renderWithProviders(<TransactionsPage />);
@@ -240,9 +300,12 @@ describe('TransactionsPage', () => {
       await userEvent.type(screen.getByLabelText('Amount'), '10');
       await userEvent.click(screen.getByRole('button', { name: 'Add' }));
 
-      await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Boom'), {
-        timeout: 3000,
-      });
+      await waitFor(
+        () => expect(screen.getByRole('alert')).toHaveTextContent('Boom'),
+        {
+          timeout: 3000,
+        },
+      );
     });
   });
 
@@ -253,7 +316,9 @@ describe('TransactionsPage', () => {
     const withDeleteSpy = () => {
       const calls: string[] = [];
       server.use(
-        http.get('/api/v1/transactions', () => HttpResponse.json([MOCK_TRANSACTION])),
+        http.get('/api/v1/transactions', () =>
+          HttpResponse.json([MOCK_TRANSACTION]),
+        ),
         http.delete('/api/v1/transactions/:id', ({ params }) => {
           calls.push(params.id as string);
           return new HttpResponse(null, { status: 204 });
@@ -279,7 +344,9 @@ describe('TransactionsPage', () => {
       await waitFor(() => screen.getByText('Salary'), { timeout: 3000 });
       await userEvent.click(screen.getByText('✕'));
 
-      const dialog = await screen.findByRole('dialog', { name: 'Delete this transaction?' });
+      const dialog = await screen.findByRole('dialog', {
+        name: 'Delete this transaction?',
+      });
       // Amount, account, date and description are what tell one grocery
       // expense from another; "are you sure?" alone gets clicked through.
       expect(within(dialog).getByText('Income')).toBeInTheDocument();
@@ -295,8 +362,12 @@ describe('TransactionsPage', () => {
       await waitFor(() => screen.getByText('Salary'), { timeout: 3000 });
       await userEvent.click(screen.getByText('✕'));
 
-      const dialog = await screen.findByRole('dialog', { name: 'Delete this transaction?' });
-      await userEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+      const dialog = await screen.findByRole('dialog', {
+        name: 'Delete this transaction?',
+      });
+      await userEvent.click(
+        within(dialog).getByRole('button', { name: 'Cancel' }),
+      );
 
       await waitFor(() =>
         expect(
@@ -313,7 +384,9 @@ describe('TransactionsPage', () => {
       await waitFor(() => screen.getByText('Salary'), { timeout: 3000 });
       await userEvent.click(screen.getByText('✕'));
 
-      const dialog = await screen.findByRole('dialog', { name: 'Delete this transaction?' });
+      const dialog = await screen.findByRole('dialog', {
+        name: 'Delete this transaction?',
+      });
       expect(
         within(dialog).queryByText(/both sides are reversed/i),
       ).not.toBeInTheDocument();
@@ -323,7 +396,9 @@ describe('TransactionsPage', () => {
   it('deletes a transaction after confirming (#327)', async () => {
     let deleted = false;
     server.use(
-      http.get('/api/v1/transactions', () => HttpResponse.json(deleted ? [] : [MOCK_TRANSACTION])),
+      http.get('/api/v1/transactions', () =>
+        HttpResponse.json(deleted ? [] : [MOCK_TRANSACTION]),
+      ),
       http.delete('/api/v1/transactions/:id', () => {
         deleted = true;
         return new HttpResponse(null, { status: 204 });
@@ -336,18 +411,27 @@ describe('TransactionsPage', () => {
 
     // The ✕ opens a confirmation now; it no longer deletes on its own.
     await waitFor(() =>
-      expect(screen.getByRole('dialog', { name: 'Delete this transaction?' })).toBeInTheDocument(),
+      expect(
+        screen.getByRole('dialog', { name: 'Delete this transaction?' }),
+      ).toBeInTheDocument(),
     );
     await userEvent.click(screen.getByRole('button', { name: 'Delete' }));
 
-    await waitFor(() => expect(screen.queryByText('Salary')).not.toBeInTheDocument(), { timeout: 3000 });
+    await waitFor(
+      () => expect(screen.queryByText('Salary')).not.toBeInTheDocument(),
+      { timeout: 3000 },
+    );
   });
 
   it('opens transfer modal', async () => {
-    server.use(http.get('/api/v1/accounts', () => HttpResponse.json([
-      MOCK_ACCOUNT,
-      { ...MOCK_ACCOUNT, id: 'acc-2', name: 'Cash' },
-    ])));
+    server.use(
+      http.get('/api/v1/accounts', () =>
+        HttpResponse.json([
+          MOCK_ACCOUNT,
+          { ...MOCK_ACCOUNT, id: 'acc-2', name: 'Cash' },
+        ]),
+      ),
+    );
     renderWithProviders(<TransactionsPage />);
 
     await waitFor(() => screen.getByText('⇄ Transfer'), { timeout: 3000 });
@@ -366,16 +450,29 @@ describe('TransactionsPage', () => {
     // fromAmount/toAmount when currencies match.
     let payload: Record<string, unknown> | null = null;
     server.use(
-      http.get('/api/v1/accounts', () => HttpResponse.json([
-        MOCK_ACCOUNT,
-        { ...MOCK_ACCOUNT, id: 'acc-2', name: 'Cash' },
-      ])),
+      http.get('/api/v1/accounts', () =>
+        HttpResponse.json([
+          MOCK_ACCOUNT,
+          { ...MOCK_ACCOUNT, id: 'acc-2', name: 'Cash' },
+        ]),
+      ),
       http.post('/api/v1/transactions/transfer', async ({ request }) => {
         payload = (await request.json()) as Record<string, unknown>;
         return HttpResponse.json(
           [
-            { ...MOCK_TRANSACTION, id: 'tx-debit', type: 'transfer', transferPairId: 'p1' },
-            { ...MOCK_TRANSACTION, id: 'tx-credit', type: 'transfer', transferPairId: 'p1', accountId: 'acc-2' },
+            {
+              ...MOCK_TRANSACTION,
+              id: 'tx-debit',
+              type: 'transfer',
+              transferPairId: 'p1',
+            },
+            {
+              ...MOCK_TRANSACTION,
+              id: 'tx-credit',
+              type: 'transfer',
+              transferPairId: 'p1',
+              accountId: 'acc-2',
+            },
           ],
           { status: 201 },
         );
@@ -387,7 +484,9 @@ describe('TransactionsPage', () => {
     await userEvent.click(screen.getByText('⇄ Transfer'));
 
     await userEvent.type(screen.getByLabelText(/Sent \(UAH\)/), '500');
-    await userEvent.click(screen.getAllByRole('button', { name: '⇄ Transfer' }).at(-1)!);
+    await userEvent.click(
+      screen.getAllByRole('button', { name: '⇄ Transfer' }).at(-1)!,
+    );
 
     await waitFor(() => expect(payload).not.toBeNull(), { timeout: 3000 });
     expect(payload).toMatchObject({
@@ -405,19 +504,42 @@ describe('TransactionsPage', () => {
     // UAH → USD, PrivatBank returns 1 USD = 41.32 UAH so 1000 UAH ≈ 24.20 USD.
     let payload: Record<string, unknown> | null = null;
     server.use(
-      http.get('/api/v1/accounts', () => HttpResponse.json([
-        MOCK_ACCOUNT,
-        { ...MOCK_ACCOUNT, id: 'acc-usd', name: 'USD Bank', currency: 'USD' },
-      ])),
-      http.get('/api/v1/rates/latest', () => HttpResponse.json([
-        { ccy: 'USD', base_ccy: 'UAH', buy: '41.32', sale: '41.80', effective_date: '2026-08-11', source: 'privatbank' },
-      ])),
+      http.get('/api/v1/accounts', () =>
+        HttpResponse.json([
+          MOCK_ACCOUNT,
+          { ...MOCK_ACCOUNT, id: 'acc-usd', name: 'USD Bank', currency: 'USD' },
+        ]),
+      ),
+      http.get('/api/v1/rates/latest', () =>
+        HttpResponse.json([
+          {
+            ccy: 'USD',
+            base_ccy: 'UAH',
+            buy: '41.32',
+            sale: '41.80',
+            effective_date: '2026-08-11',
+            source: 'privatbank',
+          },
+        ]),
+      ),
       http.post('/api/v1/transactions/transfer', async ({ request }) => {
         payload = (await request.json()) as Record<string, unknown>;
         return HttpResponse.json(
           [
-            { ...MOCK_TRANSACTION, id: 'tx-d', type: 'transfer', transferPairId: 'pp' },
-            { ...MOCK_TRANSACTION, id: 'tx-c', type: 'transfer', transferPairId: 'pp', accountId: 'acc-usd', currency: 'USD' },
+            {
+              ...MOCK_TRANSACTION,
+              id: 'tx-d',
+              type: 'transfer',
+              transferPairId: 'pp',
+            },
+            {
+              ...MOCK_TRANSACTION,
+              id: 'tx-c',
+              type: 'transfer',
+              transferPairId: 'pp',
+              accountId: 'acc-usd',
+              currency: 'USD',
+            },
           ],
           { status: 201 },
         );
@@ -434,14 +556,21 @@ describe('TransactionsPage', () => {
 
     // Auto-fill kicks in once rates load.
     await waitFor(
-      () => expect((screen.getByLabelText(/Received \(USD\)/) as HTMLInputElement).value).not.toBe(''),
+      () =>
+        expect(
+          (screen.getByLabelText(/Received \(USD\)/) as HTMLInputElement).value,
+        ).not.toBe(''),
       { timeout: 3000 },
     );
-    const received = screen.getByLabelText(/Received \(USD\)/) as HTMLInputElement;
+    const received = screen.getByLabelText(
+      /Received \(USD\)/,
+    ) as HTMLInputElement;
     // 1000 / 41.32 = 24.20 (rounded to 2dp)
-    expect(parseFloat(received.value)).toBeCloseTo(24.20, 2);
+    expect(parseFloat(received.value)).toBeCloseTo(24.2, 2);
 
-    await userEvent.click(screen.getAllByRole('button', { name: '⇄ Transfer' }).at(-1)!);
+    await userEvent.click(
+      screen.getAllByRole('button', { name: '⇄ Transfer' }).at(-1)!,
+    );
     await waitFor(() => expect(payload).not.toBeNull(), { timeout: 3000 });
     expect(payload).toMatchObject({
       fromAccountId: 'acc-1',
@@ -450,25 +579,48 @@ describe('TransactionsPage', () => {
       toCurrency: 'USD',
       fromAmount: 1000,
     });
-    expect(Number(payload!.toAmount)).toBeCloseTo(24.20, 2);
+    expect(Number(payload!.toAmount)).toBeCloseTo(24.2, 2);
   });
 
   it('cross-currency transfer respects manual override of Received (#162)', async () => {
     let payload: Record<string, unknown> | null = null;
     server.use(
-      http.get('/api/v1/accounts', () => HttpResponse.json([
-        MOCK_ACCOUNT,
-        { ...MOCK_ACCOUNT, id: 'acc-usd', name: 'USD Bank', currency: 'USD' },
-      ])),
-      http.get('/api/v1/rates/latest', () => HttpResponse.json([
-        { ccy: 'USD', base_ccy: 'UAH', buy: '41.32', sale: '41.80', effective_date: '2026-08-11', source: 'privatbank' },
-      ])),
+      http.get('/api/v1/accounts', () =>
+        HttpResponse.json([
+          MOCK_ACCOUNT,
+          { ...MOCK_ACCOUNT, id: 'acc-usd', name: 'USD Bank', currency: 'USD' },
+        ]),
+      ),
+      http.get('/api/v1/rates/latest', () =>
+        HttpResponse.json([
+          {
+            ccy: 'USD',
+            base_ccy: 'UAH',
+            buy: '41.32',
+            sale: '41.80',
+            effective_date: '2026-08-11',
+            source: 'privatbank',
+          },
+        ]),
+      ),
       http.post('/api/v1/transactions/transfer', async ({ request }) => {
         payload = (await request.json()) as Record<string, unknown>;
         return HttpResponse.json(
           [
-            { ...MOCK_TRANSACTION, id: 'tx-d', type: 'transfer', transferPairId: 'p1' },
-            { ...MOCK_TRANSACTION, id: 'tx-c', type: 'transfer', transferPairId: 'p1', accountId: 'acc-usd', currency: 'USD' },
+            {
+              ...MOCK_TRANSACTION,
+              id: 'tx-d',
+              type: 'transfer',
+              transferPairId: 'p1',
+            },
+            {
+              ...MOCK_TRANSACTION,
+              id: 'tx-c',
+              type: 'transfer',
+              transferPairId: 'p1',
+              accountId: 'acc-usd',
+              currency: 'USD',
+            },
           ],
           { status: 201 },
         );
@@ -484,25 +636,32 @@ describe('TransactionsPage', () => {
     // Wait for auto-fill so we know the effect ran, then clear + type a
     // different value (the bank credited less due to a fee).
     await waitFor(
-      () => expect((screen.getByLabelText(/Received \(USD\)/) as HTMLInputElement).value).not.toBe(''),
+      () =>
+        expect(
+          (screen.getByLabelText(/Received \(USD\)/) as HTMLInputElement).value,
+        ).not.toBe(''),
       { timeout: 3000 },
     );
     const received = screen.getByLabelText(/Received \(USD\)/);
     await userEvent.clear(received);
     await userEvent.type(received, '23.50');
-    await userEvent.click(screen.getAllByRole('button', { name: '⇄ Transfer' }).at(-1)!);
+    await userEvent.click(
+      screen.getAllByRole('button', { name: '⇄ Transfer' }).at(-1)!,
+    );
 
     await waitFor(() => expect(payload).not.toBeNull(), { timeout: 3000 });
     expect(payload!.fromAmount).toBe(1000);
-    expect(payload!.toAmount).toBe(23.50);
+    expect(payload!.toAmount).toBe(23.5);
   });
 
   it('cross-currency transfer with rates unavailable requires manual entry of both amounts (#162)', async () => {
     server.use(
-      http.get('/api/v1/accounts', () => HttpResponse.json([
-        MOCK_ACCOUNT,
-        { ...MOCK_ACCOUNT, id: 'acc-usd', name: 'USD Bank', currency: 'USD' },
-      ])),
+      http.get('/api/v1/accounts', () =>
+        HttpResponse.json([
+          MOCK_ACCOUNT,
+          { ...MOCK_ACCOUNT, id: 'acc-usd', name: 'USD Bank', currency: 'USD' },
+        ]),
+      ),
       http.get('/api/v1/rates/latest', () => HttpResponse.json([])),
     );
 
@@ -519,18 +678,26 @@ describe('TransactionsPage', () => {
       () => expect(screen.getByText(/Rates unavailable/)).toBeInTheDocument(),
       { timeout: 3000 },
     );
-    expect((screen.getByLabelText(/Received \(USD\)/) as HTMLInputElement).value).toBe('');
-    expect(screen.getAllByRole('button', { name: '⇄ Transfer' }).at(-1)!).toBeDisabled();
+    expect(
+      (screen.getByLabelText(/Received \(USD\)/) as HTMLInputElement).value,
+    ).toBe('');
+    expect(
+      screen.getAllByRole('button', { name: '⇄ Transfer' }).at(-1)!,
+    ).toBeDisabled();
   });
 
   it('shows warning when only 1 account available for transfer', async () => {
-    server.use(http.get('/api/v1/accounts', () => HttpResponse.json([MOCK_ACCOUNT])));
+    server.use(
+      http.get('/api/v1/accounts', () => HttpResponse.json([MOCK_ACCOUNT])),
+    );
     renderWithProviders(<TransactionsPage />);
 
     await waitFor(() => screen.getByText('⇄ Transfer'), { timeout: 3000 });
     await userEvent.click(screen.getByText('⇄ Transfer'));
 
-    expect(screen.getByText('You need at least 2 accounts to make a transfer.')).toBeInTheDocument();
+    expect(
+      screen.getByText('You need at least 2 accounts to make a transfer.'),
+    ).toBeInTheDocument();
     expect(screen.queryByLabelText('From')).not.toBeInTheDocument();
   });
 
@@ -589,22 +756,26 @@ describe('TransactionsPage', () => {
         ]),
       ),
       http.get('/api/v1/transactions', () =>
-        HttpResponse.json(deleted ? [] : [
-          {
-            ...MOCK_TRANSACTION,
-            id: 'tx-debit',
-            type: 'transfer',
-            amount: 500,
-            description: 'Rent transfer',
-            transferPairId: 'pair-1',
-            transferDirection: 'debit',
-            accountId: 'acc-1',
-            counterAccountId: 'acc-2',
-            counterTransactionId: 'tx-credit',
-            counterAmount: 500,
-            counterCurrency: 'UAH',
-          },
-        ]),
+        HttpResponse.json(
+          deleted
+            ? []
+            : [
+                {
+                  ...MOCK_TRANSACTION,
+                  id: 'tx-debit',
+                  type: 'transfer',
+                  amount: 500,
+                  description: 'Rent transfer',
+                  transferPairId: 'pair-1',
+                  transferDirection: 'debit',
+                  accountId: 'acc-1',
+                  counterAccountId: 'acc-2',
+                  counterTransactionId: 'tx-credit',
+                  counterAmount: 500,
+                  counterCurrency: 'UAH',
+                },
+              ],
+        ),
       ),
       http.delete('/api/v1/transactions/:id', () => {
         // Backend cascades — single DELETE removes BOTH legs.
@@ -617,16 +788,25 @@ describe('TransactionsPage', () => {
     await waitFor(() => screen.getByText('Rent transfer'), { timeout: 3000 });
     await userEvent.click(screen.getByText('✕'));
 
-    const dialog = await screen.findByRole('dialog', { name: 'Delete this transaction?' });
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Delete this transaction?',
+    });
     // A collapsed transfer row does not make it obvious that one delete takes
     // both legs, so the dialog has to say so (#327).
     expect(
-      within(dialog).getByText(/both sides are reversed and both records are removed/i),
+      within(dialog).getByText(
+        /both sides are reversed and both records are removed/i,
+      ),
     ).toBeInTheDocument();
-    await userEvent.click(within(dialog).getByRole('button', { name: 'Delete' }));
+    await userEvent.click(
+      within(dialog).getByRole('button', { name: 'Delete' }),
+    );
 
     // Row disappears after refetch (accounts + transactions invalidated together).
-    await waitFor(() => expect(screen.queryByText('Rent transfer')).not.toBeInTheDocument(), { timeout: 3000 });
+    await waitFor(
+      () => expect(screen.queryByText('Rent transfer')).not.toBeInTheDocument(),
+      { timeout: 3000 },
+    );
   });
 
   it('filters by type: selecting expense shows no income transactions', async () => {
@@ -643,6 +823,100 @@ describe('TransactionsPage', () => {
     const selects = screen.getAllByRole('combobox');
     await userEvent.selectOptions(selects[0], 'expense');
 
-    await waitFor(() => expect(screen.queryByText('Salary')).not.toBeInTheDocument(), { timeout: 3000 });
+    await waitFor(
+      () => expect(screen.queryByText('Salary')).not.toBeInTheDocument(),
+      { timeout: 3000 },
+    );
+  });
+
+  // Bug report: editing an adjustment transaction wouldn't accept a negative
+  // amount. The stored amount IS the signed balance delta for an adjustment
+  // (a negative value is a legitimate downward correction) — the amount
+  // field's `min="0.01"` and the create form's `> 0` check were wrongly
+  // applied to every type instead of just income/expense.
+  describe('adjustment amount can be negative', () => {
+    const MOCK_ADJUSTMENT = {
+      ...MOCK_TRANSACTION,
+      id: 'tx-adj',
+      type: 'adjustment',
+      amount: -300,
+      description: 'Cash count correction',
+    };
+
+    it('edit form has no min on the amount field for an adjustment transaction', async () => {
+      server.use(
+        http.get('/api/v1/transactions', () =>
+          HttpResponse.json([MOCK_ADJUSTMENT]),
+        ),
+      );
+      renderWithProviders(<TransactionsPage />);
+      await waitFor(() => screen.getByText('Cash count correction'), {
+        timeout: 3000,
+      });
+
+      await userEvent.click(screen.getByTitle('Edit'));
+      await waitFor(() => screen.getByText('Edit transaction'));
+
+      const amountInput = screen.getByLabelText('Amount') as HTMLInputElement;
+      expect(amountInput.value).toBe('-300');
+      expect(amountInput).not.toHaveAttribute('min');
+    });
+
+    it('saves a negative amount on an edited adjustment transaction', async () => {
+      let patched: Record<string, unknown> | null = null;
+      server.use(
+        http.get('/api/v1/transactions', () =>
+          HttpResponse.json([MOCK_ADJUSTMENT]),
+        ),
+        http.patch('/api/v1/transactions/:id', async ({ request }) => {
+          patched = (await request.json()) as Record<string, unknown>;
+          return HttpResponse.json({ ...MOCK_ADJUSTMENT, ...patched });
+        }),
+      );
+      renderWithProviders(<TransactionsPage />);
+      await waitFor(() => screen.getByText('Cash count correction'), {
+        timeout: 3000,
+      });
+
+      await userEvent.click(screen.getByTitle('Edit'));
+      await waitFor(() => screen.getByText('Edit transaction'));
+
+      const amountInput = screen.getByLabelText('Amount');
+      await userEvent.clear(amountInput);
+      await userEvent.type(amountInput, '-450');
+      await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+      await waitFor(() => expect(patched).not.toBeNull(), { timeout: 3000 });
+      expect(patched).toMatchObject({ amount: -450 });
+    });
+
+    it('create form accepts a negative amount when type is adjustment', async () => {
+      let posted: Record<string, unknown> | null = null;
+      server.use(
+        http.get('/api/v1/accounts', () => HttpResponse.json([MOCK_ACCOUNT])),
+        http.post('/api/v1/transactions', async ({ request }) => {
+          posted = (await request.json()) as Record<string, unknown>;
+          return HttpResponse.json(
+            { ...MOCK_ADJUSTMENT, id: 'tx-new', ...posted },
+            { status: 201 },
+          );
+        }),
+      );
+      renderWithProviders(<TransactionsPage />);
+      await waitFor(() => screen.getByText('+ New'), { timeout: 3000 });
+      await userEvent.click(screen.getByText('+ New'));
+
+      await userEvent.selectOptions(
+        screen.getByLabelText('Type'),
+        'adjustment',
+      );
+      const amountInput = screen.getByLabelText('Amount') as HTMLInputElement;
+      expect(amountInput).not.toHaveAttribute('min');
+      await userEvent.type(amountInput, '-120');
+      await userEvent.click(screen.getByRole('button', { name: 'Add' }));
+
+      await waitFor(() => expect(posted).not.toBeNull(), { timeout: 3000 });
+      expect(posted).toMatchObject({ type: 'adjustment', amount: -120 });
+    });
   });
 });

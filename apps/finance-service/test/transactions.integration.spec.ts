@@ -22,7 +22,12 @@ async function createAccount(
     .post('/accounts')
     .set('X-User-Id', U)
     .set('X-Household-Id', H)
-    .send({ name, type, currency, ...(initialBalance !== undefined ? { initialBalance } : {}) });
+    .send({
+      name,
+      type,
+      currency,
+      ...(initialBalance !== undefined ? { initialBalance } : {}),
+    });
   return res.body.id as string;
 }
 
@@ -1342,6 +1347,131 @@ describe('Transactions (integration)', () => {
           date: '2026-07-30',
         })
         .expect(400);
+    });
+
+    it('rejects zero amount for income', async () => {
+      const accountId = await createAccount(app, 'Bank');
+      await request(app.getHttpServer())
+        .post('/transactions')
+        .set('X-User-Id', U)
+        .set('X-Household-Id', H)
+        .send({
+          accountId,
+          type: 'income',
+          amount: 0,
+          currency: 'UAH',
+          date: '2026-07-30',
+        })
+        .expect(400);
+    });
+
+    // Adjustment's amount IS the signed balance delta (#379 follow-up bug
+    // report) — a negative value is a legitimate downward correction, not
+    // an invalid input. Only income/expense are positive-magnitude-only.
+    describe('adjustment amount can be negative', () => {
+      it('accepts a negative amount on create', async () => {
+        const accountId = await createAccount(app, 'Bank', 'bank', 'UAH', 1000);
+        const res = await request(app.getHttpServer())
+          .post('/transactions')
+          .set('X-User-Id', U)
+          .set('X-Household-Id', H)
+          .send({
+            accountId,
+            type: 'adjustment',
+            amount: -300,
+            currency: 'UAH',
+            date: '2026-07-30',
+          })
+          .expect(201);
+
+        expect(Number(res.body.amount)).toBe(-300);
+        expect(await getBalance(app, accountId)).toBeCloseTo(700);
+      });
+
+      it('rejects a zero amount on create', async () => {
+        const accountId = await createAccount(app, 'Bank', 'bank', 'UAH', 1000);
+        await request(app.getHttpServer())
+          .post('/transactions')
+          .set('X-User-Id', U)
+          .set('X-Household-Id', H)
+          .send({
+            accountId,
+            type: 'adjustment',
+            amount: 0,
+            currency: 'UAH',
+            date: '2026-07-30',
+          })
+          .expect(400);
+      });
+
+      it('accepts editing an existing adjustment to a negative amount via PATCH', async () => {
+        const accountId = await createAccount(app, 'Bank', 'bank', 'UAH', 1000);
+        const tx = await request(app.getHttpServer())
+          .post('/transactions')
+          .set('X-User-Id', U)
+          .set('X-Household-Id', H)
+          .send({
+            accountId,
+            type: 'adjustment',
+            amount: 200,
+            currency: 'UAH',
+            date: '2026-07-30',
+          });
+
+        await request(app.getHttpServer())
+          .patch(`/transactions/${tx.body.id}`)
+          .set('X-User-Id', U)
+          .set('X-Household-Id', H)
+          .send({ amount: -150 })
+          .expect(200);
+
+        // 1000 (opening) reversed of +200 then applied -150 → 850.
+        expect(await getBalance(app, accountId)).toBeCloseTo(850);
+      });
+
+      it('rejects a PATCH that sets an adjustment amount to zero', async () => {
+        const accountId = await createAccount(app, 'Bank', 'bank', 'UAH', 1000);
+        const tx = await request(app.getHttpServer())
+          .post('/transactions')
+          .set('X-User-Id', U)
+          .set('X-Household-Id', H)
+          .send({
+            accountId,
+            type: 'adjustment',
+            amount: 200,
+            currency: 'UAH',
+            date: '2026-07-30',
+          });
+
+        await request(app.getHttpServer())
+          .patch(`/transactions/${tx.body.id}`)
+          .set('X-User-Id', U)
+          .set('X-Household-Id', H)
+          .send({ amount: 0 })
+          .expect(400);
+      });
+
+      it('rejects a PATCH that changes an income transaction to a negative amount', async () => {
+        const accountId = await createAccount(app, 'Bank', 'bank', 'UAH', 1000);
+        const tx = await request(app.getHttpServer())
+          .post('/transactions')
+          .set('X-User-Id', U)
+          .set('X-Household-Id', H)
+          .send({
+            accountId,
+            type: 'income',
+            amount: 200,
+            currency: 'UAH',
+            date: '2026-07-30',
+          });
+
+        await request(app.getHttpServer())
+          .patch(`/transactions/${tx.body.id}`)
+          .set('X-User-Id', U)
+          .set('X-Household-Id', H)
+          .send({ amount: -150 })
+          .expect(400);
+      });
     });
 
     it('rejects transaction type "transfer" via POST /transactions', async () => {

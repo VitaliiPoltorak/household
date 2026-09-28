@@ -51,26 +51,70 @@ describe('Transaction.computeDelta (static)', () => {
   });
 });
 
+describe('Transaction.isValidAmount (static)', () => {
+  it('income requires a positive amount', () => {
+    expect(Transaction.isValidAmount(TransactionType.INCOME, 250)).toBe(true);
+    expect(Transaction.isValidAmount(TransactionType.INCOME, 0)).toBe(false);
+    expect(Transaction.isValidAmount(TransactionType.INCOME, -250)).toBe(false);
+  });
+
+  it('expense requires a positive amount', () => {
+    expect(Transaction.isValidAmount(TransactionType.EXPENSE, 250)).toBe(true);
+    expect(Transaction.isValidAmount(TransactionType.EXPENSE, 0)).toBe(false);
+    expect(Transaction.isValidAmount(TransactionType.EXPENSE, -250)).toBe(
+      false,
+    );
+  });
+
+  // The amount itself IS the signed delta for an adjustment — a negative
+  // value is a legitimate downward correction (matches createAdjustment,
+  // which stores newBalance - currentBalance directly). Only zero is
+  // rejected, since it wouldn't change anything.
+  it('adjustment accepts any nonzero amount, positive or negative', () => {
+    expect(Transaction.isValidAmount(TransactionType.ADJUSTMENT, 50)).toBe(
+      true,
+    );
+    expect(Transaction.isValidAmount(TransactionType.ADJUSTMENT, -50)).toBe(
+      true,
+    );
+    expect(Transaction.isValidAmount(TransactionType.ADJUSTMENT, 0)).toBe(
+      false,
+    );
+  });
+});
+
 describe('Transaction.getDelta / getReverseDelta (instance)', () => {
   it('delegates to computeDelta with entity fields', () => {
-    const income = makeTx({ type: TransactionType.INCOME, amount: 500 as unknown as number });
+    const income = makeTx({
+      type: TransactionType.INCOME,
+      amount: 500 as unknown as number,
+    });
     expect(income.getDelta()).toBe(500);
     expect(income.getReverseDelta()).toBe(-500);
   });
 
   it('handles amount stored as string (pg decimal quirk)', () => {
-    const tx = makeTx({ amount: '123.45' as unknown as number, type: TransactionType.EXPENSE });
+    const tx = makeTx({
+      amount: '123.45' as unknown as number,
+      type: TransactionType.EXPENSE,
+    });
     expect(tx.getDelta()).toBeCloseTo(-123.45);
   });
 });
 
 describe('Transaction.isTransferLeg', () => {
   it('true for TRANSFER type', () => {
-    expect(makeTx({ type: TransactionType.TRANSFER }).isTransferLeg()).toBe(true);
+    expect(makeTx({ type: TransactionType.TRANSFER }).isTransferLeg()).toBe(
+      true,
+    );
   });
 
   it('false for every other type', () => {
-    for (const type of [TransactionType.INCOME, TransactionType.EXPENSE, TransactionType.ADJUSTMENT]) {
+    for (const type of [
+      TransactionType.INCOME,
+      TransactionType.EXPENSE,
+      TransactionType.ADJUSTMENT,
+    ]) {
       expect(makeTx({ type }).isTransferLeg()).toBe(false);
     }
   });
@@ -106,7 +150,9 @@ describe('Transaction.getTransferLegSignedAmount', () => {
   });
 
   it('returns null for non-transfer transactions', () => {
-    expect(makeTx({ type: TransactionType.INCOME }).getTransferLegSignedAmount()).toBeNull();
+    expect(
+      makeTx({ type: TransactionType.INCOME }).getTransferLegSignedAmount(),
+    ).toBeNull();
   });
 });
 

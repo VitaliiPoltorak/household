@@ -8,7 +8,11 @@ import { Button } from '../ui/Button';
 import { Input, Select } from '../ui/Input';
 import { CategoryField } from '../categories/CategoryField';
 
-const TX_TYPES: readonly Exclude<TransactionType, 'transfer'>[] = ['income', 'expense', 'adjustment'] as const;
+const TX_TYPES: readonly Exclude<TransactionType, 'transfer'>[] = [
+  'income',
+  'expense',
+  'adjustment',
+] as const;
 
 function today(): string {
   return new Date().toISOString().split('T')[0];
@@ -23,9 +27,17 @@ interface Props {
 }
 
 /** New-transaction modal. Type is required (no default) so the user picks explicitly. */
-export function CreateTxModal({ hid, accounts, categories, onClose, onCreated }: Props) {
+export function CreateTxModal({
+  hid,
+  accounts,
+  categories,
+  onClose,
+  onCreated,
+}: Props) {
   const { t } = useTranslation();
-  const [type, setType] = useState<'' | Exclude<TransactionType, 'transfer'>>('');
+  const [type, setType] = useState<'' | Exclude<TransactionType, 'transfer'>>(
+    '',
+  );
   const [accountId, setAccountId] = useState(accounts[0]?.id ?? '');
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
@@ -36,7 +48,16 @@ export function CreateTxModal({ hid, accounts, categories, onClose, onCreated }:
   const [amountError, setAmountError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const canSubmit = !!type && !!amount && parseFloat(amount) > 0;
+  const isAdjustment = type === 'adjustment';
+  const parsedAmount = parseFloat(amount);
+  // Adjustment's amount IS the signed balance delta — a negative value is a
+  // legitimate downward correction (see Transaction.isValidAmount
+  // server-side), so only zero is invalid there. income/expense stay
+  // positive-only.
+  const canSubmit =
+    !!type &&
+    !!amount &&
+    (isAdjustment ? parsedAmount !== 0 : parsedAmount > 0);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -83,32 +104,62 @@ export function CreateTxModal({ hid, accounts, categories, onClose, onCreated }:
           label={t('transactions.type')}
           value={type}
           onChange={(e) => {
-            setType(e.target.value as Exclude<TransactionType, 'transfer'> | '');
+            setType(
+              e.target.value as Exclude<TransactionType, 'transfer'> | '',
+            );
             setCategoryId('');
           }}
           required
         >
-          <option value="" disabled>{t('transactions.selectType')}</option>
+          <option value="" disabled>
+            {t('transactions.selectType')}
+          </option>
           {TX_TYPES.map((tp) => (
-            <option key={tp} value={tp}>{t(`transactions.types.${tp}` as never)}</option>
+            <option key={tp} value={tp}>
+              {t(`transactions.types.${tp}` as never)}
+            </option>
           ))}
         </Select>
 
-        <Select label={t('transactions.account')} value={accountId}
-          onChange={(e) => setAccountId(e.target.value)}>
+        <Select
+          label={t('transactions.account')}
+          value={accountId}
+          onChange={(e) => setAccountId(e.target.value)}
+        >
           {accounts.map((a) => (
-            <option key={a.id} value={a.id}>{a.name} ({a.currency})</option>
+            <option key={a.id} value={a.id}>
+              {a.name} ({a.currency})
+            </option>
           ))}
         </Select>
 
-        <Input label={t('transactions.amount')} type="number" step="0.01" min="0.01"
+        <Input
+          label={t('transactions.amount')}
+          type="number"
+          step="0.01"
+          min={isAdjustment ? undefined : '0.01'}
           value={amount}
-          onChange={(e) => { setAmount(e.target.value); setAmountError(null); }}
+          onChange={(e) => {
+            setAmount(e.target.value);
+            setAmountError(null);
+          }}
           error={amountError ?? undefined}
-          required placeholder="0.00" />
+          required
+          placeholder="0.00"
+        />
+        {isAdjustment && (
+          <p className="-mt-2 text-xs text-gray-400 dark:text-gray-500">
+            {t('transactions.adjustmentAmountHint')}
+          </p>
+        )}
 
-        <Input label={t('transactions.date')} type="date" value={date}
-          onChange={(e) => setDate(e.target.value)} required />
+        <Input
+          label={t('transactions.date')}
+          type="date"
+          value={date}
+          onChange={(e) => setDate(e.target.value)}
+          required
+        />
 
         <Input
           label={`${t('transactions.description')} (${t('common.optional')})`}
@@ -129,16 +180,28 @@ export function CreateTxModal({ hid, accounts, categories, onClose, onCreated }:
         />
 
         {error && (
-          <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600 dark:bg-red-900/30 dark:text-red-300">
+          <p
+            role="alert"
+            className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600 dark:bg-red-900/30 dark:text-red-300"
+          >
             {error}
           </p>
         )}
 
         <div className="flex gap-2 pt-2">
-          <Button type="button" variant="secondary" className="flex-1" onClick={onClose}>
+          <Button
+            type="button"
+            variant="secondary"
+            className="flex-1"
+            onClick={onClose}
+          >
             {t('common.cancel')}
           </Button>
-          <Button type="submit" className="flex-1" disabled={saving || !canSubmit}>
+          <Button
+            type="submit"
+            className="flex-1"
+            disabled={saving || !canSubmit}
+          >
             {saving ? t('common.saving') : t('common.add')}
           </Button>
         </div>
