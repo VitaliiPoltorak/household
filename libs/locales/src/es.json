@@ -195,7 +195,12 @@
       "descriptionPlaceholder": "p. ej. Conteo de efectivo",
       "hint": "Crea una transacción de ajuste para mantener el historial de saldo consistente.",
       "invalidNumber": "Ingrese un número válido.",
-      "noChange": "El nuevo saldo es igual al actual."
+      "noChange": "El nuevo saldo es igual al actual.",
+      "modeTarget": "Establecer nuevo saldo",
+      "modeDelta": "Ingresar monto de cambio",
+      "deltaAmount": "Monto de cambio",
+      "deltaPlaceholder": "p. ej. 955 o -200",
+      "newBalancePreview": "Nuevo saldo"
     },
     "rates": {
       "unavailable": "Tipos de cambio no disponibles",
@@ -219,6 +224,13 @@
     "account": "Cuenta",
     "amount": "Monto",
     "amountPlaceholder": "0.00",
+    "modeAmount": "Monto",
+    "modeTarget": "Establecer nuevo saldo",
+    "newBalanceLabel": "Nuevo saldo",
+    "newBalancePreview": "El nuevo saldo será",
+    "computedAmountPreview": "Monto a registrar",
+    "targetMustBeHigher": "El nuevo saldo debe ser mayor que el saldo actual para un ingreso.",
+    "targetMustBeLower": "El nuevo saldo debe ser menor que el saldo actual para un gasto.",
     "date": "Fecha",
     "description": "Descripción",
     "category": "Categoría",

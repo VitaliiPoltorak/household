@@ -195,7 +195,12 @@
       "descriptionPlaceholder": "z. B. Bargeldzählung",
       "hint": "Erstellt eine Ausgleichsbuchung, damit die Saldenhistorie konsistent bleibt.",
       "invalidNumber": "Bitte gültige Zahl eingeben.",
-      "noChange": "Neuer Saldo entspricht dem aktuellen."
+      "noChange": "Neuer Saldo entspricht dem aktuellen.",
+      "modeTarget": "Neuen Saldo festlegen",
+      "modeDelta": "Änderungsbetrag eingeben",
+      "deltaAmount": "Änderungsbetrag",
+      "deltaPlaceholder": "z. B. 955 oder -200",
+      "newBalancePreview": "Neuer Saldo"
     },
     "rates": {
       "unavailable": "Wechselkurse nicht verfügbar",
@@ -219,6 +224,13 @@
     "account": "Konto",
     "amount": "Betrag",
     "amountPlaceholder": "0.00",
+    "modeAmount": "Betrag",
+    "modeTarget": "Neuen Saldo festlegen",
+    "newBalanceLabel": "Neuer Saldo",
+    "newBalancePreview": "Neuer Saldo wird sein",
+    "computedAmountPreview": "Zu buchender Betrag",
+    "targetMustBeHigher": "Der neue Saldo muss für eine Einnahme höher sein als der aktuelle Saldo.",
+    "targetMustBeLower": "Der neue Saldo muss für eine Ausgabe niedriger sein als der aktuelle Saldo.",
     "date": "Datum",
     "description": "Beschreibung",
     "category": "Kategorie",

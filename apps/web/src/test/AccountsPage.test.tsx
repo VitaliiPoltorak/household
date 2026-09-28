@@ -4,7 +4,11 @@ import { http, HttpResponse } from 'msw';
 import { renderWithProviders } from './wrapper';
 import { AccountsPage } from '../pages/AccountsPage';
 import { server } from './setup';
-import { MOCK_ACCOUNT, MOCK_ENABLED_ACCOUNT_TYPES } from './handlers';
+import {
+  MOCK_ACCOUNT,
+  MOCK_ENABLED_ACCOUNT_TYPES,
+  MOCK_TRANSACTION,
+} from './handlers';
 
 describe('AccountsPage', () => {
   beforeEach(() => {
@@ -98,7 +102,11 @@ describe('AccountsPage', () => {
       server.use(
         http.post('/api/v1/accounts', async ({ request }) => {
           posted = (await request.json()) as Record<string, unknown>;
-          return HttpResponse.json({ ...MOCK_ACCOUNT, id: 'acc-new', name: 'Cash Wallet' });
+          return HttpResponse.json({
+            ...MOCK_ACCOUNT,
+            id: 'acc-new',
+            name: 'Cash Wallet',
+          });
         }),
       );
 
@@ -125,7 +133,11 @@ describe('AccountsPage', () => {
       server.use(
         http.post('/api/v1/accounts', async ({ request }) => {
           posted = (await request.json()) as Record<string, unknown>;
-          return HttpResponse.json({ ...MOCK_ACCOUNT, id: 'acc-new', name: 'Plain' });
+          return HttpResponse.json({
+            ...MOCK_ACCOUNT,
+            id: 'acc-new',
+            name: 'Plain',
+          });
         }),
       );
 
@@ -152,7 +164,9 @@ describe('AccountsPage', () => {
       expect(
         screen.getByRole('checkbox', { name: /Allow a negative balance/ }),
       ).toBeInTheDocument();
-      expect(screen.queryByLabelText(/Opening balance/)).not.toBeInTheDocument();
+      expect(
+        screen.queryByLabelText(/Opening balance/),
+      ).not.toBeInTheDocument();
     });
 
     it('sends the changed allowance from the edit form', async () => {
@@ -160,7 +174,10 @@ describe('AccountsPage', () => {
       server.use(
         http.patch('/api/v1/accounts/:id', async ({ request }) => {
           patched = (await request.json()) as Record<string, unknown>;
-          return HttpResponse.json({ ...MOCK_ACCOUNT, allowsNegativeBalance: true });
+          return HttpResponse.json({
+            ...MOCK_ACCOUNT,
+            allowsNegativeBalance: true,
+          });
         }),
       );
 
@@ -479,6 +496,135 @@ describe('AccountsPage', () => {
         expect(screen.queryByText('Add account type')).not.toBeInTheDocument(),
       );
       expect(select.value).toBe('paypal');
+    });
+  });
+
+  // #378 — adjustment reachable from the quick-tx "+" menu, and an
+  // amount ⇄ target-balance toggle on income/expense/adjustment entry.
+  describe('Quick actions: adjustment entry + amount⇄target modes (#378)', () => {
+    it('QuickTxDropdown offers an adjustment entry that opens AdjustBalanceModal', async () => {
+      renderWithProviders(<AccountsPage />);
+      await waitFor(() => screen.getByText('Mono Card'), { timeout: 3000 });
+
+      await userEvent.click(screen.getByTitle('Quick transaction'));
+      await userEvent.click(screen.getByText('± Adjustment'));
+
+      expect(
+        screen.getByText('Adjust balance — Mono Card'),
+      ).toBeInTheDocument();
+    });
+
+    it('income quick-tx: "Set new balance to" mode computes the delta and posts it as the amount', async () => {
+      let posted: Record<string, unknown> | null = null;
+      server.use(
+        http.post(`/api/v1/transactions`, async ({ request }) => {
+          posted = (await request.json()) as Record<string, unknown>;
+          return HttpResponse.json(
+            { ...MOCK_TRANSACTION, id: 'tx-new' },
+            { status: 201 },
+          );
+        }),
+      );
+
+      renderWithProviders(<AccountsPage />);
+      await waitFor(() => screen.getByText('Mono Card'), { timeout: 3000 });
+
+      await userEvent.click(screen.getByTitle('Quick transaction'));
+      await userEvent.click(screen.getByText('+ Income'));
+
+      await userEvent.click(
+        screen.getByRole('button', { name: 'Set new balance to' }),
+      );
+      // MOCK_ACCOUNT balance is 5000 → target 5200 means a +200 income.
+      await userEvent.type(screen.getByLabelText('New balance'), '5200');
+      expect(screen.getByText(/Amount to record/)).toBeInTheDocument();
+      await userEvent.click(screen.getByRole('button', { name: 'Add' }));
+
+      await waitFor(() => expect(posted).not.toBeNull(), { timeout: 3000 });
+      expect(posted).toMatchObject({ type: 'income', amount: 200 });
+    });
+
+    it('income quick-tx: target-balance mode blocks submit when the target moves the wrong direction', async () => {
+      renderWithProviders(<AccountsPage />);
+      await waitFor(() => screen.getByText('Mono Card'), { timeout: 3000 });
+
+      await userEvent.click(screen.getByTitle('Quick transaction'));
+      await userEvent.click(screen.getByText('+ Income'));
+
+      await userEvent.click(
+        screen.getByRole('button', { name: 'Set new balance to' }),
+      );
+      // Below the current 5000 balance — not reachable via an income entry.
+      await userEvent.type(screen.getByLabelText('New balance'), '4000');
+
+      expect(
+        screen.getByText(
+          'New balance must be higher than the current balance for income.',
+        ),
+      ).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Add' })).toBeDisabled();
+    });
+
+    it('expense quick-tx: target-balance mode computes the delta and posts it as the amount', async () => {
+      let posted: Record<string, unknown> | null = null;
+      server.use(
+        http.post(`/api/v1/transactions`, async ({ request }) => {
+          posted = (await request.json()) as Record<string, unknown>;
+          return HttpResponse.json(
+            { ...MOCK_TRANSACTION, id: 'tx-new' },
+            { status: 201 },
+          );
+        }),
+      );
+
+      renderWithProviders(<AccountsPage />);
+      await waitFor(() => screen.getByText('Mono Card'), { timeout: 3000 });
+
+      await userEvent.click(screen.getByTitle('Quick transaction'));
+      await userEvent.click(screen.getByText('− Expense'));
+
+      await userEvent.click(
+        screen.getByRole('button', { name: 'Set new balance to' }),
+      );
+      // 5000 → 4800 means a 200 expense.
+      await userEvent.type(screen.getByLabelText('New balance'), '4800');
+      await userEvent.click(screen.getByRole('button', { name: 'Add' }));
+
+      await waitFor(() => expect(posted).not.toBeNull(), { timeout: 3000 });
+      expect(posted).toMatchObject({ type: 'expense', amount: 200 });
+    });
+
+    it('adjustment: "Enter change amount" mode derives the new balance and posts it to adjust-balance', async () => {
+      let posted: Record<string, unknown> | null = null;
+      server.use(
+        http.post(
+          `/api/v1/accounts/:id/adjust-balance`,
+          async ({ request }) => {
+            posted = (await request.json()) as Record<string, unknown>;
+            return HttpResponse.json(
+              { ...MOCK_TRANSACTION, id: 'tx-adj' },
+              { status: 201 },
+            );
+          },
+        ),
+      );
+
+      renderWithProviders(<AccountsPage />);
+      await waitFor(() => screen.getByText('Mono Card'), { timeout: 3000 });
+
+      await userEvent.click(screen.getByTitle('Quick transaction'));
+      await userEvent.click(screen.getByText('± Adjustment'));
+
+      await userEvent.click(
+        screen.getByRole('button', { name: 'Enter change amount' }),
+      );
+      await userEvent.type(screen.getByLabelText('Change amount'), '-150');
+      expect(screen.getByText(/New balance/)).toBeInTheDocument();
+      await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+      await waitFor(() => expect(posted).not.toBeNull(), { timeout: 3000 });
+      // 5000 - 150 = 4850.
+      expect(posted).toMatchObject({ newBalance: 4850 });
     });
   });
 });
