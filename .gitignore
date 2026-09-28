@@ -20,3 +20,16 @@ coverage/
 # ignore only personal overrides
 .claude/settings.local.json
 .claude/worktrees/
+
+# apps/mobile (Expo) — managed workflow, no native folders/credentials in git
+apps/mobile/.expo/
+apps/mobile/expo-env.d.ts
+apps/mobile/web-build/
+apps/mobile/.metro-health-check*
+apps/mobile/ios/
+apps/mobile/android/
+*.jks
+*.p8
+*.p12
+*.mobileprovision
+*.pem

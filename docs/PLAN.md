@@ -329,7 +329,7 @@ apps/
   realtime-gateway/     # :3010 — Socket.IO, Kafka bridge, presence
   web/                  # :5173 — React 18 + Vite SPA
   notification-service/ # Phase 6 — email + push (not implemented)
-  mobile/               # Phase 5 — React Native / Expo (not implemented)
+  mobile/               # :8081 (Metro) — Phase 5 — Expo scaffold done (#357); no screens/nav/auth yet
 
 libs/
   common/     # config, filters, JWT verify, gateway signature, date helpers
@@ -1040,6 +1040,11 @@ pnpm test:postman                                            # API scenario coll
 ### Phase 5 — Mobile (4–6 weeks)
 
 ```
+✔ Expo scaffold (#357) — `apps/mobile`, Expo SDK 57 managed workflow + TS template,
+  wired into the pnpm workspace + Turborepo (`dev`/`build`/`lint`), ESLint/Prettier
+  matching the rest of the repo, `libs/contracts` import verified through Metro
+  (see `apps/mobile/metro.config.js` + its README — pnpm's node_modules layout
+  needs explicit resolver config Metro doesn't ship by default)
 □ React Native (Expo — faster to start)
 □ Same screens as web (adaptive)
 □ Secure storage for tokens (expo-secure-store)

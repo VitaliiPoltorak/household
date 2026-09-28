@@ -1,6 +1,6 @@
 /**
  * Root ESLint flat config (#32). Single source of truth for the whole
- * monorepo — web-specific rules layered as a second block with a glob.
+ * monorepo — web/mobile-specific rules layered as extra blocks with a glob.
  *
  * Philosophy: Prettier owns formatting; `tsc --noEmit` owns type errors.
  * ESLint's job here is the narrow set of correctness rules TS can't
@@ -146,6 +146,39 @@ module.exports = [
         KeyboardEvent: 'readonly',
         MouseEvent: 'readonly',
         FormEvent: 'readonly',
+      },
+    },
+    plugins: {
+      'react-hooks': reactHooks,
+      'react-refresh': reactRefresh,
+    },
+    rules: {
+      'react-hooks/rules-of-hooks': 'error',
+      'react-hooks/exhaustive-deps': 'warn',
+      'react-refresh/only-export-components': [
+        'warn',
+        { allowConstantExport: true },
+      ],
+    },
+  },
+
+  // Mobile overlay — React Native + Expo. No DOM globals; RN's own runtime
+  // globals instead. `react` core plugin omitted for the same reason as the
+  // web overlay above — the JSX transform makes most of its rules moot.
+  {
+    files: ['apps/mobile/**/*.{ts,tsx}'],
+    languageOptions: {
+      globals: {
+        __DEV__: 'readonly',
+        console: 'readonly',
+        fetch: 'readonly',
+        FormData: 'readonly',
+        URL: 'readonly',
+        URLSearchParams: 'readonly',
+        setTimeout: 'readonly',
+        clearTimeout: 'readonly',
+        setInterval: 'readonly',
+        clearInterval: 'readonly',
       },
     },
     plugins: {

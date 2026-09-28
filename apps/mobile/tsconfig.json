@@ -1,0 +1,12 @@
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true,
+    "paths": {
+      "@household/contracts": ["../../libs/contracts/src"],
+      "@household/contracts/*": ["../../libs/contracts/src/*"],
+      "@household/locales": ["../../libs/locales/src"],
+      "@household/locales/*": ["../../libs/locales/src/*"]
+    }
+  }
+}
