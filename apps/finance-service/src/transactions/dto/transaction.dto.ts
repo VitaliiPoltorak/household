@@ -35,9 +35,11 @@ export class CreateTransactionDto {
   ])
   type: Exclude<TransactionType, TransactionType.TRANSFER>;
 
+  // Not @IsPositive() — see the note on UpdateTransactionDto.amount.
+  // TransactionsService.create() enforces "positive for income/expense,
+  // nonzero for adjustment" via Transaction.isValidAmount(type, amount).
   @ApiProperty({ example: 1500.0 })
   @IsNumber()
-  @IsPositive()
   amount: number;
 
   @ApiPropertyOptional({ example: 'UAH', default: 'UAH' })
@@ -259,9 +261,13 @@ export class UpdateTransactionDto {
   @IsOptional()
   type?: Exclude<TransactionType, TransactionType.TRANSFER>;
 
+  // Not @IsPositive() — an adjustment's amount is the signed balance delta
+  // itself (see Transaction.isValidAmount), so a negative value is a
+  // legitimate downward correction. TransactionsService.update() enforces
+  // "positive for income/expense, nonzero for adjustment" once it knows the
+  // effective type (dto.type ?? the existing row's type).
   @ApiPropertyOptional()
   @IsNumber()
-  @IsPositive()
   @IsOptional()
   amount?: number;
 

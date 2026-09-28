@@ -259,6 +259,7 @@
     "transferYourRate": "your rate: {{rate}}",
     "transferRateUnavailable": "Rates unavailable — enter both amounts manually",
     "insufficientFunds": "Not enough in this account — it holds {{available}} {{currency}}.",
+    "adjustmentAmountHint": "Positive increases the balance, negative decreases it.",
     "deleteTitle": "Delete this transaction?",
     "deleteBody": "The record is removed permanently and the account balance is adjusted. This cannot be undone.",
     "deleteTransferNote": "This is a transfer — both sides are reversed and both records are removed."

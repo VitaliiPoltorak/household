@@ -86,6 +86,14 @@ export class TransactionsService {
       );
     }
 
+    if (!Transaction.isValidAmount(dto.type as TransactionType, dto.amount)) {
+      throw new BadRequestException(
+        dto.type === TransactionType.ADJUSTMENT
+          ? 'amount must not be zero'
+          : 'amount must be positive',
+      );
+    }
+
     // Idempotency for integrations that retry (e.g. integration-service's
     // Monobank map endpoint, #21) — a repeated call with the same
     // externalId returns the transaction already created instead of
@@ -339,6 +347,17 @@ export class TransactionsService {
 
     const newAmount = dto.amount ?? Number(existing.amount);
     const newType = dto.type ?? existing.type;
+
+    if (
+      !existing.isTransferLeg() &&
+      !Transaction.isValidAmount(newType as TransactionType, newAmount)
+    ) {
+      throw new BadRequestException(
+        newType === TransactionType.ADJUSTMENT
+          ? 'amount must not be zero'
+          : 'amount must be positive',
+      );
+    }
 
     const updated = await this.repo.manager.transaction(async (manager) => {
       const txRepo = manager.getRepository(Transaction);

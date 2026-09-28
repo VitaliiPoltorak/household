@@ -259,6 +259,7 @@
     "transferYourRate": "tu tasa: {{rate}}",
     "transferRateUnavailable": "Tasas no disponibles — ingresa ambos montos manualmente",
     "insufficientFunds": "No hay suficiente en esta cuenta: tiene {{available}} {{currency}}.",
+    "adjustmentAmountHint": "Positivo aumenta el saldo, negativo lo reduce.",
     "deleteTitle": "¿Eliminar esta transacción?",
     "deleteBody": "El registro se elimina de forma permanente y se ajusta el saldo de la cuenta. Esto no se puede deshacer.",
     "deleteTransferNote": "Es una transferencia: se revierten ambos lados y se eliminan ambos registros."

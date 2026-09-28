@@ -8,7 +8,11 @@ import { Button } from '../ui/Button';
 import { Input, Select } from '../ui/Input';
 import { CategoryField } from '../categories/CategoryField';
 
-const TX_TYPES: readonly Exclude<TransactionType, 'transfer'>[] = ['income', 'expense', 'adjustment'] as const;
+const TX_TYPES: readonly Exclude<TransactionType, 'transfer'>[] = [
+  'income',
+  'expense',
+  'adjustment',
+] as const;
 
 interface Props {
   tx: Transaction;
@@ -20,7 +24,14 @@ interface Props {
 }
 
 /** Edit an existing transaction. Type + amount are locked for transfer legs. */
-export function EditTxModal({ tx, hid, categories, accountName, onClose, onSaved }: Props) {
+export function EditTxModal({
+  tx,
+  hid,
+  categories,
+  accountName,
+  onClose,
+  onSaved,
+}: Props) {
   const { t } = useTranslation();
   const isTransfer = tx.type === 'transfer';
 
@@ -42,7 +53,10 @@ export function EditTxModal({ tx, hid, categories, accountName, onClose, onSaved
       await financeApi.updateTransaction(tx.id, hid, {
         ...(isTransfer
           ? {}
-          : { type: type as 'income' | 'expense' | 'adjustment', amount: parseFloat(amount) }),
+          : {
+              type: type as 'income' | 'expense' | 'adjustment',
+              amount: parseFloat(amount),
+            }),
         description: description || undefined,
         date,
         categoryId: categoryId || undefined,
@@ -72,12 +86,14 @@ export function EditTxModal({ tx, hid, categories, accountName, onClose, onSaved
     <Modal title={t('transactions.editTitle')} onClose={onClose}>
       <form onSubmit={submit} className="space-y-3">
         <div className="rounded-lg bg-gray-50 px-3 py-2 text-sm text-gray-500 dark:bg-gray-800 dark:text-gray-400">
-          <span className="font-medium">{t('transactions.account')}:</span>{' '}{accountName}
+          <span className="font-medium">{t('transactions.account')}:</span>{' '}
+          {accountName}
         </div>
 
         {isTransfer && (
           <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-600 dark:bg-amber-900/30 dark:text-amber-300">
-            ⚠️ Transfer type and amount cannot be changed — both sides of the transfer must stay in sync.
+            ⚠️ Transfer type and amount cannot be changed — both sides of the
+            transfer must stay in sync.
           </p>
         )}
 
@@ -91,22 +107,43 @@ export function EditTxModal({ tx, hid, categories, accountName, onClose, onSaved
           disabled={isTransfer}
         >
           {TX_TYPES.map((tp) => (
-            <option key={tp} value={tp}>{t(`transactions.types.${tp}` as never)}</option>
+            <option key={tp} value={tp}>
+              {t(`transactions.types.${tp}` as never)}
+            </option>
           ))}
         </Select>
 
         <Input
           label={t('transactions.amount')}
-          type="number" step="0.01" min="0.01"
+          type="number"
+          step="0.01"
+          // Adjustment's amount IS the signed balance delta (a negative
+          // value is a legitimate downward correction) — see
+          // Transaction.isValidAmount server-side. income/expense stay
+          // positive-only, same as the create form.
+          min={type === 'adjustment' ? undefined : '0.01'}
           value={amount}
-          onChange={(e) => { setAmount(e.target.value); setAmountError(null); }}
+          onChange={(e) => {
+            setAmount(e.target.value);
+            setAmountError(null);
+          }}
           error={amountError ?? undefined}
           disabled={isTransfer}
           required
         />
+        {type === 'adjustment' && !isTransfer && (
+          <p className="-mt-2 text-xs text-gray-400 dark:text-gray-500">
+            {t('transactions.adjustmentAmountHint')}
+          </p>
+        )}
 
-        <Input label={t('transactions.date')} type="date" value={date}
-          onChange={(e) => setDate(e.target.value)} required />
+        <Input
+          label={t('transactions.date')}
+          type="date"
+          value={date}
+          onChange={(e) => setDate(e.target.value)}
+          required
+        />
 
         <Input
           label={`${t('transactions.description')} (${t('common.optional')})`}
@@ -125,13 +162,21 @@ export function EditTxModal({ tx, hid, categories, accountName, onClose, onSaved
         />
 
         {error && (
-          <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600 dark:bg-red-900/30 dark:text-red-300">
+          <p
+            role="alert"
+            className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600 dark:bg-red-900/30 dark:text-red-300"
+          >
             {error}
           </p>
         )}
 
         <div className="flex gap-2 pt-2">
-          <Button type="button" variant="secondary" className="flex-1" onClick={onClose}>
+          <Button
+            type="button"
+            variant="secondary"
+            className="flex-1"
+            onClick={onClose}
+          >
             {t('common.cancel')}
           </Button>
           <Button type="submit" className="flex-1" disabled={saving}>
