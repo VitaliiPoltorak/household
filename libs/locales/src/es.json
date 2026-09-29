@@ -552,7 +552,11 @@
     "entryHint": "Deja una moneda en blanco para omitirla. Guardar una entrada para una fecha que ya tiene una la reemplaza.",
     "needOneCurrency": "Ingresa al menos un monto en una moneda.",
     "needOneRow": "Ingresa al menos una fila con fecha y monto.",
-    "bulkHint": "Importa varios meses a la vez — útil para completar el historial anterior al uso de la app."
+    "bulkHint": "Importa varios meses a la vez — útil para completar el historial anterior al uso de la app.",
+    "trendLive": "Hoy",
+    "trendChange": "Cambio",
+    "trendMore_one": "+{{count}} más",
+    "trendMore_other": "+{{count}} más"
   },
   "invites": {
     "title": "Invitaciones",

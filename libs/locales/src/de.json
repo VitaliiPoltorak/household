@@ -552,7 +552,11 @@
     "entryHint": "Lassen Sie eine Währung leer, um sie auszulassen. Ein Eintrag für ein bereits vorhandenes Datum ersetzt den vorherigen.",
     "needOneCurrency": "Geben Sie mindestens einen Währungsbetrag ein.",
     "needOneRow": "Geben Sie mindestens eine Zeile mit Datum und Betrag ein.",
-    "bulkHint": "Importieren Sie mehrere Monate auf einmal — praktisch, um Verlauf von vor der App-Nutzung nachzutragen."
+    "bulkHint": "Importieren Sie mehrere Monate auf einmal — praktisch, um Verlauf von vor der App-Nutzung nachzutragen.",
+    "trendLive": "Heute",
+    "trendChange": "Änderung",
+    "trendMore_one": "+{{count}} weitere",
+    "trendMore_other": "+{{count}} weitere"
   },
   "invites": {
     "title": "Einladungen",

@@ -1,4 +1,4 @@
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { renderWithProviders } from './wrapper';
@@ -221,5 +221,174 @@ describe('NetWorthHistoryPage (#379)', () => {
       { date: '2025-01-01', byCurrency: { UAH: 1000 } },
       { date: '2025-02-01', byCurrency: { UAH: 1500 } },
     ]);
+  });
+
+  // Trend chart also plots transaction activity between/around the
+  // snapshots, anchored by the live total at "today" (#379 follow-up).
+  // Dates are computed relative to the real clock (not faked) — vi's fake
+  // timers deadlock against waitFor/React Query's own timer usage.
+  describe('trend chart transaction activity', () => {
+    const isoDaysAgo = (days: number) => {
+      const d = new Date();
+      d.setDate(d.getDate() - days);
+      return d.toISOString().slice(0, 10);
+    };
+    const OLD_SNAPSHOT_DATE = isoDaysAgo(60);
+    const RECENT_SNAPSHOT_DATE = isoDaysAgo(30);
+    const MID_ACTIVITY_DATE = isoDaysAgo(15);
+
+    const baseTx = {
+      id: 'tx-a',
+      householdId: 'hh-1',
+      accountId: 'acc-1',
+      currency: 'UAH',
+      categoryId: null,
+      incomeSourceId: null,
+      createdBy: 'user-1',
+      transferPairId: null,
+      transferDirection: null,
+      counterAccountId: null,
+      counterTransactionId: null,
+      counterAmount: null,
+      counterCurrency: null,
+    };
+
+    it('merges a transaction dated exactly on a snapshot day into that point, and adds a live "today" point', async () => {
+      const snapshots: NetWorthSnapshot[] = [
+        {
+          id: 'snap-old',
+          householdId: 'hh-1',
+          snapshotDate: OLD_SNAPSHOT_DATE,
+          byCurrency: { UAH: 40000 },
+          source: 'auto',
+          createdAt: `${OLD_SNAPSHOT_DATE}T04:00:00Z`,
+          updatedAt: `${OLD_SNAPSHOT_DATE}T04:00:00Z`,
+        },
+        {
+          id: 'snap-recent',
+          householdId: 'hh-1',
+          snapshotDate: RECENT_SNAPSHOT_DATE,
+          byCurrency: { UAH: 45000 },
+          source: 'manual',
+          createdAt: `${RECENT_SNAPSHOT_DATE}T10:00:00Z`,
+          updatedAt: `${RECENT_SNAPSHOT_DATE}T10:00:00Z`,
+        },
+      ];
+
+      server.use(
+        http.get('/api/v1/reports/net-worth/snapshots', () =>
+          HttpResponse.json(snapshots),
+        ),
+        http.get('/api/v1/transactions', () =>
+          HttpResponse.json([
+            {
+              ...baseTx,
+              type: 'income',
+              amount: 5000,
+              description: 'Salary',
+              date: RECENT_SNAPSHOT_DATE,
+              createdAt: `${RECENT_SNAPSHOT_DATE}T00:00:00Z`,
+            },
+          ]),
+        ),
+        http.get('/api/v1/reports/net-worth', () =>
+          HttpResponse.json({
+            totalBalance: 46000,
+            byCurrency: { UAH: 46000 },
+            accounts: [],
+          }),
+        ),
+      );
+
+      renderWithProviders(<NetWorthHistoryPage />);
+      await waitFor(() => screen.getByText(RECENT_SNAPSHOT_DATE), {
+        timeout: 3000,
+      });
+
+      // 3 points: old snapshot, recent snapshot (+ same-day transaction),
+      // today's live anchor.
+      const circles = await waitFor(() => {
+        const found = document.querySelectorAll('circle');
+        expect(found.length).toBe(3);
+        return found;
+      });
+
+      fireEvent.mouseEnter(circles[1]);
+      const tooltip = await screen.findByRole('tooltip');
+      expect(tooltip).toHaveTextContent('Salary');
+      expect(tooltip).toHaveTextContent(/5,000/);
+
+      fireEvent.mouseEnter(circles[2]);
+      const liveTooltip = await screen.findByRole('tooltip');
+      expect(liveTooltip).toHaveTextContent('Today');
+      expect(liveTooltip).toHaveTextContent(/46,000/);
+    });
+
+    it('adds a standalone activity point for a transaction day between two snapshots', async () => {
+      const snapshots: NetWorthSnapshot[] = [
+        {
+          id: 'snap-old',
+          householdId: 'hh-1',
+          snapshotDate: OLD_SNAPSHOT_DATE,
+          byCurrency: { UAH: 40000 },
+          source: 'auto',
+          createdAt: `${OLD_SNAPSHOT_DATE}T04:00:00Z`,
+          updatedAt: `${OLD_SNAPSHOT_DATE}T04:00:00Z`,
+        },
+        {
+          id: 'snap-today',
+          householdId: 'hh-1',
+          snapshotDate: isoDaysAgo(0),
+          byCurrency: { UAH: 39700 },
+          source: 'auto',
+          createdAt: `${isoDaysAgo(0)}T04:00:00Z`,
+          updatedAt: `${isoDaysAgo(0)}T04:00:00Z`,
+        },
+      ];
+
+      server.use(
+        http.get('/api/v1/reports/net-worth/snapshots', () =>
+          HttpResponse.json(snapshots),
+        ),
+        http.get('/api/v1/transactions', () =>
+          HttpResponse.json([
+            {
+              ...baseTx,
+              id: 'tx-b',
+              type: 'expense',
+              amount: 300,
+              description: 'Groceries',
+              date: MID_ACTIVITY_DATE,
+              createdAt: `${MID_ACTIVITY_DATE}T00:00:00Z`,
+            },
+          ]),
+        ),
+        http.get('/api/v1/reports/net-worth', () =>
+          HttpResponse.json({
+            totalBalance: 39700,
+            byCurrency: { UAH: 39700 },
+            accounts: [],
+          }),
+        ),
+      );
+
+      renderWithProviders(<NetWorthHistoryPage />);
+      await waitFor(() => screen.getByText(OLD_SNAPSHOT_DATE), {
+        timeout: 3000,
+      });
+
+      // old snapshot, mid-range activity point, today's snapshot (no
+      // separate live point since it coincides with the snapshot date).
+      const circles = await waitFor(() => {
+        const found = document.querySelectorAll('circle');
+        expect(found.length).toBe(3);
+        return found;
+      });
+
+      fireEvent.mouseEnter(circles[1]);
+      const tooltip = await screen.findByRole('tooltip');
+      expect(tooltip).toHaveTextContent('Groceries');
+      expect(tooltip).toHaveTextContent(/39,700/); // 40000 - 300
+    });
   });
 });

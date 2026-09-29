@@ -9,10 +9,16 @@ import { Modal } from '../components/ui/Modal';
 import { Section } from '../components/dashboard/Section';
 import { NetWorthTrendChart } from '../components/reports/NetWorthTrendChart';
 import { formatMoney } from '../lib/money';
-import type { NetWorthSnapshot } from '../types/api';
+import { buildTrendSeries } from '../lib/net-worth-trend';
+import type { NetWorthSnapshot, Transaction } from '../types/api';
 
 const CURRENCIES = ['UAH', 'USD', 'EUR'];
 const EMPTY: NetWorthSnapshot[] = [];
+const EMPTY_TX: Transaction[] = [];
+
+function todayStr(): string {
+  return new Date().toISOString().slice(0, 10);
+}
 
 export function NetWorthHistoryPage() {
   const { t } = useTranslation();
@@ -28,6 +34,36 @@ export function NetWorthHistoryPage() {
     queryKey: ['net-worth-snapshots', hid],
     queryFn: () => financeApi.getNetWorthSnapshots(hid!),
     enabled: !!hid,
+  });
+
+  // Trend enrichment (#379 follow-up) — the chart also plots one point per
+  // day with transaction activity, interpolated between/around the
+  // persisted snapshots. The live total anchors "today" so recent activity
+  // since the last snapshot still shows up.
+  const { data: netWorth } = useQuery({
+    queryKey: ['net-worth-live', hid],
+    queryFn: () => financeApi.getNetWorth(hid!),
+    enabled: !!hid,
+  });
+
+  const earliestSnapshotDate = useMemo(
+    () =>
+      snapshots.reduce<string | null>(
+        (min, s) =>
+          min === null || s.snapshotDate < min ? s.snapshotDate : min,
+        null,
+      ),
+    [snapshots],
+  );
+
+  const { data: trendTransactions = EMPTY_TX } = useQuery({
+    queryKey: ['transactions', hid, 'net-worth-trend', earliestSnapshotDate],
+    queryFn: () =>
+      financeApi.getTransactions(hid!, {
+        from: earliestSnapshotDate!,
+        to: todayStr(),
+      }),
+    enabled: !!hid && !!earliestSnapshotDate,
   });
 
   const invalidate = () =>
@@ -95,22 +131,28 @@ export function NetWorthHistoryPage() {
         <>
           <Section title={t('netWorthHistory.trend')}>
             <div className="space-y-6">
-              {currencies.map((ccy) => (
-                <div key={ccy}>
-                  <p className="mb-1 text-xs font-medium text-gray-500 dark:text-gray-400">
-                    {ccy}
-                  </p>
-                  <NetWorthTrendChart
-                    data={snapshots
-                      .filter((s) => s.byCurrency[ccy] !== undefined)
-                      .map((s) => ({
-                        date: s.snapshotDate,
-                        value: s.byCurrency[ccy],
-                      }))}
-                    formatValue={(n) => formatMoney(n, ccy)}
-                  />
-                </div>
-              ))}
+              {currencies.map((ccy) => {
+                const todayAnchor =
+                  netWorth?.byCurrency[ccy] !== undefined
+                    ? { date: todayStr(), value: netWorth.byCurrency[ccy] }
+                    : null;
+                return (
+                  <div key={ccy}>
+                    <p className="mb-1 text-xs font-medium text-gray-500 dark:text-gray-400">
+                      {ccy}
+                    </p>
+                    <NetWorthTrendChart
+                      data={buildTrendSeries(
+                        ccy,
+                        snapshots,
+                        trendTransactions,
+                        todayAnchor,
+                      )}
+                      formatValue={(n) => formatMoney(n, ccy)}
+                    />
+                  </div>
+                );
+              })}
             </div>
           </Section>
 
