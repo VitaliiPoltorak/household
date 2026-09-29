@@ -1,10 +1,13 @@
 import type { NetWorthSnapshot, Transaction } from '../types/api';
+import { convert, type RateMap } from './currency';
 
 export interface TrendTransactionSummary {
   id: string;
   description: string | null;
   type: Transaction['type'];
-  /** Signed effect on this currency's total (see {@link signedDelta}). */
+  /** Signed effect on this series' total (see {@link signedDelta}) — in the
+   *  series' own currency for {@link buildTrendSeries}, or already converted
+   *  to the target currency for {@link buildTotalTrendSeries}. */
   amount: number;
 }
 
@@ -53,6 +56,33 @@ function signedDelta(tx: Transaction, currency: string): number {
     default:
       return 0;
   }
+}
+
+// Given the set of dates with activity (plus `todayDate`, already included),
+// anchors the walk at `todayValue` and fills every other date by subtracting
+// (walking backward) or adding (walking forward, for a future-dated outlier)
+// that day's net delta relative to its neighbor. Shared by buildTrendSeries
+// and buildTotalTrendSeries so the backward/forward-walk arithmetic — easy to
+// get subtly backward — lives in exactly one place.
+function walkFromAnchor(
+  dates: string[],
+  todayDate: string,
+  todayValue: number,
+  dayDelta: (date: string) => number,
+): number[] {
+  const todayIdx = dates.indexOf(todayDate);
+  const values = new Array<number>(dates.length);
+  values[todayIdx] = todayValue;
+  for (let i = todayIdx - 1; i >= 0; i--) {
+    values[i] = values[i + 1] - dayDelta(dates[i + 1]);
+  }
+  // Dates after today shouldn't occur (callers bound their data fetch at
+  // today), but a forward pass keeps this correct if one sneaks in (e.g. a
+  // clock skew or a future-dated entry).
+  for (let i = todayIdx + 1; i < dates.length; i++) {
+    values[i] = values[i - 1] + dayDelta(dates[i]);
+  }
+  return values;
 }
 
 /**
@@ -112,18 +142,7 @@ export function buildTrendSeries(
 
   if (today) {
     const dates = Array.from(new Set([...byDay.keys(), today.date])).sort();
-    const todayIdx = dates.indexOf(today.date);
-    const values = new Array<number>(dates.length);
-    values[todayIdx] = today.value;
-    for (let i = todayIdx - 1; i >= 0; i--) {
-      values[i] = values[i + 1] - dayDelta(dates[i + 1]);
-    }
-    // Dates after today shouldn't occur (the caller bounds the transaction
-    // fetch at today), but a forward pass keeps this correct if one sneaks
-    // in (e.g. a clock skew or a future-dated entry).
-    for (let i = todayIdx + 1; i < dates.length; i++) {
-      values[i] = values[i - 1] + dayDelta(dates[i]);
-    }
+    const values = walkFromAnchor(dates, today.date, today.value, dayDelta);
     dates.forEach((date, i) => {
       const isToday = date === today.date;
       const txs = isToday ? undefined : byDay.get(date);
@@ -147,6 +166,103 @@ export function buildTrendSeries(
     points.set(s.snapshotDate, {
       date: s.snapshotDate,
       value,
+      kind: 'snapshot',
+      source: s.source,
+    });
+  }
+
+  return Array.from(points.values()).sort((a, b) =>
+    a.date < b.date ? -1 : a.date > b.date ? 1 : 0,
+  );
+}
+
+/**
+ * Like {@link buildTrendSeries}, but combines every currency into a single
+ * line converted to `targetCurrency` via `rates` (see `lib/currency.ts`
+ * `convert()`) — a "total net worth in USD" view instead of one line per
+ * currency. Same anchor-at-`today`/backward-walk design and the same
+ * independent-snapshot-overlay behavior, just summed across currencies
+ * after conversion instead of filtered to one.
+ *
+ * A transaction or snapshot that touches a currency `rates` doesn't cover
+ * is dropped entirely rather than partially summed — a total silently
+ * missing one leg is more misleading than a gap in the chart. Callers
+ * should only build this series once rates are actually available (mirror
+ * AccountsPage's estimated-total gating on `useRatesState`); treating a
+ * missing rate as 1:1 would misreport net worth.
+ */
+export function buildTotalTrendSeries(
+  snapshots: NetWorthSnapshot[],
+  transactions: Transaction[],
+  today: { date: string; value: number } | null,
+  targetCurrency: string,
+  rates: RateMap,
+): TrendPoint[] {
+  const byDay = new Map<string, TrendTransactionSummary[]>();
+  for (const tx of transactions) {
+    const currencies = new Set<string>([tx.currency]);
+    if (tx.counterCurrency) currencies.add(tx.counterCurrency);
+
+    let total = 0;
+    let convertible = true;
+    for (const ccy of currencies) {
+      const raw = signedDelta(tx, ccy);
+      if (raw === 0) continue;
+      const converted = convert(raw, ccy, targetCurrency, rates);
+      if (converted === null) {
+        convertible = false;
+        break;
+      }
+      total += converted;
+    }
+    if (!convertible || total === 0) continue;
+
+    const list = byDay.get(tx.date) ?? [];
+    list.push({
+      id: tx.id,
+      description: tx.description,
+      type: tx.type,
+      amount: total,
+    });
+    byDay.set(tx.date, list);
+  }
+  const dayDelta = (date: string) =>
+    (byDay.get(date) ?? []).reduce((s, t) => s + t.amount, 0);
+
+  const points = new Map<string, TrendPoint>();
+
+  if (today) {
+    const dates = Array.from(new Set([...byDay.keys(), today.date])).sort();
+    const values = walkFromAnchor(dates, today.date, today.value, dayDelta);
+    dates.forEach((date, i) => {
+      const isToday = date === today.date;
+      const txs = isToday ? undefined : byDay.get(date);
+      points.set(date, {
+        date,
+        value: values[i],
+        kind: isToday ? 'snapshot' : 'activity',
+        source: isToday ? 'live' : undefined,
+        delta: txs ? txs.reduce((s, t) => s + t.amount, 0) : undefined,
+        transactions: txs,
+      });
+    });
+  }
+
+  for (const s of snapshots) {
+    let total = 0;
+    let convertible = true;
+    for (const [ccy, value] of Object.entries(s.byCurrency)) {
+      const converted = convert(value, ccy, targetCurrency, rates);
+      if (converted === null) {
+        convertible = false;
+        break;
+      }
+      total += converted;
+    }
+    if (!convertible) continue;
+    points.set(s.snapshotDate, {
+      date: s.snapshotDate,
+      value: total,
       kind: 'snapshot',
       source: s.source,
     });

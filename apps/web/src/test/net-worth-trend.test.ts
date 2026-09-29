@@ -1,4 +1,8 @@
-import { buildTrendSeries } from '../lib/net-worth-trend';
+import {
+  buildTrendSeries,
+  buildTotalTrendSeries,
+} from '../lib/net-worth-trend';
+import type { RateMap } from '../lib/currency';
 import type { NetWorthSnapshot, Transaction } from '../types/api';
 
 const snapshot = (
@@ -279,5 +283,118 @@ describe('buildTrendSeries', () => {
     expect(
       buildTrendSeries('EUR', [snapshot('2026-06-01', 1000)], [], null),
     ).toEqual([]);
+  });
+});
+
+describe('buildTotalTrendSeries', () => {
+  // rates[ccy] = how many UAH one unit of ccy buys (see lib/currency.ts).
+  const rates: RateMap = { USD: 40, EUR: 44 };
+
+  const multiSnapshot = (
+    date: string,
+    byCurrency: Record<string, number>,
+    source: NetWorthSnapshot['source'] = 'auto',
+  ): NetWorthSnapshot => ({
+    id: `snap-${date}`,
+    householdId: 'hh-1',
+    snapshotDate: date,
+    byCurrency,
+    source,
+    createdAt: `${date}T00:00:00Z`,
+    updatedAt: `${date}T00:00:00Z`,
+  });
+
+  it('combines every currency into one line converted to the target currency', () => {
+    const series = buildTotalTrendSeries(
+      [multiSnapshot('2026-06-01', { UAH: 4000, USD: 100 })],
+      [],
+      null,
+      'USD',
+      rates,
+    );
+    // 4000 UAH -> 4000/40 = 100 USD, plus the 100 USD already there = 200.
+    expect(series).toHaveLength(1);
+    expect(series[0].value).toBeCloseTo(200);
+  });
+
+  it('drops a snapshot entirely if any of its currencies lacks a rate, rather than showing a partial total', () => {
+    const series = buildTotalTrendSeries(
+      [multiSnapshot('2026-06-01', { USD: 100, EUR: 50 })],
+      [],
+      null,
+      'USD',
+      { USD: 40 }, // no EUR rate
+    );
+    expect(series).toHaveLength(0);
+  });
+
+  // The combined total must be immune to the same production bug fixed in
+  // buildTrendSeries (see the regression test above) — it must not chain
+  // through an unrelated manual snapshot in a different currency either.
+  it('anchors the combined total at today and walks backward, never chaining through an unrelated snapshot', () => {
+    const series = buildTotalTrendSeries(
+      [multiSnapshot('2026-08-01', { UAH: 4680440 }, 'manual')], // an old, unrelated hand-entered UAH figure
+      [
+        tx({
+          id: 'c1',
+          date: '2026-08-30',
+          type: 'adjustment',
+          amount: 115870,
+          currency: 'USD',
+        }),
+      ],
+      { date: '2026-09-15', value: 118600 },
+      'USD',
+      rates,
+    );
+    const correctionDay = series.find((p) => p.date === '2026-08-30')!;
+    expect(correctionDay.value).toBe(118600);
+    expect(correctionDay.kind).toBe('activity');
+  });
+
+  it("a cross-currency transfer contributes both legs' converted net as this day's delta", () => {
+    const transferTx = tx({
+      id: 't1',
+      date: '2026-06-05',
+      type: 'transfer',
+      amount: 100,
+      currency: 'USD',
+      counterAmount: 90,
+      counterCurrency: 'EUR',
+    });
+    const series = buildTotalTrendSeries(
+      [],
+      [transferTx],
+      { date: '2026-06-06', value: 1000 },
+      'USD',
+      rates,
+    );
+    const day = series.find((p) => p.date === '2026-06-05')!;
+    // USD leg: -100 (already the target currency). EUR leg: +90 EUR
+    // converted to USD at 44/40 = +99. Net delta -1; nothing else happens
+    // before today (06-06), so this day's value still equals today's: 1000.
+    expect(day.delta).toBeCloseTo(-1);
+    expect(day.value).toBe(1000);
+  });
+
+  it('drops a transaction from the total if any leg lacks a rate, rather than partially converting it', () => {
+    const transferTx = tx({
+      id: 't1',
+      date: '2026-06-05',
+      type: 'transfer',
+      amount: 100,
+      currency: 'USD',
+      counterAmount: 90,
+      counterCurrency: 'EUR',
+    });
+    const series = buildTotalTrendSeries(
+      [],
+      [transferTx],
+      { date: '2026-06-06', value: 1000 },
+      'USD',
+      { USD: 40 }, // no EUR rate
+    );
+    expect(series.find((p) => p.date === '2026-06-05')).toBeUndefined();
+    expect(series).toHaveLength(1); // just today's anchor point
   });
 });

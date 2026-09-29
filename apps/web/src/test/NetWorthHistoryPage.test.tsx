@@ -493,4 +493,112 @@ describe('NetWorthHistoryPage (#379)', () => {
       expect(tooltip).not.toHaveTextContent('1,039,699');
     });
   });
+
+  // Combined "Total (USD)" line (#389 follow-up) — every currency converted
+  // via live PrivatBank rates and summed, both on the chart and per history
+  // row (same rates primitive AccountsPage's estimated total uses).
+  describe('combined Total (USD)', () => {
+    // The rates cache is a shared localStorage side-channel (see
+    // hooks/useRates.ts) — clear it so a rates failure in one test can't be
+    // masked by a previous test's successful fetch (same convention as
+    // AccountsPage's multi-currency tests).
+    beforeEach(() => {
+      localStorage.removeItem('accounts:ratesCache');
+    });
+
+    const MULTI_CURRENCY_SNAPSHOTS: NetWorthSnapshot[] = [
+      {
+        id: 'snap-multi',
+        householdId: 'hh-1',
+        snapshotDate: '2026-06-01',
+        byCurrency: { UAH: 4000, USD: 100 },
+        source: 'auto',
+        createdAt: '2026-06-01T00:00:00Z',
+        updatedAt: '2026-06-01T00:00:00Z',
+      },
+    ];
+
+    it('shows a combined total converted to USD, on the chart and per history row', async () => {
+      server.use(
+        http.get('/api/v1/reports/net-worth/snapshots', () =>
+          HttpResponse.json(MULTI_CURRENCY_SNAPSHOTS),
+        ),
+        http.get('/api/v1/transactions', () => HttpResponse.json([])),
+        http.get('/api/v1/reports/net-worth', () =>
+          HttpResponse.json({
+            totalBalance: 4100,
+            byCurrency: { UAH: 4000, USD: 100 },
+            accounts: [],
+          }),
+        ),
+        http.get('/api/v1/rates/latest', () =>
+          HttpResponse.json([
+            { ccy: 'USD', base_ccy: 'UAH', buy: '40.00', sale: '40.50' },
+          ]),
+        ),
+      );
+
+      renderWithProviders(<NetWorthHistoryPage />);
+      await waitFor(() => screen.getByText('2026-06-01'), { timeout: 3000 });
+
+      // 4000 UAH -> 4000/40 = 100 USD, plus the 100 USD already there = 200.
+      await waitFor(() =>
+        expect(screen.getByText('Total (USD)')).toBeInTheDocument(),
+      );
+      expect(screen.getByText(/≈ \$200\.00/)).toBeInTheDocument();
+    });
+
+    it('shows an unavailable notice instead of a wrong total when PrivatBank rates fail', async () => {
+      server.use(
+        http.get('/api/v1/reports/net-worth/snapshots', () =>
+          HttpResponse.json(MULTI_CURRENCY_SNAPSHOTS),
+        ),
+        http.get('/api/v1/transactions', () => HttpResponse.json([])),
+        http.get('/api/v1/reports/net-worth', () =>
+          HttpResponse.json({
+            totalBalance: 4100,
+            byCurrency: { UAH: 4000, USD: 100 },
+            accounts: [],
+          }),
+        ),
+        http.get(
+          '/api/v1/rates/latest',
+          () => new HttpResponse(null, { status: 503 }),
+        ),
+      );
+
+      renderWithProviders(<NetWorthHistoryPage />);
+      await waitFor(() => screen.getByText('2026-06-01'), { timeout: 3000 });
+
+      await waitFor(
+        () => expect(screen.getByText('Rates unavailable')).toBeInTheDocument(),
+        { timeout: 3000 },
+      );
+      expect(screen.queryByText('Total (USD)')).not.toBeInTheDocument();
+      expect(screen.queryByText(/≈ \$/)).not.toBeInTheDocument();
+    });
+
+    it('does not show a combined total for a single-currency household (nothing to convert)', async () => {
+      server.use(
+        http.get(
+          '/api/v1/reports/net-worth/snapshots',
+          () => HttpResponse.json(MOCK_SNAPSHOTS), // UAH-only, from the top of this file
+        ),
+        http.get('/api/v1/transactions', () => HttpResponse.json([])),
+        http.get('/api/v1/reports/net-worth', () =>
+          HttpResponse.json({
+            totalBalance: 45000,
+            byCurrency: { UAH: 45000 },
+            accounts: [],
+          }),
+        ),
+      );
+
+      renderWithProviders(<NetWorthHistoryPage />);
+      await waitFor(() => screen.getByText('2026-07-01'), { timeout: 3000 });
+
+      expect(screen.queryByText('Total (USD)')).not.toBeInTheDocument();
+      expect(screen.queryByText(/≈ \$/)).not.toBeInTheDocument();
+    });
+  });
 });

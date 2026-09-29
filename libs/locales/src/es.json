@@ -558,7 +558,14 @@
     "trendMore_one": "+{{count}} más",
     "trendMore_other": "+{{count}} más",
     "deleteTitle": "¿Eliminar esta entrada?",
-    "deleteBody": "Esto elimina permanentemente la entrada manual de abajo. No afecta a ninguna cuenta ni transacción."
+    "deleteBody": "Esto elimina permanentemente la entrada manual de abajo. No afecta a ninguna cuenta ni transacción.",
+    "totalUsd": "Total (USD)",
+    "rates": {
+      "loading": "Obteniendo tipos de cambio…",
+      "unavailable": "Tipos de cambio no disponibles",
+      "unavailableDesc": "No se pudieron obtener los tipos de cambio de PrivatBank — se oculta el total en USD para no mostrar un número incorrecto.",
+      "cached": "en caché"
+    }
   },
   "invites": {
     "title": "Invitaciones",
