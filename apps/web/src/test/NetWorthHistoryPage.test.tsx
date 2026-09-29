@@ -413,13 +413,20 @@ describe('NetWorthHistoryPage (#379)', () => {
       expect(liveTooltip).toHaveTextContent(/46,000/);
     });
 
-    it('adds a standalone activity point for a transaction day between two snapshots', async () => {
+    // Regression test for a production bug (#387 fallout): a household
+    // hand-backfilled an old, unrelated total, then started real account
+    // tracking later. The activity line must derive purely from the live
+    // total + transactions — never from that old figure — or a lump-sum
+    // correction reads as added on top of it (the original bug).
+    it('computes an activity point purely from the live total, never from an older unrelated snapshot', async () => {
       const snapshots: NetWorthSnapshot[] = [
         {
           id: 'snap-old',
           householdId: 'hh-1',
           snapshotDate: OLD_SNAPSHOT_DATE,
-          byCurrency: { UAH: 40000 },
+          // Deliberately wild and unrelated to the live figures below — if
+          // this leaks into the activity computation, the assertions fail.
+          byCurrency: { UAH: 999999 },
           source: 'auto',
           createdAt: `${OLD_SNAPSHOT_DATE}T04:00:00Z`,
           updatedAt: `${OLD_SNAPSHOT_DATE}T04:00:00Z`,
@@ -466,8 +473,9 @@ describe('NetWorthHistoryPage (#379)', () => {
         timeout: 3000,
       });
 
-      // old snapshot, mid-range activity point, today's snapshot (no
-      // separate live point since it coincides with the snapshot date).
+      // old (unrelated) snapshot, mid-range activity point, today's
+      // snapshot (no separate live point since it coincides with the
+      // snapshot date).
       const circles = await waitFor(() => {
         const found = document.querySelectorAll('circle');
         expect(found.length).toBe(3);
@@ -477,7 +485,12 @@ describe('NetWorthHistoryPage (#379)', () => {
       fireEvent.mouseEnter(circles[1]);
       const tooltip = await screen.findByRole('tooltip');
       expect(tooltip).toHaveTextContent('Groceries');
-      expect(tooltip).toHaveTextContent(/39,700/); // 40000 - 300
+      // Nothing happens between the expense and today, so this point
+      // equals today's live total (39,700) — NOT 999,999 minus 300, and
+      // nowhere near their sum.
+      expect(tooltip).toHaveTextContent(/39,700/);
+      expect(tooltip).not.toHaveTextContent('999,999');
+      expect(tooltip).not.toHaveTextContent('1,039,699');
     });
   });
 });
