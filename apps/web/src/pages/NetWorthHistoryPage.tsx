@@ -85,16 +85,27 @@ export function NetWorthHistoryPage() {
     setEditTarget(null);
   };
 
-  // A currency shows up in the trend the moment any snapshot carries it —
-  // households that changed their currency mix over time just get gaps
-  // rather than a chart that silently drops history.
+  // A currency shows up in the trend the moment any snapshot carries it, OR
+  // the household currently holds a live balance in it — households that
+  // changed their currency mix over time just get gaps rather than a chart
+  // that silently drops history, and a currency that's only ever existed
+  // live (no historical snapshot recorded it yet) still gets its own line.
+  //
+  // Production bug (#393): a household's manual entries were always
+  // USD-only, but the live accounts also held EUR. The combined "Total
+  // (USD)" line below never appeared because this list — which gates
+  // whether there's more than one currency to combine — only looked at
+  // snapshot currencies and missed the live-only EUR balance entirely.
   const currencies = useMemo(() => {
     const set = new Set<string>();
     snapshots.forEach((s) =>
       Object.keys(s.byCurrency).forEach((c) => set.add(c)),
     );
+    if (netWorth) {
+      Object.keys(netWorth.byCurrency).forEach((c) => set.add(c));
+    }
     return Array.from(set).sort();
-  }, [snapshots]);
+  }, [snapshots, netWorth]);
 
   const sortedForList = useMemo(
     () =>
@@ -111,7 +122,10 @@ export function NetWorthHistoryPage() {
   //
   // Hidden entirely for a single-currency household (mirrors AccountsPage's
   // grand-total gating) — a converted total next to the one currency it's
-  // converted from is a redundant number, not a new one.
+  // converted from is a redundant number, not a new one. `currencies`
+  // already folds in live-only currencies (see above), so this correctly
+  // flips on the moment a second currency exists anywhere, not just in
+  // historical snapshots.
   const showTotal = currencies.length > 1;
   const ratesNeeded = showTotal && currencies.some((c) => c !== TOTAL_CURRENCY);
   const ratesState = useRatesState(ratesNeeded);
@@ -121,12 +135,17 @@ export function NetWorthHistoryPage() {
   const ratesForTotal: RateMap =
     ratesState.status === 'ready' ? ratesState.rates : NO_RATES_NEEDED;
 
-  // null = couldn't convert every currency this row carries — shown as a gap
-  // rather than a silently wrong partial total.
+  // null = no badge for this row — either couldn't convert every currency it
+  // carries (shown as a gap rather than a silently wrong partial total), or
+  // the row is already single-currency USD, where a converted total would
+  // just repeat the number right next to it.
   const totalsByRow = useMemo(() => {
     const map = new Map<string, number | null>();
     for (const s of sortedForList) {
-      if (!canShowTotal) {
+      const rowCurrencies = Object.keys(s.byCurrency);
+      const redundant =
+        rowCurrencies.length === 1 && rowCurrencies[0] === TOTAL_CURRENCY;
+      if (!canShowTotal || redundant) {
         map.set(s.id, null);
         continue;
       }
