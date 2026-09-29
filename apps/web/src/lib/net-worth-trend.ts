@@ -55,26 +55,36 @@ function signedDelta(tx: Transaction, currency: string): number {
   }
 }
 
-interface Anchor {
-  date: string;
-  value: number;
-  source: NetWorthSnapshot['source'] | 'live';
-}
-
 /**
- * Builds one currency's trend series: the persisted snapshot points plus one
- * point per day with transaction activity in that currency (same-day
- * transactions merged into a single point).
+ * Builds one currency's trend series: the persisted snapshot points, plus —
+ * only when a live "today" total is available — one point per day with
+ * transaction activity in that currency (same-day transactions merged into
+ * a single point).
  *
- * Anchors (snapshots, plus an optional live "today" total) are the only
- * dates whose value is authoritative. Every other date's value is derived
- * by walking day-by-day from the nearest earlier anchor, adding each day's
- * net transaction delta — or, for dates before the earliest anchor, walking
- * backward from it and subtracting. A date that coincides with an anchor
- * keeps the anchor's value and does NOT also carry that day's transaction
- * list — the anchor is authoritative regardless of what else happened that
- * day, and showing a same-day delta next to it reads as something still to
- * be added/subtracted, which it isn't (see the comment at the return below).
+ * The transaction-derived ("activity") line is anchored SOLELY at `today`
+ * and walked backward day by day, subtracting each day's net delta. It
+ * deliberately never chains through a persisted snapshot as an intermediate
+ * anchor. Snapshots (manual or auto) are a separate, independent
+ * measurement — often a hand-entered historical estimate that predates real
+ * account usage entirely — and forward-filling transaction deltas on top of
+ * one silently conflates the two the moment real tracking begins.
+ *
+ * Production bug this fixes: a household hand-backfilled monthly totals,
+ * then started using real accounts, initializing each one via a lump-sum
+ * "adjust balance" correction. Those corrections summed to the household's
+ * real current total, but the old algorithm added that sum ON TOP OF the
+ * previous hand-entered figure (an unrelated number), roughly doubling the
+ * displayed value for that day. Anchoring only at `today` and walking
+ * backward means the activity line is always internally consistent with
+ * itself — it never inherits a number from an unrelated manual entry.
+ *
+ * Snapshots are still shown as their own points, using their own stored
+ * value, and take priority over the activity line on their exact date (a
+ * manual/auto snapshot is authoritative for the day it names) — but that
+ * override never propagates to any other date, unlike the old chaining
+ * behavior. Without a live `today` (e.g. the net-worth query hasn't loaded,
+ * or this currency has no live balance), only the snapshot points are
+ * returned — there's no trustworthy anchor to derive an activity line from.
  */
 export function buildTrendSeries(
   currency: string,
@@ -95,59 +105,54 @@ export function buildTrendSeries(
     });
     byDay.set(tx.date, list);
   }
-
-  const anchors: Anchor[] = snapshots
-    .filter((s) => s.byCurrency[currency] !== undefined)
-    .map((s) => ({
-      date: s.snapshotDate,
-      value: s.byCurrency[currency],
-      source: s.source,
-    }));
-  if (today && !anchors.some((a) => a.date === today.date)) {
-    anchors.push({ date: today.date, value: today.value, source: 'live' });
-  }
-  if (anchors.length === 0) return [];
-  anchors.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
-
-  const allDates = Array.from(
-    new Set([...anchors.map((a) => a.date), ...byDay.keys()]),
-  ).sort();
-  const anchorByDate = new Map(anchors.map((a) => [a.date, a]));
-  const firstAnchorIdx = allDates.findIndex((d) => anchorByDate.has(d));
-
   const dayDelta = (date: string) =>
     (byDay.get(date) ?? []).reduce((s, t) => s + t.amount, 0);
 
-  const values = new Array<number>(allDates.length);
-  values[firstAnchorIdx] = anchorByDate.get(allDates[firstAnchorIdx])!.value;
+  const points = new Map<string, TrendPoint>();
 
-  for (let i = firstAnchorIdx + 1; i < allDates.length; i++) {
-    const anchor = anchorByDate.get(allDates[i]);
-    values[i] = anchor ? anchor.value : values[i - 1] + dayDelta(allDates[i]);
-  }
-  for (let i = firstAnchorIdx - 1; i >= 0; i--) {
-    values[i] = values[i + 1] - dayDelta(allDates[i + 1]);
+  if (today) {
+    const dates = Array.from(new Set([...byDay.keys(), today.date])).sort();
+    const todayIdx = dates.indexOf(today.date);
+    const values = new Array<number>(dates.length);
+    values[todayIdx] = today.value;
+    for (let i = todayIdx - 1; i >= 0; i--) {
+      values[i] = values[i + 1] - dayDelta(dates[i + 1]);
+    }
+    // Dates after today shouldn't occur (the caller bounds the transaction
+    // fetch at today), but a forward pass keeps this correct if one sneaks
+    // in (e.g. a clock skew or a future-dated entry).
+    for (let i = todayIdx + 1; i < dates.length; i++) {
+      values[i] = values[i - 1] + dayDelta(dates[i]);
+    }
+    dates.forEach((date, i) => {
+      const isToday = date === today.date;
+      const txs = isToday ? undefined : byDay.get(date);
+      points.set(date, {
+        date,
+        value: values[i],
+        kind: isToday ? 'snapshot' : 'activity',
+        source: isToday ? 'live' : undefined,
+        delta: txs ? txs.reduce((s, t) => s + t.amount, 0) : undefined,
+        transactions: txs,
+      });
+    });
   }
 
-  return allDates.map((date, i) => {
-    const anchor = anchorByDate.get(date);
-    // Same-day transactions are only surfaced for an 'activity' point, where
-    // their sum IS how that point's value was derived from the previous one
-    // — showing "Change: X" next to it reads as "this total = previous ±X".
-    // A 'snapshot' point's value is authoritative (typed by the user, or the
-    // live/auto total) regardless of what else happened that day; showing
-    // the same "Change: X" line there previously read as if that amount
-    // still needed to be added to or subtracted from the displayed total,
-    // which it doesn't — so a coinciding day's transactions are dropped
-    // here rather than attached to a snapshot point.
-    const txs = anchor ? undefined : byDay.get(date);
-    return {
-      date,
-      value: values[i],
-      kind: anchor ? 'snapshot' : 'activity',
-      source: anchor?.source,
-      delta: txs ? txs.reduce((s, t) => s + t.amount, 0) : undefined,
-      transactions: txs,
-    };
-  });
+  // Snapshots are independent checkpoints, always shown with their own
+  // stored value — overriding the activity line's value on their own date
+  // (see the function doc), never on any other date.
+  for (const s of snapshots) {
+    const value = s.byCurrency[currency];
+    if (value === undefined) continue;
+    points.set(s.snapshotDate, {
+      date: s.snapshotDate,
+      value,
+      kind: 'snapshot',
+      source: s.source,
+    });
+  }
+
+  return Array.from(points.values()).sort((a, b) =>
+    a.date < b.date ? -1 : a.date > b.date ? 1 : 0,
+  );
 }

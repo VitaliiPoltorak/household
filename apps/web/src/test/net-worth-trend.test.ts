@@ -15,19 +15,6 @@ const snapshot = (
   updatedAt: `${date}T00:00:00Z`,
 });
 
-const snapshotFx = (
-  date: string,
-  byCurrency: Record<string, number>,
-): NetWorthSnapshot => ({
-  id: `snap-${date}`,
-  householdId: 'hh-1',
-  snapshotDate: date,
-  byCurrency,
-  source: 'auto',
-  createdAt: `${date}T00:00:00Z`,
-  updatedAt: `${date}T00:00:00Z`,
-});
-
 const tx = (overrides: Partial<Transaction>): Transaction => ({
   id: 'tx-1',
   householdId: 'hh-1',
@@ -78,7 +65,7 @@ describe('buildTrendSeries', () => {
     ]);
   });
 
-  it("walks forward from a snapshot, adding each day's net delta", () => {
+  it('without a live "today", transactions produce no activity points — only snapshots are shown', () => {
     const series = buildTrendSeries(
       'UAH',
       [snapshot('2026-06-01', 1000)],
@@ -88,17 +75,49 @@ describe('buildTrendSeries', () => {
       ],
       null,
     );
-    expect(series.map((p) => [p.date, p.value, p.kind])).toEqual([
-      ['2026-06-01', 1000, 'snapshot'],
-      ['2026-06-05', 1200, 'activity'],
-      ['2026-06-10', 1150, 'activity'],
+    // There is no trustworthy anchor to derive an activity line from — a
+    // snapshot is never used as one (see the regression test below for why).
+    expect(series).toEqual([
+      {
+        date: '2026-06-01',
+        value: 1000,
+        kind: 'snapshot',
+        source: 'auto',
+        delta: undefined,
+        transactions: undefined,
+      },
     ]);
   });
 
-  it('merges same-day transactions into one point with a summed delta and a transaction list', () => {
+  it("walks backward from today, subtracting each day's net delta, ignoring any snapshot", () => {
     const series = buildTrendSeries(
       'UAH',
-      [snapshot('2026-06-01', 1000)],
+      [snapshot('2026-06-01', 1000)], // must have zero effect on the activity line
+      [
+        tx({ id: 't1', date: '2026-06-05', type: 'income', amount: 200 }),
+        tx({ id: 't2', date: '2026-06-10', type: 'expense', amount: 50 }),
+      ],
+      { date: '2026-06-15', value: 1150 },
+    );
+    // Nothing happens between 06-10 and today (06-15), so 06-10's value
+    // (inclusive of its own -50 expense) equals today's: 1150. 06-05's value
+    // (inclusive of its own +200 income) is what, ADDED to 06-10's -50 delta,
+    // produces 1150 — i.e. 1150 - (-50) = 1200.
+    expect(
+      series
+        .filter((p) => p.kind === 'activity' || p.source === 'live')
+        .map((p) => [p.date, p.value, p.kind]),
+    ).toEqual([
+      ['2026-06-05', 1200, 'activity'],
+      ['2026-06-10', 1150, 'activity'],
+      ['2026-06-15', 1150, 'snapshot'],
+    ]);
+  });
+
+  it('merges same-day transactions into one activity point with a summed delta and a transaction list', () => {
+    const series = buildTrendSeries(
+      'UAH',
+      [],
       [
         tx({
           id: 't1',
@@ -115,10 +134,12 @@ describe('buildTrendSeries', () => {
           description: 'Groceries',
         }),
       ],
-      null,
+      { date: '2026-06-10', value: 1120 },
     );
     const day = series.find((p) => p.date === '2026-06-05')!;
-    expect(day.value).toBe(1120); // 1000 + 200 - 80
+    // Nothing happens between 06-05 and today (06-10), so 06-05's value —
+    // inclusive of its own net +120 (200 - 80) — equals today's: 1120.
+    expect(day.value).toBe(1120);
     expect(day.delta).toBe(120);
     expect(day.transactions).toHaveLength(2);
     expect(day.transactions).toEqual(
@@ -129,24 +150,40 @@ describe('buildTrendSeries', () => {
     );
   });
 
-  it('walks backward from the earliest anchor for activity before it', () => {
+  // The exact production bug (#387 fallout): a household hand-backfilled
+  // monthly totals, then started real account tracking on 2026-08-30 by
+  // initializing accounts via several "adjust balance" corrections. The old
+  // algorithm chained those corrections onto the unrelated 2026-08-01 manual
+  // figure (117011 + 115870 = 232881, a near-doubling). The activity line
+  // must instead be self-consistent, derived only from today's live total.
+  it('does not double-count a lump-sum correction against an unrelated manual entry', () => {
     const series = buildTrendSeries(
       'UAH',
-      [snapshot('2026-06-10', 1000)],
       [
-        tx({ id: 't1', date: '2026-06-05', type: 'income', amount: 200 }),
-        tx({ id: 't2', date: '2026-06-08', type: 'expense', amount: 50 }),
+        snapshot('2026-08-01', 117011, 'manual'),
+        snapshot('2026-09-01', 118500, 'manual'),
       ],
-      null,
+      [
+        tx({
+          id: 'c1',
+          date: '2026-08-30',
+          type: 'adjustment',
+          amount: 115870,
+        }),
+      ],
+      { date: '2026-09-15', value: 118600 },
     );
-    // Nothing recorded happens between 06-08 and the 06-10 anchor, so 06-08
-    // must equal the anchor (1000). Undoing 06-08's own -50 expense to reach
-    // 06-05 means ADDING it back: 1000 - (-50) = 1050.
-    expect(series.map((p) => [p.date, p.value])).toEqual([
-      ['2026-06-05', 1050],
-      ['2026-06-08', 1000],
-      ['2026-06-10', 1000],
-    ]);
+    const correctionDay = series.find((p) => p.date === '2026-08-30')!;
+    // Nothing else happens between the correction (08-30) and today
+    // (09-15), so 08-30's value — inclusive of the +115870 correction —
+    // equals today's: 118600. Nowhere near the old bug's 232,881
+    // (117011 + 115870, chained onto an unrelated manual figure), and
+    // nothing here is derived from either manual snapshot at all.
+    expect(correctionDay.value).toBe(118600);
+    expect(correctionDay.kind).toBe('activity');
+    // The manual snapshots are untouched, on their own dates only.
+    expect(series.find((p) => p.date === '2026-08-01')?.value).toBe(117011);
+    expect(series.find((p) => p.date === '2026-09-01')?.value).toBe(118500);
   });
 
   it('extends the series with a live "today" anchor when provided', () => {
@@ -195,41 +232,29 @@ describe('buildTrendSeries', () => {
   });
 
   it('a cross-currency transfer only affects the leg currency being charted', () => {
-    const uah = buildTrendSeries(
-      'UAH',
-      [snapshot('2026-06-01', 1000)],
-      [
-        tx({
-          id: 't1',
-          date: '2026-06-05',
-          type: 'transfer',
-          amount: 500,
-          currency: 'UAH',
-          counterAmount: 12,
-          counterCurrency: 'USD',
-        }),
-      ],
-      null,
-    );
-    expect(uah.find((p) => p.date === '2026-06-05')?.value).toBe(500); // 1000 - 500
+    const transferTx = tx({
+      id: 't1',
+      date: '2026-06-05',
+      type: 'transfer',
+      amount: 500,
+      currency: 'UAH',
+      counterAmount: 12,
+      counterCurrency: 'USD',
+    });
 
-    const usd = buildTrendSeries(
-      'USD',
-      [snapshotFx('2026-06-01', { USD: 0 })],
-      [
-        tx({
-          id: 't1',
-          date: '2026-06-05',
-          type: 'transfer',
-          amount: 500,
-          currency: 'UAH',
-          counterAmount: 12,
-          counterCurrency: 'USD',
-        }),
-      ],
-      null,
-    );
-    expect(usd.find((p) => p.date === '2026-06-05')?.value).toBe(12); // 0 + 12
+    // Nothing happens between the transfer (06-05) and "today" (06-06) in
+    // either currency, so each leg's 06-05 value equals its own today value.
+    const uah = buildTrendSeries('UAH', [], [transferTx], {
+      date: '2026-06-06',
+      value: 500,
+    });
+    expect(uah.find((p) => p.date === '2026-06-05')?.value).toBe(500);
+
+    const usd = buildTrendSeries('USD', [], [transferTx], {
+      date: '2026-06-06',
+      value: 12,
+    });
+    expect(usd.find((p) => p.date === '2026-06-05')?.value).toBe(12);
   });
 
   it('ignores transactions in a currency the chart is not tracking', () => {

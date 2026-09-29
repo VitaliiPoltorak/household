@@ -40,34 +40,24 @@ export function NetWorthHistoryPage() {
     enabled: !!hid,
   });
 
-  // Trend enrichment (#379 follow-up) — the chart also plots one point per
-  // day with transaction activity, interpolated between/around the
-  // persisted snapshots. The live total anchors "today" so recent activity
-  // since the last snapshot still shows up.
+  // Trend enrichment (#379 follow-up, corrected by #387 fallout) — the chart
+  // also plots one point per day with transaction activity. That line is
+  // anchored solely at the live "today" total and walked backward through
+  // transactions (see buildTrendSeries) — it never chains through a
+  // persisted snapshot, so it can't inherit an unrelated hand-entered
+  // number the moment real account tracking begins. Fetched independently
+  // of the snapshots for the same reason: bounding the range by the
+  // earliest snapshot date used to tie the two together.
   const { data: netWorth } = useQuery({
     queryKey: ['net-worth-live', hid],
     queryFn: () => financeApi.getNetWorth(hid!),
     enabled: !!hid,
   });
 
-  const earliestSnapshotDate = useMemo(
-    () =>
-      snapshots.reduce<string | null>(
-        (min, s) =>
-          min === null || s.snapshotDate < min ? s.snapshotDate : min,
-        null,
-      ),
-    [snapshots],
-  );
-
   const { data: trendTransactions = EMPTY_TX } = useQuery({
-    queryKey: ['transactions', hid, 'net-worth-trend', earliestSnapshotDate],
-    queryFn: () =>
-      financeApi.getTransactions(hid!, {
-        from: earliestSnapshotDate!,
-        to: todayStr(),
-      }),
-    enabled: !!hid && !!earliestSnapshotDate,
+    queryKey: ['transactions', hid, 'net-worth-trend'],
+    queryFn: () => financeApi.getTransactions(hid!, { to: todayStr() }),
+    enabled: !!hid,
   });
 
   const invalidate = () =>
