@@ -600,5 +600,62 @@ describe('NetWorthHistoryPage (#379)', () => {
       expect(screen.queryByText('Total (USD)')).not.toBeInTheDocument();
       expect(screen.queryByText(/≈ \$/)).not.toBeInTheDocument();
     });
+
+    // Production bug (#393): a household's manual history was always
+    // USD-only, but the live accounts also held EUR. The total never
+    // appeared because the multi-currency gate only looked at snapshot
+    // currencies and missed the live-only EUR balance.
+    it('shows the combined total when history is USD-only but live accounts also hold a second currency', async () => {
+      const usdOnlySnapshots: NetWorthSnapshot[] = [
+        {
+          id: 'snap-usd',
+          householdId: 'hh-1',
+          snapshotDate: '2026-06-01',
+          byCurrency: { USD: 100 },
+          source: 'manual',
+          createdAt: '2026-06-01T00:00:00Z',
+          updatedAt: '2026-06-01T00:00:00Z',
+        },
+      ];
+      server.use(
+        http.get('/api/v1/reports/net-worth/snapshots', () =>
+          HttpResponse.json(usdOnlySnapshots),
+        ),
+        http.get('/api/v1/transactions', () => HttpResponse.json([])),
+        http.get('/api/v1/reports/net-worth', () =>
+          HttpResponse.json({
+            totalBalance: 150,
+            byCurrency: { USD: 100, EUR: 50 },
+            accounts: [],
+          }),
+        ),
+        http.get('/api/v1/rates/latest', () =>
+          HttpResponse.json([
+            { ccy: 'USD', base_ccy: 'UAH', buy: '40.00', sale: '40.50' },
+            { ccy: 'EUR', base_ccy: 'UAH', buy: '44.00', sale: '44.50' },
+          ]),
+        ),
+      );
+
+      renderWithProviders(<NetWorthHistoryPage />);
+      await waitFor(() => screen.getByText('2026-06-01'), { timeout: 3000 });
+
+      const totalLabel = await waitFor(() => screen.getByText('Total (USD)'));
+      const chartContainer = totalLabel.closest('div')!;
+      const circles = await waitFor(() => {
+        const found = chartContainer.querySelectorAll('circle');
+        expect(found.length).toBe(2); // the USD-only snapshot + today's live anchor
+        return found;
+      });
+
+      fireEvent.mouseEnter(circles[1]);
+      const tooltip = await screen.findByRole('tooltip');
+      // 50 EUR -> 50 * 44/40 = 55 USD, plus the 100 USD already there = 155.
+      expect(tooltip).toHaveTextContent(/155\.00/);
+
+      // The USD-only historical row gets no redundant "≈ $100.00" badge next
+      // to its own "$100.00" — nothing new to show there.
+      expect(screen.queryByText(/≈ \$100\.00/)).not.toBeInTheDocument();
+    });
   });
 });
