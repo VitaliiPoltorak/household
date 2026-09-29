@@ -564,7 +564,9 @@
     "trendMore_one": "+{{count}} ще",
     "trendMore_few": "+{{count}} ще",
     "trendMore_many": "+{{count}} ще",
-    "trendMore_other": "+{{count}} ще"
+    "trendMore_other": "+{{count}} ще",
+    "deleteTitle": "Видалити цей запис?",
+    "deleteBody": "Це остаточно видалить запис нижче. На рахунки чи транзакції це не вплине."
   },
   "invites": {
     "title": "Запрошення",

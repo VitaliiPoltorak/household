@@ -556,7 +556,9 @@
     "trendLive": "Heute",
     "trendChange": "Änderung",
     "trendMore_one": "+{{count}} weitere",
-    "trendMore_other": "+{{count}} weitere"
+    "trendMore_other": "+{{count}} weitere",
+    "deleteTitle": "Diesen Eintrag löschen?",
+    "deleteBody": "Dies entfernt den unten stehenden manuellen Eintrag endgültig. Konten und Transaktionen bleiben unberührt."
   },
   "invites": {
     "title": "Einladungen",

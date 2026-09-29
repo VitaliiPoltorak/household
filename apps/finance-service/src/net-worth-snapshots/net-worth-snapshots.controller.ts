@@ -2,10 +2,14 @@ import {
   Controller,
   Get,
   Post,
+  Delete,
   Body,
   Headers,
+  Param,
   Query,
   UnauthorizedException,
+  HttpCode,
+  HttpStatus,
 } from '@nestjs/common';
 import { ApiTags, ApiHeader, ApiQuery } from '@nestjs/swagger';
 import { NetWorthSnapshotsService } from './net-worth-snapshots.service';
@@ -52,6 +56,16 @@ export class NetWorthSnapshotsController {
     this.require(hid);
     await this.svc.createManyManual(hid, dto.snapshots);
     return { count: dto.snapshots.length };
+  }
+
+  @Delete(':id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async delete(
+    @Headers('x-household-id') hid: string,
+    @Param('id') id: string,
+  ): Promise<void> {
+    this.require(hid);
+    await this.svc.deleteManual(hid, id);
   }
 
   private require(hid: string | undefined): asserts hid is string {

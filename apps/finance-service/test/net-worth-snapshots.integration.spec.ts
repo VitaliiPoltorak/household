@@ -24,6 +24,13 @@ function get(app: INestApplication, path: string, hid = H) {
   return request(app.getHttpServer()).get(path).set('X-Household-Id', hid);
 }
 
+function del(app: INestApplication, path: string, hid = H) {
+  return request(app.getHttpServer())
+    .delete(path)
+    .set('X-User-Id', U)
+    .set('X-Household-Id', hid);
+}
+
 describe('Net-worth snapshots (integration, #379)', () => {
   let app: INestApplication;
   let accountId: string;
@@ -242,6 +249,63 @@ describe('Net-worth snapshots (integration, #379)', () => {
       await post(app, '/reports/net-worth/snapshots/bulk', {
         snapshots: [],
       }).expect(400);
+    });
+  });
+
+  describe('DELETE /reports/net-worth/snapshots/:id', () => {
+    it('deletes a manual snapshot', async () => {
+      const created = await post(app, '/reports/net-worth/snapshots', {
+        date: '2025-05-01',
+        byCurrency: { UAH: 1000 },
+      }).expect(201);
+
+      await del(app, `/reports/net-worth/snapshots/${created.body.id}`).expect(
+        204,
+      );
+
+      const list = await get(app, '/reports/net-worth/snapshots').expect(200);
+      expect(
+        list.body.find((s: { id: string }) => s.id === created.body.id),
+      ).toBeUndefined();
+    });
+
+    it('rejects deleting an auto-captured snapshot', async () => {
+      const scheduler = app.get(NetWorthSnapshotScheduler);
+      await scheduler.captureOne(H, '2025-05-01');
+      const list = await get(app, '/reports/net-worth/snapshots').expect(200);
+      const autoSnapshot = list.body[0];
+
+      await del(app, `/reports/net-worth/snapshots/${autoSnapshot.id}`).expect(
+        400,
+      );
+
+      const after = await get(app, '/reports/net-worth/snapshots').expect(200);
+      expect(after.body).toHaveLength(1);
+    });
+
+    it('returns 404 for a snapshot that does not exist', async () => {
+      await del(
+        app,
+        '/reports/net-worth/snapshots/00000000-0000-0000-0000-000000000000',
+      ).expect(404);
+    });
+
+    it("does not let one household delete another household's snapshot", async () => {
+      const created = await post(app, '/reports/net-worth/snapshots', {
+        date: '2025-05-01',
+        byCurrency: { UAH: 1000 },
+      }).expect(201);
+
+      await del(
+        app,
+        `/reports/net-worth/snapshots/${created.body.id}`,
+        H2,
+      ).expect(404);
+
+      const list = await get(app, '/reports/net-worth/snapshots').expect(200);
+      expect(
+        list.body.find((s: { id: string }) => s.id === created.body.id),
+      ).toBeDefined();
     });
   });
 
