@@ -1,4 +1,4 @@
-import { screen, waitFor, fireEvent } from '@testing-library/react';
+import { screen, waitFor, fireEvent, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { renderWithProviders } from './wrapper';
@@ -223,6 +223,90 @@ describe('NetWorthHistoryPage (#379)', () => {
     ]);
   });
 
+  describe('deleting a manual entry', () => {
+    it('shows a delete button only on manual rows, not auto rows', async () => {
+      server.use(
+        http.get('/api/v1/reports/net-worth/snapshots', () =>
+          HttpResponse.json(MOCK_SNAPSHOTS),
+        ),
+      );
+      renderWithProviders(<NetWorthHistoryPage />);
+      await waitFor(() => screen.getByText('2026-07-01'), { timeout: 3000 });
+
+      // MOCK_SNAPSHOTS: snap-1 (2026-06-01) is auto, snap-2 (2026-07-01) is
+      // manual — only one delete button should be rendered.
+      expect(screen.getAllByTitle('Delete')).toHaveLength(1);
+    });
+
+    it('confirms before deleting, then removes the row', async () => {
+      let deletedId: string | null = null;
+      let snapshots = [...MOCK_SNAPSHOTS];
+      server.use(
+        http.get('/api/v1/reports/net-worth/snapshots', () =>
+          HttpResponse.json(snapshots),
+        ),
+        http.delete('/api/v1/reports/net-worth/snapshots/:id', ({ params }) => {
+          deletedId = params.id as string;
+          snapshots = snapshots.filter((s) => s.id !== deletedId);
+          return new HttpResponse(null, { status: 204 });
+        }),
+      );
+
+      renderWithProviders(<NetWorthHistoryPage />);
+      await waitFor(() => screen.getByText('2026-07-01'), { timeout: 3000 });
+
+      await userEvent.click(screen.getByTitle('Delete'));
+      const dialog = await screen.findByRole('dialog', {
+        name: 'Delete this entry?',
+      });
+      // Confirmation restates the record, not just "are you sure?".
+      expect(dialog).toHaveTextContent('2026-07-01');
+      expect(dialog).toHaveTextContent('45,000');
+
+      await userEvent.click(
+        within(dialog).getByRole('button', { name: 'Delete' }),
+      );
+
+      await waitFor(() => expect(deletedId).toBe('snap-2'), {
+        timeout: 3000,
+      });
+      await waitFor(
+        () => expect(screen.queryByText('2026-07-01')).not.toBeInTheDocument(),
+        { timeout: 3000 },
+      );
+      // The auto row is untouched.
+      expect(screen.getByText('2026-06-01')).toBeInTheDocument();
+    });
+
+    it('cancelling the confirmation does not delete anything', async () => {
+      let called = false;
+      server.use(
+        http.get('/api/v1/reports/net-worth/snapshots', () =>
+          HttpResponse.json(MOCK_SNAPSHOTS),
+        ),
+        http.delete('/api/v1/reports/net-worth/snapshots/:id', () => {
+          called = true;
+          return new HttpResponse(null, { status: 204 });
+        }),
+      );
+
+      renderWithProviders(<NetWorthHistoryPage />);
+      await waitFor(() => screen.getByText('2026-07-01'), { timeout: 3000 });
+
+      await userEvent.click(screen.getByTitle('Delete'));
+      const dialog = await screen.findByRole('dialog', {
+        name: 'Delete this entry?',
+      });
+      await userEvent.click(
+        within(dialog).getByRole('button', { name: 'Cancel' }),
+      );
+
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+      expect(screen.getByText('2026-07-01')).toBeInTheDocument();
+      expect(called).toBe(false);
+    });
+  });
+
   // Trend chart also plots transaction activity between/around the
   // snapshots, anchored by the live total at "today" (#379 follow-up).
   // Dates are computed relative to the real clock (not faked) — vi's fake
@@ -253,7 +337,7 @@ describe('NetWorthHistoryPage (#379)', () => {
       counterCurrency: null,
     };
 
-    it('merges a transaction dated exactly on a snapshot day into that point, and adds a live "today" point', async () => {
+    it('does not attach a same-day transaction to a snapshot point (it stays authoritative on its own), and adds a live "today" point', async () => {
       const snapshots: NetWorthSnapshot[] = [
         {
           id: 'snap-old',
@@ -313,10 +397,15 @@ describe('NetWorthHistoryPage (#379)', () => {
         return found;
       });
 
+      // The manual snapshot's own tooltip shows only its own total — the
+      // same-day "Salary" transaction is not merged in (#379 follow-up bug
+      // report: it previously read as if that amount still needed to be
+      // added to or subtracted from the 45,000 total, which it doesn't).
       fireEvent.mouseEnter(circles[1]);
       const tooltip = await screen.findByRole('tooltip');
-      expect(tooltip).toHaveTextContent('Salary');
-      expect(tooltip).toHaveTextContent(/5,000/);
+      expect(tooltip).toHaveTextContent('Manual');
+      expect(tooltip).toHaveTextContent(/45,000/);
+      expect(tooltip).not.toHaveTextContent('Salary');
 
       fireEvent.mouseEnter(circles[2]);
       const liveTooltip = await screen.findByRole('tooltip');

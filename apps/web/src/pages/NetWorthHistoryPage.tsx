@@ -1,11 +1,12 @@
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { financeApi } from '../api/finance';
 import { useHousehold } from '../contexts/HouseholdContext';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Modal } from '../components/ui/Modal';
+import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { Section } from '../components/dashboard/Section';
 import { NetWorthTrendChart } from '../components/reports/NetWorthTrendChart';
 import { formatMoney } from '../lib/money';
@@ -29,6 +30,9 @@ export function NetWorthHistoryPage() {
   const [showEntry, setShowEntry] = useState(false);
   const [showBulk, setShowBulk] = useState(false);
   const [editTarget, setEditTarget] = useState<NetWorthSnapshot | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<NetWorthSnapshot | null>(
+    null,
+  );
 
   const { data: snapshots = EMPTY, isLoading } = useQuery({
     queryKey: ['net-worth-snapshots', hid],
@@ -68,6 +72,16 @@ export function NetWorthHistoryPage() {
 
   const invalidate = () =>
     qc.invalidateQueries({ queryKey: ['net-worth-snapshots', hid] });
+
+  // Manual entries only — the server rejects deleting an auto snapshot,
+  // since the scheduler just recreates it next month (#379 follow-up).
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => financeApi.deleteNetWorthSnapshot(id, hid!),
+    onSuccess: () => {
+      invalidate();
+      setDeleteTarget(null);
+    },
+  });
 
   const closeEntry = () => {
     setShowEntry(false);
@@ -159,11 +173,14 @@ export function NetWorthHistoryPage() {
           <Section title={t('netWorthHistory.history')}>
             <ul className="divide-y divide-gray-100 rounded-xl border border-gray-200 bg-white dark:divide-gray-800 dark:border-gray-800 dark:bg-gray-900">
               {sortedForList.map((s) => (
-                <li key={s.id}>
+                <li
+                  key={s.id}
+                  className="group flex items-center gap-1 hover:bg-gray-50 dark:hover:bg-gray-800/50"
+                >
                   <button
                     type="button"
                     onClick={() => setEditTarget(s)}
-                    className="flex w-full items-center justify-between gap-3 px-4 py-2.5 text-left hover:bg-gray-50 dark:hover:bg-gray-800/50"
+                    className="flex flex-1 items-center justify-between gap-3 px-4 py-2.5 text-left"
                   >
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
@@ -187,6 +204,16 @@ export function NetWorthHistoryPage() {
                       ))}
                     </div>
                   </button>
+                  {s.source === 'manual' && (
+                    <button
+                      type="button"
+                      onClick={() => setDeleteTarget(s)}
+                      title={t('common.delete')}
+                      className="mr-3 text-sm text-gray-400 opacity-0 transition-opacity hover:text-red-400 group-hover:opacity-100"
+                    >
+                      🗑
+                    </button>
+                  )}
                 </li>
               ))}
             </ul>
@@ -214,6 +241,37 @@ export function NetWorthHistoryPage() {
             invalidate();
             setShowBulk(false);
           }}
+        />
+      )}
+
+      {deleteTarget && (
+        <ConfirmDialog
+          title={t('netWorthHistory.deleteTitle')}
+          body={t('netWorthHistory.deleteBody')}
+          confirmLabel={t('common.delete')}
+          confirming={deleteMutation.isPending}
+          onCancel={() => setDeleteTarget(null)}
+          onConfirm={() => deleteMutation.mutate(deleteTarget.id)}
+          details={
+            <dl className="rounded-lg bg-gray-50 px-4 py-3 text-sm dark:bg-gray-800">
+              <div className="flex justify-between gap-4">
+                <dt className="text-gray-500 dark:text-gray-400">
+                  {t('transactions.date')}
+                </dt>
+                <dd className="text-gray-900 dark:text-gray-100">
+                  {deleteTarget.snapshotDate}
+                </dd>
+              </div>
+              {Object.entries(deleteTarget.byCurrency).map(([ccy, v]) => (
+                <div key={ccy} className="flex justify-between gap-4">
+                  <dt className="text-gray-500 dark:text-gray-400">{ccy}</dt>
+                  <dd className="font-mono text-gray-900 dark:text-gray-100">
+                    {formatMoney(v, ccy)}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          }
         />
       )}
     </div>

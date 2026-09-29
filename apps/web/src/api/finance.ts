@@ -172,6 +172,9 @@ export const financeApi = {
       cfg(hid),
     ),
 
+  deleteNetWorthSnapshot: (id: string, hid: string) =>
+    api.delete(`/reports/net-worth/snapshots/${id}`, cfg(hid)),
+
   // Account types (#227)
   getAccountTypes: () => api.get<AccountTypeCatalogEntry[]>('/account-types'),
 

@@ -15,8 +15,11 @@ export interface TrendPoint {
    *  interpolated purely from that day's transactions. */
   kind: 'snapshot' | 'activity';
   source?: NetWorthSnapshot['source'] | 'live';
-  /** Net change from that day's transactions, if any (present on both
-   *  kinds — a snapshot day can also have same-day transactions). */
+  /** Net change from that day's transactions — only set for kind:
+   *  'activity', where it's how this point's value was derived from the
+   *  previous one. A 'snapshot' point's value is authoritative regardless
+   *  of same-day transactions, so those are never attached here (avoids
+   *  reading as "still needs to be added/subtracted from this total"). */
   delta?: number;
   transactions?: TrendTransactionSummary[];
 }
@@ -68,8 +71,10 @@ interface Anchor {
  * by walking day-by-day from the nearest earlier anchor, adding each day's
  * net transaction delta — or, for dates before the earliest anchor, walking
  * backward from it and subtracting. A date that coincides with an anchor
- * keeps the anchor's value but still carries that day's transaction list
- * (if any) for the tooltip.
+ * keeps the anchor's value and does NOT also carry that day's transaction
+ * list — the anchor is authoritative regardless of what else happened that
+ * day, and showing a same-day delta next to it reads as something still to
+ * be added/subtracted, which it isn't (see the comment at the return below).
  */
 export function buildTrendSeries(
   currency: string,
@@ -126,7 +131,16 @@ export function buildTrendSeries(
 
   return allDates.map((date, i) => {
     const anchor = anchorByDate.get(date);
-    const txs = byDay.get(date);
+    // Same-day transactions are only surfaced for an 'activity' point, where
+    // their sum IS how that point's value was derived from the previous one
+    // — showing "Change: X" next to it reads as "this total = previous ±X".
+    // A 'snapshot' point's value is authoritative (typed by the user, or the
+    // live/auto total) regardless of what else happened that day; showing
+    // the same "Change: X" line there previously read as if that amount
+    // still needed to be added to or subtracted from the displayed total,
+    // which it doesn't — so a coinciding day's transactions are dropped
+    // here rather than attached to a snapshot point.
+    const txs = anchor ? undefined : byDay.get(date);
     return {
       date,
       value: values[i],

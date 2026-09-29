@@ -556,7 +556,9 @@
     "trendLive": "Today",
     "trendChange": "Change",
     "trendMore_one": "+{{count}} more",
-    "trendMore_other": "+{{count}} more"
+    "trendMore_other": "+{{count}} more",
+    "deleteTitle": "Delete this entry?",
+    "deleteBody": "This permanently removes the manual snapshot below. It won't affect any accounts or transactions."
   },
   "invites": {
     "title": "Invites",

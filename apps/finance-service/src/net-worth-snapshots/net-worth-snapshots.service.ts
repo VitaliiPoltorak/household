@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import {
@@ -89,6 +93,21 @@ export class NetWorthSnapshotsService {
         source: NetWorthSnapshotSource.AUTO,
       },
     ]);
+  }
+
+  /** Delete a snapshot (#379 follow-up). Manual entries only — an auto
+   *  snapshot is system-managed (the scheduler recreates it next month, and
+   *  deleting it wouldn't stick), so it's rejected with a clear reason
+   *  rather than silently deleting the wrong kind of row. */
+  async deleteManual(householdId: string, id: string): Promise<void> {
+    const snapshot = await this.repo.findOneBy({ id, householdId });
+    if (!snapshot) throw new NotFoundException('Snapshot not found');
+    if (snapshot.source !== NetWorthSnapshotSource.MANUAL) {
+      throw new BadRequestException(
+        'Only manual snapshots can be deleted — an auto snapshot is recreated by the scheduler',
+      );
+    }
+    await this.repo.remove(snapshot);
   }
 
   private async upsertRows(

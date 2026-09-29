@@ -556,7 +556,9 @@
     "trendLive": "Hoy",
     "trendChange": "Cambio",
     "trendMore_one": "+{{count}} más",
-    "trendMore_other": "+{{count}} más"
+    "trendMore_other": "+{{count}} más",
+    "deleteTitle": "¿Eliminar esta entrada?",
+    "deleteBody": "Esto elimina permanentemente la entrada manual de abajo. No afecta a ninguna cuenta ni transacción."
   },
   "invites": {
     "title": "Invitaciones",
