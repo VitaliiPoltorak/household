@@ -552,7 +552,11 @@
     "entryHint": "Leave a currency blank to omit it. Saving an entry for a date that already has one replaces it.",
     "needOneCurrency": "Enter at least one currency amount.",
     "needOneRow": "Enter at least one row with a date and an amount.",
-    "bulkHint": "Import several months at once — handy for backfilling history from before you started using the app."
+    "bulkHint": "Import several months at once — handy for backfilling history from before you started using the app.",
+    "trendLive": "Today",
+    "trendChange": "Change",
+    "trendMore_one": "+{{count}} more",
+    "trendMore_other": "+{{count}} more"
   },
   "invites": {
     "title": "Invites",
