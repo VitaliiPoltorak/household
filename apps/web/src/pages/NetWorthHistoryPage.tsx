@@ -10,10 +10,17 @@ import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { Section } from '../components/dashboard/Section';
 import { NetWorthTrendChart } from '../components/reports/NetWorthTrendChart';
 import { formatMoney } from '../lib/money';
-import { buildTrendSeries } from '../lib/net-worth-trend';
+import {
+  buildTrendSeries,
+  buildTotalTrendSeries,
+} from '../lib/net-worth-trend';
+import { useRatesState, convert } from '../hooks/useRates';
+import type { RateMap } from '../lib/currency';
 import type { NetWorthSnapshot, Transaction } from '../types/api';
 
 const CURRENCIES = ['UAH', 'USD', 'EUR'];
+const TOTAL_CURRENCY = 'USD';
+const NO_RATES_NEEDED: RateMap = {};
 const EMPTY: NetWorthSnapshot[] = [];
 const EMPTY_TX: Transaction[] = [];
 
@@ -95,6 +102,80 @@ export function NetWorthHistoryPage() {
     [snapshots],
   );
 
+  // Combined "Total (USD)" line (#389 follow-up) — converts every currency
+  // via live PrivatBank rates (same primitive AccountsPage's estimated total
+  // uses, see hooks/useRates.ts) and sums them. Only fetched when a currency
+  // other than the target actually needs converting; convert() is the
+  // identity for same-currency amounts, so a USD-only household never waits
+  // on a rates fetch for its own total.
+  //
+  // Hidden entirely for a single-currency household (mirrors AccountsPage's
+  // grand-total gating) — a converted total next to the one currency it's
+  // converted from is a redundant number, not a new one.
+  const showTotal = currencies.length > 1;
+  const ratesNeeded = showTotal && currencies.some((c) => c !== TOTAL_CURRENCY);
+  const ratesState = useRatesState(ratesNeeded);
+  const canShowTotal =
+    showTotal &&
+    (ratesState.status === 'ready' || ratesState.status === 'not-needed');
+  const ratesForTotal: RateMap =
+    ratesState.status === 'ready' ? ratesState.rates : NO_RATES_NEEDED;
+
+  // null = couldn't convert every currency this row carries — shown as a gap
+  // rather than a silently wrong partial total.
+  const totalsByRow = useMemo(() => {
+    const map = new Map<string, number | null>();
+    for (const s of sortedForList) {
+      if (!canShowTotal) {
+        map.set(s.id, null);
+        continue;
+      }
+      let total = 0;
+      let ok = true;
+      for (const [ccy, v] of Object.entries(s.byCurrency)) {
+        const converted = convert(v, ccy, TOTAL_CURRENCY, ratesForTotal);
+        if (converted === null) {
+          ok = false;
+          break;
+        }
+        total += converted;
+      }
+      map.set(s.id, ok ? total : null);
+    }
+    return map;
+  }, [sortedForList, canShowTotal, ratesForTotal]);
+
+  const totalTodayAnchor = useMemo(() => {
+    if (!canShowTotal || !netWorth) return null;
+    let total = 0;
+    for (const [ccy, v] of Object.entries(netWorth.byCurrency)) {
+      const converted = convert(v, ccy, TOTAL_CURRENCY, ratesForTotal);
+      if (converted === null) return null;
+      total += converted;
+    }
+    return { date: todayStr(), value: total };
+  }, [canShowTotal, netWorth, ratesForTotal]);
+
+  const totalSeries = useMemo(
+    () =>
+      canShowTotal
+        ? buildTotalTrendSeries(
+            snapshots,
+            trendTransactions,
+            totalTodayAnchor,
+            TOTAL_CURRENCY,
+            ratesForTotal,
+          )
+        : [],
+    [
+      canShowTotal,
+      snapshots,
+      trendTransactions,
+      totalTodayAnchor,
+      ratesForTotal,
+    ],
+  );
+
   if (!hid) {
     return (
       <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -135,6 +216,36 @@ export function NetWorthHistoryPage() {
         <>
           <Section title={t('netWorthHistory.trend')}>
             <div className="space-y-6">
+              {ratesNeeded && ratesState.status === 'loading' && (
+                <p className="text-xs text-gray-400 dark:text-gray-500">
+                  {t('netWorthHistory.rates.loading')}
+                </p>
+              )}
+              {ratesNeeded && ratesState.status === 'failed' && (
+                <p
+                  className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-600 dark:bg-amber-900/30 dark:text-amber-300"
+                  title={t('netWorthHistory.rates.unavailableDesc')}
+                >
+                  {t('netWorthHistory.rates.unavailable')}
+                </p>
+              )}
+              {canShowTotal && totalSeries.length > 0 && (
+                <div>
+                  <p className="mb-1 flex items-center gap-2 text-xs font-medium text-gray-500 dark:text-gray-400">
+                    {t('netWorthHistory.totalUsd')}
+                    {ratesState.status === 'ready' &&
+                      ratesState.source === 'cache' && (
+                        <span className="text-amber-500 dark:text-amber-400">
+                          ({t('netWorthHistory.rates.cached')})
+                        </span>
+                      )}
+                  </p>
+                  <NetWorthTrendChart
+                    data={totalSeries}
+                    formatValue={(n) => formatMoney(n, TOTAL_CURRENCY)}
+                  />
+                </div>
+              )}
               {currencies.map((ccy) => {
                 const todayAnchor =
                   netWorth?.byCurrency[ccy] !== undefined
@@ -188,10 +299,16 @@ export function NetWorthHistoryPage() {
                           : t('netWorthHistory.manual')}
                       </span>
                     </div>
-                    <div className="flex gap-3 font-mono text-sm text-gray-700 dark:text-gray-300">
+                    <div className="flex items-center gap-3 font-mono text-sm text-gray-700 dark:text-gray-300">
                       {Object.entries(s.byCurrency).map(([ccy, v]) => (
                         <span key={ccy}>{formatMoney(v, ccy)}</span>
                       ))}
+                      {totalsByRow.get(s.id) != null && (
+                        <span className="font-semibold text-gray-900 dark:text-gray-100">
+                          ≈{' '}
+                          {formatMoney(totalsByRow.get(s.id)!, TOTAL_CURRENCY)}
+                        </span>
+                      )}
                     </div>
                   </button>
                   {s.source === 'manual' && (

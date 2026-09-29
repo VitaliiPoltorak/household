@@ -1,6 +1,9 @@
 import { useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { financeApi, type ExchangeRate } from '../api/finance';
+import { convert, type RateMap } from '../lib/currency';
+
+export { convert, type RateMap };
 
 // ──────────────────────────────────────────────
 // Shared multi-currency conversion primitives (#80, #160).
@@ -25,8 +28,6 @@ export const RATES_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 // Same field names as the raw PrivatBank payload — the backend stores them
 // verbatim so the client-side math didn't need to change.
 type PBRate = Pick<ExchangeRate, 'ccy' | 'base_ccy' | 'buy' | 'sale'>;
-
-export type RateMap = Record<string, number>;
 
 // Discrete state so the render side never has to guess whether a missing rate
 // means "we didn't need one" (all accounts in base) or "rates broke and the
@@ -58,7 +59,10 @@ function readRatesCache(): CachedRates | null {
 
 function writeRatesCache(rates: RateMap): void {
   try {
-    localStorage.setItem(RATES_CACHE_KEY, JSON.stringify({ rates, at: Date.now() }));
+    localStorage.setItem(
+      RATES_CACHE_KEY,
+      JSON.stringify({ rates, at: Date.now() }),
+    );
   } catch {
     // localStorage full / disabled — cache is best-effort, don't crash render.
   }
@@ -74,7 +78,12 @@ function ratesFromPB(pb: PBRate[]): RateMap {
 }
 
 export function useRatesState(needed: boolean): RatesState {
-  const { data: pbRates, isLoading, isError, isFetched } = useQuery<PBRate[]>({
+  const {
+    data: pbRates,
+    isLoading,
+    isError,
+    isFetched,
+  } = useQuery<PBRate[]>({
     queryKey: ['exchange-rates'],
     // finance-service proxies + persists PrivatBank; no third-party CORS
     // concern from the browser, and rows are preserved for /rates/history.
@@ -94,7 +103,12 @@ export function useRatesState(needed: boolean): RatesState {
   if (!needed) return { status: 'not-needed' };
 
   if (pbRates && pbRates.length > 0) {
-    return { status: 'ready', rates: ratesFromPB(pbRates), source: 'live', at: new Date() };
+    return {
+      status: 'ready',
+      rates: ratesFromPB(pbRates),
+      source: 'live',
+      at: new Date(),
+    };
   }
 
   // No live data yet. Two sub-cases:
@@ -105,22 +119,15 @@ export function useRatesState(needed: boolean): RatesState {
   if (isError || (isFetched && (!pbRates || pbRates.length === 0))) {
     const cached = readRatesCache();
     if (cached) {
-      return { status: 'ready', rates: cached.rates, source: 'cache', at: new Date(cached.at) };
+      return {
+        status: 'ready',
+        rates: cached.rates,
+        source: 'cache',
+        at: new Date(cached.at),
+      };
     }
     return { status: 'failed' };
   }
 
   return { status: 'loading' };
-}
-
-// Convert amount in fromCcy to toCcy using UAH-based rate map. Returns null
-// if any required currency is missing — caller MUST check and refuse to show
-// a total in that case, rather than falling back to a silent 1:1 substitution.
-export function convert(amount: number, fromCcy: string, toCcy: string, rates: RateMap): number | null {
-  if (fromCcy === toCcy) return amount;
-  const fromRate = fromCcy === 'UAH' ? 1 : rates[fromCcy];
-  const toRate = toCcy === 'UAH' ? 1 : rates[toCcy];
-  if (!fromRate || !toRate) return null;
-  const fromUAH = amount * fromRate;
-  return fromUAH / toRate;
 }

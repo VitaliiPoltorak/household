@@ -558,7 +558,14 @@
     "trendMore_one": "+{{count}} more",
     "trendMore_other": "+{{count}} more",
     "deleteTitle": "Delete this entry?",
-    "deleteBody": "This permanently removes the manual snapshot below. It won't affect any accounts or transactions."
+    "deleteBody": "This permanently removes the manual snapshot below. It won't affect any accounts or transactions.",
+    "totalUsd": "Total (USD)",
+    "rates": {
+      "loading": "Fetching exchange rates…",
+      "unavailable": "Rates unavailable",
+      "unavailableDesc": "PrivatBank rates couldn't be fetched — the USD total is hidden to avoid showing a wrong number.",
+      "cached": "cached"
+    }
   },
   "invites": {
     "title": "Invites",
