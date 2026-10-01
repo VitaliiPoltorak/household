@@ -73,6 +73,7 @@ jobs:
     outputs:
       backend: ${{ steps.filter.outputs.backend }}
       any: ${{ steps.filter.outputs.any }}
+      mobile: ${{ steps.filter.outputs.mobile }}
     steps:
       - uses: actions/checkout@v4
 
@@ -95,6 +96,15 @@ jobs:
               - 'pnpm-lock.yaml'
               - 'tsconfig*.json'
               - 'turbo.json'
+            # #374: apps/mobile is a standalone pnpm project (own lockfile),
+            # invisible to root turbo — it gets its own job below. It also
+            # consumes libs/contracts + libs/locales as source.
+            mobile:
+              - 'apps/mobile/**'
+              - 'libs/contracts/**'
+              - 'libs/locales/**'
+              - 'eslint.config.js'
+              - '.github/workflows/ci.yml'
             any:
               - *backend
               - 'apps/web/**'
@@ -126,6 +136,43 @@ jobs:
         run: pnpm lint
 
       - name: Build
+        run: pnpm build
+
+  # #374: apps/mobile is excluded from the root pnpm workspace, so the root
+  # `pnpm lint` / `pnpm build` (turbo) never reach it — lint + `expo export`
+  # (Metro bundle, proves the libs/contracts source imports resolve) run here
+  # against its own lockfile instead.
+  mobile-lint-build:
+    name: Mobile lint + Build
+    needs: changes
+    if: needs.changes.outputs.mobile == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/mobile
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+          cache-dependency-path: apps/mobile/pnpm-lock.yaml
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Type check
+        run: pnpm exec tsc --noEmit
+
+      - name: Build (expo export)
         run: pnpm build
 
   unit-tests:

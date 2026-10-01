@@ -1,0 +1,5 @@
+# Standalone pnpm project (#374): the root pnpm-workspace.yaml excludes
+# apps/mobile, so Expo / React Native / Metro resolve from this lockfile only.
+# `packages: ['.']` makes this directory its own workspace root.
+packages:
+  - "."
