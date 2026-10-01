@@ -20,6 +20,12 @@ flow, or sockets yet (see the follow-up issues under #27).
 - `src/auth/AuthContext.tsx` — real auth state (#359): on launch it exchanges
   the refresh token in `expo-secure-store` for an access token (memory only)
   and loads `/auth/me`; `app/_layout.tsx` gates routes on it.
+- `src/household/HouseholdContext.tsx` — loads the user's households and
+  tracks the active one (first by default, choice persisted); data screens
+  pass `activeHousehold.id` to the API modules, which send it as
+  `X-Household-Id`. Server state goes through TanStack Query with the same
+  query keys as `apps/web`. Screens under `app/(app)/accounts/` are the
+  reference for list + form screens.
 - `src/api/client.ts` — fetch wrapper sending `X-Client-Platform: mobile`
   (tokens in the body, no cookies — #356) with single-flight refresh-on-401.
 

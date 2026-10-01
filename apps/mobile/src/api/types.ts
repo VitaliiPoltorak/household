@@ -31,3 +31,33 @@ export type AuthErrorCode =
   | 'CODE_EXPIRED_OR_MISSING'
   | 'WEAK_PASSWORD'
   | 'PASSWORD_PWNED';
+
+export interface Household {
+  id: string;
+  name: string;
+  slug: string;
+  createdBy: string;
+  createdAt: string;
+}
+
+// Open-ended (#227): validated server-side against the household's enabled types.
+export type AccountType = string;
+
+export interface Account {
+  id: string;
+  householdId: string;
+  name: string;
+  type: AccountType;
+  currency: string;
+  // Decimal columns can arrive as strings; always go through Number().
+  balance: number | string;
+  isArchived: boolean;
+  allowsNegativeBalance: boolean;
+}
+
+export interface EnabledAccountType {
+  id: string;
+  householdId: string;
+  typeCode: string;
+  accountType: { code: string; label: string; icon: string | null };
+}

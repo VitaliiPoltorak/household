@@ -21,11 +21,21 @@ export class ApiError extends Error {
   }
 }
 
-interface RequestOptions {
+export interface CallOptions {
   params?: Record<string, string | number | boolean | undefined>;
+  /** Extra headers, e.g. `X-Household-Id` (see householdHeaders). */
+  headers?: Record<string, string>;
+}
+
+interface RequestOptions extends CallOptions {
   body?: unknown;
   _retry?: boolean;
 }
+
+/** Tenant header the gateway forwards to the services (see CLAUDE.md, Multi-tenancy). */
+export const householdHeaders = (householdId: string) => ({
+  'X-Household-Id': householdId,
+});
 
 // Access token is memory-only (#60 rule, mirrored from apps/web).
 let accessToken: string | null = null;
@@ -93,12 +103,18 @@ async function doRefresh(): Promise<boolean> {
   throw new ApiError(res.status, {}, res.statusText);
 }
 
+// class-validator reports a 400 as `message: string[]`.
+function messageOf(data: Record<string, unknown>): string | undefined {
+  const m = data['message'];
+  return Array.isArray(m) ? m.join(', ') : (m as string | undefined);
+}
+
 async function request<T>(
   method: string,
   path: string,
   options: RequestOptions = {},
 ): Promise<T> {
-  const { params, body, _retry = false } = options;
+  const { params, headers: extraHeaders, body, _retry = false } = options;
 
   let url = `${API_URL}${path}`;
   if (params) {
@@ -113,6 +129,7 @@ async function request<T>(
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     ...PLATFORM_HEADERS,
+    ...extraHeaders,
   };
   if (accessToken) headers['Authorization'] = `Bearer ${accessToken}`;
 
@@ -140,21 +157,19 @@ async function request<T>(
 
   const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
   if (!res.ok) {
-    throw new ApiError(
-      res.status,
-      data,
-      (data['message'] as string | undefined) ?? res.statusText,
-    );
+    throw new ApiError(res.status, data, messageOf(data) ?? res.statusText);
   }
   return data as T;
 }
 
 export const api = {
-  get: <T>(path: string, params?: RequestOptions['params']) =>
-    request<T>('GET', path, { params }),
-  post: <T>(path: string, body?: unknown) => request<T>('POST', path, { body }),
-  patch: <T>(path: string, body?: unknown) =>
-    request<T>('PATCH', path, { body }),
-  put: <T>(path: string, body?: unknown) => request<T>('PUT', path, { body }),
-  delete: <T = void>(path: string) => request<T>('DELETE', path),
+  get: <T>(path: string, opts?: CallOptions) => request<T>('GET', path, opts),
+  post: <T>(path: string, body?: unknown, opts?: CallOptions) =>
+    request<T>('POST', path, { ...opts, body }),
+  patch: <T>(path: string, body?: unknown, opts?: CallOptions) =>
+    request<T>('PATCH', path, { ...opts, body }),
+  put: <T>(path: string, body?: unknown, opts?: CallOptions) =>
+    request<T>('PUT', path, { ...opts, body }),
+  delete: <T = void>(path: string, opts?: CallOptions) =>
+    request<T>('DELETE', path, opts),
 };

@@ -15,7 +15,7 @@ Family finance & shopping management — NestJS microservices monorepo.
 | i18n | react-i18next, shared `libs/locales` (en / uk / de / es) |
 | Auth | Google / Apple / Facebook OAuth · Email + password with 6-digit mailbox verification · HttpOnly refresh cookie + CSRF (double-submit) · logout-all · Redis sessions |
 | Security | Helmet · gateway-signed trust headers · JWT algorithm allowlist · per-endpoint rate limiting · audit_log · Swagger gated behind `NODE_ENV !== 'production'` |
-| Mobile | React Native / Expo SDK 57, managed workflow (Phase 5) — scaffold (#357) + expo-router navigation shell (#358) done, see `apps/mobile/README.md`; auth flow (#359) done, real data screens not started |
+| Mobile | React Native / Expo SDK 57, managed workflow (Phase 5) — scaffold (#357) + expo-router navigation shell (#358) done, see `apps/mobile/README.md`; auth flow (#359) done, Accounts screen (#361) done, other data screens not started |
 
 Shared libraries in `libs/`: `common` (config, filters, JWT verify, gateway signature), `contracts` (Kafka envelope, Socket.IO event types, `LIST_HARD_LIMIT`, `PaginationDto`), `database` (base entity, schema helper), `kafka` (producer/consumer wrappers with retry + DLQ), `audit` (audit_log entity + `@Audit()` decorator + interceptor), `locales` (i18n JSON, 4 languages), `testing` (integration test factory).
 
@@ -32,7 +32,7 @@ Shared libraries in `libs/`: `common` (config, filters, JWT verify, gateway sign
 | realtime-gateway | 3010 | Socket.IO, presence, live updates |
 | mailpit *(dev only)* | 1025 / 8025 | Local mail catcher — receives the verification codes and unlock links `auth-service` sends, readable at http://localhost:8025 |
 | **web** | **5173** | **React SPA — dashboard, finance, shopping, household, email/password auth (register + verify + login + unlock + password change), first-run guided tour (#347)** |
-| **mobile** *(scaffold + nav shell, #357/#358)* | **8081** | **Expo dev server (Metro) — expo-router tab shell with real login/register/verify + Google sign-in and placeholder data screens, a standalone pnpm project (own lockfile, #374) that consumes `libs/contracts` as source; no real data screens yet, see `apps/mobile/README.md`** |
+| **mobile** *(scaffold + nav shell, #357/#358)* | **8081** | **Expo dev server (Metro) — expo-router tab shell with real login/register/verify + Google sign-in an Accounts screen (list, create/edit/archive) and placeholder screens for the rest, a standalone pnpm project (own lockfile, #374) that consumes `libs/contracts` as source; remaining data screens not started, see `apps/mobile/README.md`** |
 
 ## Prerequisites
 

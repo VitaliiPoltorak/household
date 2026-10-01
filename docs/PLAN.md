@@ -329,7 +329,7 @@ apps/
   realtime-gateway/     # :3010 — Socket.IO, Kafka bridge, presence
   web/                  # :5173 — React 18 + Vite SPA
   notification-service/ # Phase 6 — email + push (not implemented)
-  mobile/               # :8081 (Metro) — Phase 5 — Expo scaffold done (#357), standalone pnpm project (#374); nav shell (#358) + auth flow (#359) done, no real data screens yet
+  mobile/               # :8081 (Metro) — Phase 5 — Expo scaffold done (#357), standalone pnpm project (#374); nav shell (#358) + auth flow (#359) done, Accounts screen (#361) done, other data screens not started
 
 libs/
   common/     # config, filters, JWT verify, gateway signature, date helpers
@@ -1065,6 +1065,11 @@ pnpm test:postman                                            # API scenario coll
   `GOOGLE_MOBILE_CLIENT_IDS`), refresh token + session id in `expo-secure-store`, access token in
   memory, single-flight refresh-on-401 API client, logout revokes the server session. Apple
   Sign-In deferred (likely App Store requirement, #34). Newman covers the mobile token path
+✔ Mobile Accounts screen (#361) — list with balances, pull-to-refresh, loading/empty/error states,
+  create/edit form (name, type from the household's enabled types, currency, opening balance,
+  allow-negative) and archive with confirmation (soft delete, same as web). Introduced the mobile
+  data layer: TanStack Query (query keys match web), `HouseholdProvider` (active household sent as
+  `X-Household-Id`), `src/api/finance.ts`
 □ React Native (Expo — faster to start)
 □ Same screens as web (adaptive)
 □ Secure storage for tokens (expo-secure-store)
