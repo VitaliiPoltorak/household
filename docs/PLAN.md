@@ -329,7 +329,7 @@ apps/
   realtime-gateway/     # :3010 — Socket.IO, Kafka bridge, presence
   web/                  # :5173 — React 18 + Vite SPA
   notification-service/ # Phase 6 — email + push (not implemented)
-  mobile/               # :8081 (Metro) — Phase 5 — Expo scaffold done (#357), standalone pnpm project (#374); no screens/nav/auth yet
+  mobile/               # :8081 (Metro) — Phase 5 — Expo scaffold done (#357), standalone pnpm project (#374); nav shell done (#358), no real screens/auth yet
 
 libs/
   common/     # config, filters, JWT verify, gateway signature, date helpers
@@ -1056,6 +1056,10 @@ pnpm test:postman                                            # API scenario coll
   Expo/RN no longer share a lockfile with the backend (React 19 vs web's 18, no
   `@types/react` hoist workaround). Root scripts `mobile:install|lint|build`; CI has
   a dedicated `Mobile lint + Build` job since turbo can't see it
+✔ Navigation shell (#358) — expo-router file-based routing: `Stack.Protected` auth gate
+  (placeholder `AuthProvider`) over an `(auth)` login/register stack and an `(app)` tab layout
+  (Dashboard, Accounts, Transactions, Shopping, Household, Settings) with placeholder screens,
+  shared `Screen` safe-area primitive, `household://` deep-link scheme registered
 □ React Native (Expo — faster to start)
 □ Same screens as web (adaptive)
 □ Secure storage for tokens (expo-secure-store)

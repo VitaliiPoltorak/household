@@ -2,9 +2,25 @@
 
 React Native app (Expo SDK 57, managed workflow) — Phase 5 of `docs/PLAN.md`.
 
-This is the bare scaffold: no navigation, auth, screens, or sockets yet (see
-`libs/contracts`/`libs/locales` wiring below and the follow-up issues under
-#27). `App.tsx` only proves the monorepo module resolution works.
+This is the scaffold plus the navigation shell (#358): expo-router routes under
+`app/`, placeholder screens, and a placeholder auth gate. No real data, auth
+flow, or sockets yet (see the follow-up issues under #27).
+
+## Navigation
+
+- `app/_layout.tsx` — root `Stack` with `Stack.Protected` guards on the
+  (placeholder) `useAuth().isSignedIn` flag: signed out → `app/(auth)/`
+  (login, register); signed in → `app/(app)/` (bottom tabs).
+- `app/(app)/_layout.tsx` — tabs mirroring web's primary nav, defined in
+  `src/navigation/tabs.ts`: Dashboard, Accounts, Transactions, Shopping,
+  Household, Settings. To add a tab: add a file under `app/(app)/` and an
+  entry in `TABS`.
+- `src/components/Screen.tsx` — shared safe-area + title shell; use it instead
+  of handling insets per screen.
+- `src/auth/AuthContext.tsx` — placeholder; the real auth task replaces the
+  provider internals, not the layouts.
+- Deep-link scheme `household://` is registered in `app.json`; the invite-accept
+  handler is a later task.
 
 ## Prerequisites
 
@@ -67,13 +83,13 @@ This starts the Expo dev server (Metro) and prints a QR code:
 - Import from a subpath, not `@household/contracts`'s root barrel — the
   barrel also re-exports backend-only DTOs (`class-validator` decorators,
   `crypto`) that need Node/`experimentalDecorators` support this app's
-  tsconfig doesn't have. `App.tsx`'s
+  tsconfig doesn't have. e.g.
   `import { ServerEvents } from '@household/contracts/realtime/events'` is
   the pattern to follow.
 
 ## Known gaps (tracked in follow-up issues under #27)
 
-- No navigation, auth, or screens — `App.tsx` is a placeholder.
+- Auth is a placeholder toggle and screens are titles only.
 - No test suite yet — CI's `Mobile lint + Build` job covers this app (lint,
   type check, `expo export`).
 - No EAS project configured — `expo export` proves the bundle resolves, not
