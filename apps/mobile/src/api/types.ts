@@ -61,3 +61,41 @@ export interface EnabledAccountType {
   typeCode: string;
   accountType: { code: string; label: string; icon: string | null };
 }
+
+export type TransactionType = 'income' | 'expense' | 'transfer' | 'adjustment';
+export type TransferDirection = 'debit' | 'credit';
+
+export interface Transaction {
+  id: string;
+  householdId: string;
+  accountId: string;
+  type: TransactionType;
+  amount: number | string;
+  currency: string;
+  categoryId: string | null;
+  description: string | null;
+  date: string;
+  transferPairId: string | null;
+  transferDirection: TransferDirection | null;
+  // Transfer counterpart (null for non-transfers): one row per pair in the list.
+  counterAccountId: string | null;
+  counterAmount: number | string | null;
+  counterCurrency: string | null;
+}
+
+export interface Category {
+  id: string;
+  householdId: string;
+  name: string;
+  type: 'income' | 'expense';
+  icon: string | null;
+  parentId: string | null;
+  isArchived: boolean;
+}
+
+export interface ExchangeRate {
+  ccy: string;
+  base_ccy: string;
+  buy: string;
+  sale: string;
+}

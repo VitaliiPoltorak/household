@@ -329,7 +329,7 @@ apps/
   realtime-gateway/     # :3010 — Socket.IO, Kafka bridge, presence
   web/                  # :5173 — React 18 + Vite SPA
   notification-service/ # Phase 6 — email + push (not implemented)
-  mobile/               # :8081 (Metro) — Phase 5 — Expo scaffold done (#357), standalone pnpm project (#374); nav shell (#358) + auth flow (#359) done, Accounts screen (#361) done, other data screens not started
+  mobile/               # :8081 (Metro) — Phase 5 — Expo scaffold done (#357), standalone pnpm project (#374); nav shell (#358) + auth flow (#359) done, Accounts (#361) + Transactions (#362) screens done, other data screens not started
 
 libs/
   common/     # config, filters, JWT verify, gateway signature, date helpers
@@ -1070,6 +1070,11 @@ pnpm test:postman                                            # API scenario coll
   allow-negative) and archive with confirmation (soft delete, same as web). Introduced the mobile
   data layer: TanStack Query (query keys match web), `HouseholdProvider` (active household sent as
   `X-Household-Id`), `src/api/finance.ts`
+✔ Mobile Transactions screen (#362) — list filterable by type/account/category/date range,
+  pull-to-refresh, loading/empty/error states; create income/expense, edit (transfer legs: note +
+  date only), delete (a transfer is removed as a pair); transfers incl. cross-currency with the
+  market rate auto-filled into the editable "received" amount and a >5% deviation warning (never
+  a silent 1:1). First mobile unit tests (vitest, `src/lib` pure logic) run in the CI mobile job
 □ React Native (Expo — faster to start)
 □ Same screens as web (adaptive)
 □ Secure storage for tokens (expo-secure-store)

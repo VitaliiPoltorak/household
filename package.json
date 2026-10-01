@@ -17,6 +17,7 @@
     "mobile": "pnpm --dir apps/mobile dev",
     "mobile:install": "pnpm --dir apps/mobile install",
     "mobile:lint": "pnpm --dir apps/mobile lint",
+    "mobile:test": "pnpm --dir apps/mobile test",
     "mobile:build": "pnpm --dir apps/mobile build",
     "lint": "turbo run lint",
     "test": "turbo run test",

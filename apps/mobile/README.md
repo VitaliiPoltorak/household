@@ -109,7 +109,9 @@ This starts the Expo dev server (Metro) and prints a QR code:
 ## Known gaps (tracked in follow-up issues under #27)
 
 - Data screens are titles only; Apple/Facebook sign-in and unlock-account/password-reset flows are not implemented.
-- No test suite yet — CI's `Mobile lint + Build` job covers this app (lint,
-  type check, `expo export`).
+- Tests: `pnpm mobile:test` (vitest) covers pure logic under `src/lib` only.
+  Screens/components have no automated tests yet (that needs jest-expo +
+  React Native Testing Library). CI's `Mobile lint + Build` job runs lint, type
+  check, the unit tests and `expo export`.
 - No EAS project configured — `expo export` proves the bundle resolves, not
   that a native binary builds; that's a separate concern for closer to release.
