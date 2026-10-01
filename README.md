@@ -32,7 +32,7 @@ Shared libraries in `libs/`: `common` (config, filters, JWT verify, gateway sign
 | realtime-gateway | 3010 | Socket.IO, presence, live updates |
 | mailpit *(dev only)* | 1025 / 8025 | Local mail catcher — receives the verification codes and unlock links `auth-service` sends, readable at http://localhost:8025 |
 | **web** | **5173** | **React SPA — dashboard, finance, shopping, household, email/password auth (register + verify + login + unlock + password change), first-run guided tour (#347)** |
-| **mobile** *(scaffold only, #357)* | **8081** | **Expo dev server (Metro) — empty app wired into the workspace/`libs/contracts`; no screens/navigation/auth yet, see `apps/mobile/README.md`** |
+| **mobile** *(scaffold only, #357)* | **8081** | **Expo dev server (Metro) — empty app, a standalone pnpm project (own lockfile, #374) that consumes `libs/contracts` as source; no screens/navigation/auth yet, see `apps/mobile/README.md`** |
 
 ## Prerequisites
 
@@ -192,6 +192,10 @@ pnpm format                 # prettier format
 
 # Per-service dev shortcuts (root-level scripts)
 pnpm gateway | pnpm auth | pnpm household | pnpm finance | pnpm shopping | pnpm integration | pnpm realtime | pnpm web | pnpm mobile
+
+# Mobile app — standalone pnpm project outside the root workspace (#374), so
+# turbo/`pnpm lint`/`pnpm build` skip it; install and check it explicitly
+pnpm mobile:install | pnpm mobile:lint | pnpm mobile:build
 
 # Web app
 pnpm --filter @household/web dev          # start dev server

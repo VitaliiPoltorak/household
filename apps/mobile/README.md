@@ -9,6 +9,9 @@ This is the bare scaffold: no navigation, auth, screens, or sockets yet (see
 ## Prerequisites
 
 - Everything in the root [README](../../README.md#prerequisites) (Node ≥ 20, pnpm 9).
+- Install its dependencies separately (it is **not** part of the root pnpm
+  workspace, #374): `pnpm mobile:install` from the repo root, or `pnpm install`
+  inside `apps/mobile`.
 - **Expo Go** app on a physical iOS/Android device — the fastest way to run this
   during scaffold-stage development (no native build required), from the App
   Store / Play Store.
@@ -22,7 +25,7 @@ This is the bare scaffold: no navigation, auth, screens, or sockets yet (see
 ## Run it
 
 ```bash
-pnpm --filter @household/mobile dev    # or: pnpm mobile
+pnpm mobile    # or: pnpm --dir apps/mobile dev
 ```
 
 This starts the Expo dev server (Metro) and prints a QR code:
@@ -36,15 +39,22 @@ This starts the Expo dev server (Metro) and prints a QR code:
 
 ## Monorepo wiring
 
-- Workspace package name: `@household/mobile`, resolved via pnpm's
-  `apps/*` glob in `pnpm-workspace.yaml` — no extra config needed there.
-- Turborepo tasks: `dev` (persistent, matches `apps/web`'s Vite dev server),
-  `build` (`expo export --platform ios` — bundles via Metro without needing a
-  simulator; the fastest available check that the whole module graph,
-  monorepo imports included, actually resolves. **Not** a native binary —
-  that's `eas build`, out of scope until Phase 5 needs a real device build),
-  `lint` (ESLint, root `eslint.config.js`'s mobile overlay — same rules as
-  `apps/web`, RN globals instead of DOM ones).
+- **Standalone pnpm project (#374)**: the root `pnpm-workspace.yaml` excludes
+  `apps/mobile` (`!apps/mobile`); this directory has its own
+  `pnpm-workspace.yaml` + `pnpm-lock.yaml`, so Expo / React Native / Metro
+  (React 19, TS 6) never share a lockfile or hoisted `node_modules` with the
+  backend services or `apps/web` (React 18). Nothing here needs pnpm's
+  dependency graph to reach `libs/*` — those are consumed by filesystem path
+  (see below).
+- Because Turborepo only sees root-workspace packages, it does **not** run this
+  app's tasks. Use the root shortcuts instead: `pnpm mobile:lint`,
+  `pnpm mobile:build` (`expo export --platform ios` — bundles via Metro without
+  a simulator; the fastest check that the whole module graph, `libs/*` imports
+  included, resolves. **Not** a native binary — that's `eas build`, out of
+  scope until Phase 5 needs a real device build). CI runs lint, `tsc --noEmit`
+  and the export in a dedicated `Mobile lint + Build` job.
+- ESLint: own `eslint.config.js` (same baseline rules as the root config,
+  React Native globals instead of DOM ones).
 - **Shared code from `libs/contracts` / `libs/locales`**: consumed as TS
   source, the same convention the backend services use via tsconfig `paths`
   and `apps/web` uses via Vite's `resolve.alias` — no build step for those
@@ -64,8 +74,7 @@ This starts the Expo dev server (Metro) and prints a QR code:
 ## Known gaps (tracked in follow-up issues under #27)
 
 - No navigation, auth, or screens — `App.tsx` is a placeholder.
-- No test suite yet — CI's `lint-and-build` job covers this app (lint +
-  `expo export`); there's no `test:unit` script, so `pnpm test:unit` at the
-  root simply skips it, same as any other package without one.
+- No test suite yet — CI's `Mobile lint + Build` job covers this app (lint,
+  type check, `expo export`).
 - No EAS project configured — `expo export` proves the bundle resolves, not
   that a native binary builds; that's a separate concern for closer to release.

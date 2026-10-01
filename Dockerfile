@@ -125,6 +125,10 @@ ENV NODE_ENV=production \
 # net effect is still a large win — each service's own node_modules is
 # 56-154MB (no react-native/expo present) vs. the 639MB every image
 # carried before, and per-image pull/deploy size is what #377 was about.
+#
+# Update (#374): apps/mobile is now excluded from the root pnpm workspace
+# (standalone project, own lockfile), so the leak described above no longer
+# exists at the source; `deploy` stays for its per-service pruning.
 RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
     pnpm --filter "@household/${SERVICE}" deploy --prod --config.frozen-lockfile=true deploy-out && \
     mv deploy-out/node_modules ./node_modules && \

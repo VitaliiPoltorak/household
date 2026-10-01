@@ -329,7 +329,7 @@ apps/
   realtime-gateway/     # :3010 — Socket.IO, Kafka bridge, presence
   web/                  # :5173 — React 18 + Vite SPA
   notification-service/ # Phase 6 — email + push (not implemented)
-  mobile/               # :8081 (Metro) — Phase 5 — Expo scaffold done (#357); no screens/nav/auth yet
+  mobile/               # :8081 (Metro) — Phase 5 — Expo scaffold done (#357), standalone pnpm project (#374); no screens/nav/auth yet
 
 libs/
   common/     # config, filters, JWT verify, gateway signature, date helpers
@@ -1051,6 +1051,11 @@ pnpm test:postman                                            # API scenario coll
   matching the rest of the repo, `libs/contracts` import verified through Metro
   (see `apps/mobile/metro.config.js` + its README — pnpm's node_modules layout
   needs explicit resolver config Metro doesn't ship by default)
+✔ Standalone pnpm project (#374) — `apps/mobile` excluded from the root workspace
+  (`!apps/mobile`), own `pnpm-workspace.yaml` + `pnpm-lock.yaml` + ESLint config;
+  Expo/RN no longer share a lockfile with the backend (React 19 vs web's 18, no
+  `@types/react` hoist workaround). Root scripts `mobile:install|lint|build`; CI has
+  a dedicated `Mobile lint + Build` job since turbo can't see it
 □ React Native (Expo — faster to start)
 □ Same screens as web (adaptive)
 □ Secure storage for tokens (expo-secure-store)
