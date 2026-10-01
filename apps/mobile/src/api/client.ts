@@ -1,5 +1,8 @@
 import { clearSession, loadSession, saveSession } from '../auth/session-store';
+import { ApiError } from './errors';
 import type { LoginResponse } from './types';
+
+export { ApiError };
 
 // Dev: set EXPO_PUBLIC_API_URL to the gateway's LAN address
 // (e.g. http://192.168.1.20:3000/api/v1) — a device can't reach localhost.
@@ -9,17 +12,6 @@ export const API_URL =
 // Tells auth-service to return sessionId/refreshToken in the body instead of
 // setting cookies (#356).
 const PLATFORM_HEADERS = { 'X-Client-Platform': 'mobile' };
-
-export class ApiError extends Error {
-  constructor(
-    public readonly status: number,
-    public readonly data: Record<string, unknown>,
-    message: string,
-  ) {
-    super(message);
-    this.name = 'ApiError';
-  }
-}
 
 export interface CallOptions {
   params?: Record<string, string | number | boolean | undefined>;

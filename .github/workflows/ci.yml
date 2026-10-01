@@ -172,6 +172,12 @@ jobs:
       - name: Type check
         run: pnpm exec tsc --noEmit
 
+      # Pure-logic unit tests (apps/mobile/src/lib) — no native runtime needed.
+      # Kept as a step, not a new job, so the required "Mobile lint + Build"
+      # check name stays stable.
+      - name: Unit tests
+        run: pnpm test
+
       - name: Build (expo export)
         run: pnpm build
 
