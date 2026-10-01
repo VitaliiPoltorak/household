@@ -20,6 +20,10 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "scheme": "household",
+    "plugins": [
+      "expo-router"
+    ]
   }
 }
