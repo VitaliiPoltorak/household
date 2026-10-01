@@ -17,8 +17,21 @@ flow, or sockets yet (see the follow-up issues under #27).
   entry in `TABS`.
 - `src/components/Screen.tsx` — shared safe-area + title shell; use it instead
   of handling insets per screen.
-- `src/auth/AuthContext.tsx` — placeholder; the real auth task replaces the
-  provider internals, not the layouts.
+- `src/auth/AuthContext.tsx` — real auth state (#359): on launch it exchanges
+  the refresh token in `expo-secure-store` for an access token (memory only)
+  and loads `/auth/me`; `app/_layout.tsx` gates routes on it.
+- `src/api/client.ts` — fetch wrapper sending `X-Client-Platform: mobile`
+  (tokens in the body, no cookies — #356) with single-flight refresh-on-401.
+
+## Configuration
+
+| Env var | Purpose |
+|---|---|
+| `EXPO_PUBLIC_API_URL` | Gateway base URL, e.g. `http://192.168.1.20:3000/api/v1` — a device can't reach `localhost`. |
+| `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID` / `EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID` | Native Google OAuth client IDs. Without them the "Continue with Google" button is hidden. Also add them to auth-service's `GOOGLE_MOBILE_CLIENT_IDS`. |
+
+Google sign-in needs a dev-client/native build (its reverse-client-id redirect
+scheme is registered by `app.config.js`); it does not work in Expo Go.
 - Deep-link scheme `household://` is registered in `app.json`; the invite-accept
   handler is a later task.
 
@@ -89,7 +102,7 @@ This starts the Expo dev server (Metro) and prints a QR code:
 
 ## Known gaps (tracked in follow-up issues under #27)
 
-- Auth is a placeholder toggle and screens are titles only.
+- Data screens are titles only; Apple/Facebook sign-in and unlock-account/password-reset flows are not implemented.
 - No test suite yet — CI's `Mobile lint + Build` job covers this app (lint,
   type check, `expo export`).
 - No EAS project configured — `expo export` proves the bundle resolves, not

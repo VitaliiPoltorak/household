@@ -8,16 +8,30 @@ import { IOAuthStrategy } from './oauth-strategy.interface';
 export class GoogleStrategy implements IOAuthStrategy {
   readonly provider = 'google';
   private readonly client: OAuth2Client;
+  private readonly audiences: string[];
 
   constructor(private readonly config: ConfigService) {
-    this.client = new OAuth2Client(config.get('GOOGLE_CLIENT_ID'));
+    const webClientId = config.get<string>('GOOGLE_CLIENT_ID');
+    // Native apps (#359) sign in with their own iOS/Android OAuth client IDs,
+    // so the id token's `aud` is that client, not the web one. Extra IDs are
+    // opt-in via a comma-separated list; unset keeps web-only behaviour.
+    const mobileClientIds = (
+      config.get<string>('GOOGLE_MOBILE_CLIENT_IDS') ?? ''
+    )
+      .split(',')
+      .map((id) => id.trim())
+      .filter(Boolean);
+    this.audiences = [webClientId, ...mobileClientIds].filter(
+      (id): id is string => !!id,
+    );
+    this.client = new OAuth2Client(webClientId);
   }
 
   async validate(idToken: string): Promise<OAuthProfile> {
     try {
       const ticket = await this.client.verifyIdToken({
         idToken,
-        audience: this.config.get('GOOGLE_CLIENT_ID'),
+        audience: this.audiences,
       });
       const payload = ticket.getPayload();
       if (!payload || !payload.email) {

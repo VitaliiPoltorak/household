@@ -304,6 +304,191 @@
           "description": "Double-submit CSRF: cookie value must match X-CSRF-Token header (apps/auth-service/src/auth/cookies.ts verifyCsrf). Explicit Cookie header used instead of relying on Newman's jar, since the jar can only hold one household_refresh value at a time and this run juggles two separate user sessions."
         },
         {
+          "name": "Mobile login returns tokens in the body, no cookies",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const r = pm.response.json();",
+                  "pm.test('Body carries the refresh material (#356)', () => {",
+                  "  pm.expect(r.accessToken).to.be.a('string');",
+                  "  pm.expect(r.sessionId).to.be.a('string');",
+                  "  pm.expect(r.refreshToken).to.be.a('string');",
+                  "});",
+                  "pm.test('No Set-Cookie on the mobile path', () => {",
+                  "  const cookies = pm.response.headers.all().filter(h => h.key.toLowerCase() === 'set-cookie');",
+                  "  pm.expect(cookies).to.have.lengthOf(0);",
+                  "});",
+                  "pm.environment.set('mobileSessionId', r.sessionId);",
+                  "pm.environment.set('mobileRefreshToken', r.refreshToken);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Client-Platform",
+                "value": "mobile"
+              }
+            ],
+            "url": "{{baseUrl}}/auth/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{userEmail}}\",\n  \"password\": \"{{userPassword}}\",\n  \"deviceInfo\": \"Newman (mobile)\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "description": "Mobile token delivery (#356) as consumed by apps/mobile (#359)."
+        },
+        {
+          "name": "Mobile refresh rotates the token via the body",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200/201', () => pm.expect(pm.response.code).to.be.oneOf([200, 201]));",
+                  "const r = pm.response.json();",
+                  "pm.test('New access + refresh token, no CSRF needed', () => {",
+                  "  pm.expect(r.accessToken).to.be.a('string');",
+                  "  pm.expect(r.refreshToken).to.be.a('string');",
+                  "  pm.expect(r.refreshToken).to.not.equal(pm.environment.get('mobileRefreshToken'));",
+                  "});",
+                  "pm.environment.set('mobileRefreshOld', pm.environment.get('mobileRefreshToken'));",
+                  "pm.environment.set('mobileRefreshToken', r.refreshToken);",
+                  "pm.environment.set('mobileSessionId', r.sessionId);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Client-Platform",
+                "value": "mobile"
+              }
+            ],
+            "url": "{{baseUrl}}/auth/refresh",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sessionId\": \"{{mobileSessionId}}\",\n  \"refreshToken\": \"{{mobileRefreshToken}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "description": "Rotation: the client must persist the new refresh token (apps/mobile adoptTokens)."
+        },
+        {
+          "name": "Mobile logout revokes the session",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 204', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Client-Platform",
+                "value": "mobile"
+              }
+            ],
+            "url": "{{baseUrl}}/auth/logout",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sessionId\": \"{{mobileSessionId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "description": "Body-based logout; no cookie to read on mobile."
+        },
+        {
+          "name": "Mobile refresh is rejected after logout",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 401', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Client-Platform",
+                "value": "mobile"
+              }
+            ],
+            "url": "{{baseUrl}}/auth/refresh",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sessionId\": \"{{mobileSessionId}}\",\n  \"refreshToken\": \"{{mobileRefreshToken}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "description": "The revoked session can no longer mint access tokens."
+        },
+        {
           "name": "Reject setting a password when one already exists",
           "event": [
             {
