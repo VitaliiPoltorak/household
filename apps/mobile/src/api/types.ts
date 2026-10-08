@@ -93,6 +93,15 @@ export interface Category {
   isArchived: boolean;
 }
 
+/** Rows still referencing a category; any non-zero count blocks a permanent delete. */
+export interface CategoryImpact {
+  categoryId: string;
+  transactions: number;
+  recurringPayments: number;
+  subcategories: number;
+  lastUsedAt: string | null;
+}
+
 export interface ExchangeRate {
   ccy: string;
   base_ccy: string;

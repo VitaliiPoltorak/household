@@ -329,7 +329,7 @@ apps/
   realtime-gateway/     # :3010 — Socket.IO, Kafka bridge, presence
   web/                  # :5173 — React 18 + Vite SPA
   notification-service/ # Phase 6 — email + push (not implemented)
-  mobile/               # :8081 (Metro) — Phase 5 — Expo scaffold done (#357), standalone pnpm project (#374); nav shell (#358) + auth flow (#359) done, Accounts (#361) + Transactions (#362) screens done, other data screens not started
+  mobile/               # :8081 (Metro) — Phase 5 — Expo scaffold done (#357), standalone pnpm project (#374); nav shell (#358) + auth flow (#359) done, Accounts (#361) + Transactions (#362) + Categories (#363) screens done, other data screens not started
 
 libs/
   common/     # config, filters, JWT verify, gateway signature, date helpers
@@ -1075,6 +1075,10 @@ pnpm test:postman                                            # API scenario coll
   date only), delete (a transfer is removed as a pair); transfers incl. cross-currency with the
   market rate auto-filled into the editable "received" amount and a >5% deviation warning (never
   a silent 1:1). First mobile unit tests (vitest, `src/lib` pure logic) run in the CI mobile job
+✔ Mobile Categories screen (#363) — active categories grouped expense/income (sub-categories
+  indented), create/edit (name, type on create only, emoji icon, parent), archive with
+  confirmation, restore, and permanent delete gated on the server's impact counts (a 409 refreshes
+  them). Reached from Settings, not a tab (hidden `categories` route)
 □ React Native (Expo — faster to start)
 □ Same screens as web (adaptive)
 □ Secure storage for tokens (expo-secure-store)

@@ -2,6 +2,7 @@ import { api, householdHeaders } from './client';
 import type {
   Account,
   Category,
+  CategoryImpact,
   EnabledAccountType,
   ExchangeRate,
   Transaction,
@@ -38,6 +39,54 @@ export const financeApi = {
 
   getEnabledAccountTypes: (hid: string) =>
     api.get<EnabledAccountType[]>('/account-types/enabled', {
+      headers: householdHeaders(hid),
+    }),
+};
+
+export interface CreateCategoryInput {
+  name: string;
+  type: 'income' | 'expense';
+  icon?: string;
+  parentId?: string;
+}
+
+export type UpdateCategoryInput = Partial<CreateCategoryInput>;
+
+export const categoriesApi = {
+  // Archived rows come back only on request; the screen filters them locally.
+  list: (hid: string, includeArchived: boolean) =>
+    api.get<Category[]>('/categories', {
+      headers: householdHeaders(hid),
+      params: includeArchived ? { includeArchived: 'true' } : {},
+    }),
+
+  create: (hid: string, data: CreateCategoryInput) =>
+    api.post<Category>('/categories', data, { headers: householdHeaders(hid) }),
+
+  update: (id: string, hid: string, data: UpdateCategoryInput) =>
+    api.patch<Category>(`/categories/${id}`, data, {
+      headers: householdHeaders(hid),
+    }),
+
+  // Soft delete: the category is archived and can be restored.
+  archive: (id: string, hid: string) =>
+    api.delete(`/categories/${id}`, { headers: householdHeaders(hid) }),
+
+  unarchive: (id: string, hid: string) =>
+    api.post<Category>(
+      `/categories/${id}/unarchive`,
+      {},
+      { headers: householdHeaders(hid) },
+    ),
+
+  impact: (id: string, hid: string) =>
+    api.get<CategoryImpact>(`/categories/${id}/impact`, {
+      headers: householdHeaders(hid),
+    }),
+
+  // 409 with an `impact` body when dependents still exist.
+  permanentDelete: (id: string, hid: string) =>
+    api.delete(`/categories/${id}?permanent=true`, {
       headers: householdHeaders(hid),
     }),
 };
