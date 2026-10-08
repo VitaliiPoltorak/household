@@ -19,6 +19,8 @@ export default function AppTabsLayout() {
           }}
         />
       ))}
+      {/* Reachable from Settings; not a tab (the bar is already six wide). */}
+      <Tabs.Screen name="categories" options={{ href: null }} />
     </Tabs>
   );
 }

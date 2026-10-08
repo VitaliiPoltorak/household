@@ -25,7 +25,8 @@ flow, or sockets yet (see the follow-up issues under #27).
   pass `activeHousehold.id` to the API modules, which send it as
   `X-Household-Id`. Server state goes through TanStack Query with the same
   query keys as `apps/web`. Screens under `app/(app)/accounts/` are the
-  reference for list + form screens.
+  reference for list + form screens; `app/(app)/categories/` is a hidden route (no
+  tab) opened from Settings.
 - `src/api/client.ts` — fetch wrapper sending `X-Client-Platform: mobile`
   (tokens in the body, no cookies — #356) with single-flight refresh-on-401.
 
