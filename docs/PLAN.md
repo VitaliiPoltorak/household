@@ -329,7 +329,7 @@ apps/
   realtime-gateway/     # :3010 — Socket.IO, Kafka bridge, presence
   web/                  # :5173 — React 18 + Vite SPA
   notification-service/ # Phase 6 — email + push (not implemented)
-  mobile/               # :8081 (Metro) — Phase 5 — Expo scaffold done (#357), standalone pnpm project (#374); nav shell (#358) + auth flow (#359) done, Accounts (#361) + Transactions (#362) + Categories (#363) screens done, other data screens not started
+  mobile/               # :8081 (Metro) — Phase 5 — Expo scaffold done (#357), standalone pnpm project (#374); nav shell (#358) + auth flow (#359) done, Accounts (#361) + Transactions (#362) + Categories (#363) + Shopping lists (#364) screens done, other data screens not started
 
 libs/
   common/     # config, filters, JWT verify, gateway signature, date helpers
@@ -1079,6 +1079,10 @@ pnpm test:postman                                            # API scenario coll
   indented), create/edit (name, type on create only, emoji icon, parent), archive with
   confirmation, restore, and permanent delete gated on the server's impact counts (a 409 refreshes
   them). Reached from Settings, not a tab (hidden `categories` route)
+✔ Mobile Shopping lists screen (#364) — Active/Completed overview with progress, create list,
+  detail with checkbox items (unbought first), add one / bulk add (comma or newline separated,
+  3-char floor and case-insensitive dedupe like web), edit (name, quantity, unit) and delete item,
+  complete and delete list; pull-to-refresh and loading/empty/error states. Query keys match web
 □ React Native (Expo — faster to start)
 □ Same screens as web (adaptive)
 □ Secure storage for tokens (expo-secure-store)
