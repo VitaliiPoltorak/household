@@ -11,6 +11,10 @@ flow, or sockets yet (see the follow-up issues under #27).
 - `app/_layout.tsx` — root `Stack` with `Stack.Protected` guards on the
   (placeholder) `useAuth().isSignedIn` flag: signed out → `app/(auth)/`
   (login, register); signed in → `app/(app)/` (bottom tabs).
+- `app/index.tsx` — the bare `/` route (cold start): redirects to `/dashboard`
+  when signed in, `/login` otherwise (`rootRedirectHref` in
+  `src/navigation/root-redirect.ts`). The route groups don't expose `/`
+  themselves, so without it a launch lands on "Unmatched Route" (#402).
 - `app/(app)/_layout.tsx` — tabs mirroring web's primary nav, defined in
   `src/navigation/tabs.ts`: Dashboard, Accounts, Transactions, Shopping,
   Household, Settings. To add a tab: add a file under `app/(app)/` and an
