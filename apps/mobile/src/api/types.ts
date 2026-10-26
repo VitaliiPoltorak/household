@@ -108,3 +108,30 @@ export interface ExchangeRate {
   buy: string;
   sale: string;
 }
+
+export type ListStatus = 'active' | 'completed' | 'archived';
+
+export interface ShoppingListItem {
+  id: string;
+  listId: string;
+  productId: string | null;
+  name: string;
+  // Decimal columns can arrive as strings; always go through Number().
+  quantity: number | string;
+  unit: string | null;
+  preferredStoreId: string | null;
+  actualStoreId: string | null;
+  isPurchased: boolean;
+  price: number | string | null;
+}
+
+export interface ShoppingList {
+  id: string;
+  householdId: string;
+  name: string;
+  storeId: string | null;
+  status: ListStatus;
+  createdBy: string;
+  createdAt: string;
+  items: ShoppingListItem[];
+}
