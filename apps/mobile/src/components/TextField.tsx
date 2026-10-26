@@ -3,6 +3,7 @@ import type { TextInputProps } from 'react-native';
 
 export function TextField({
   label,
+  style,
   ...input
 }: { label: string } & TextInputProps) {
   return (
@@ -12,8 +13,10 @@ export function TextField({
         accessibilityLabel={label}
         placeholderTextColor="#999"
         autoCapitalize="none"
-        style={styles.input}
         {...input}
+        // Merged, not spread: a caller's `style` (even `undefined`) must not
+        // replace the base border/padding.
+        style={[styles.input, style]}
       />
     </>
   );
