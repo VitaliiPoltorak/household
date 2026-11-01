@@ -4,11 +4,15 @@ import { BaseEntity } from '@household/database';
 export enum NetWorthSnapshotSource {
   AUTO = 'auto',
   MANUAL = 'manual',
+  // Captured at end of day after the user answered "Yes" to the month-end
+  // prompt (#406). Replaces the 1st-of-month `auto` capture for new months.
+  CONFIRMED = 'confirmed',
 }
 
 /**
  * One net-worth snapshot per household per calendar date (#379). The
- * monthly @Cron auto-capture and a manual entry both write through the same
+ * confirmed end-of-day capture (#406; formerly the monthly auto capture) and
+ * a manual entry both write through the same
  * upsert, keyed by (household_id, snapshot_date) — a manual correction of an
  * auto-captured month reconciles the existing row instead of duplicating it.
  */

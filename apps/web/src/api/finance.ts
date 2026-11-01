@@ -9,6 +9,7 @@ import type {
   MonthlyReport,
   NetWorthReport,
   NetWorthSnapshot,
+  SnapshotPromptState,
   AccountTypeCatalogEntry,
   EnabledAccountType,
 } from '../types/api';
@@ -169,6 +170,25 @@ export const financeApi = {
     api.post<{ count: number }>(
       '/reports/net-worth/snapshots/bulk',
       data,
+      cfg(hid),
+    ),
+
+  // Month-end snapshot prompt (#406)
+  getSnapshotPrompt: (hid: string) =>
+    api.get<SnapshotPromptState>(
+      '/reports/net-worth/snapshot-prompt',
+      cfg(hid),
+    ),
+  confirmSnapshotPrompt: (hid: string) =>
+    api.post<SnapshotPromptState>(
+      '/reports/net-worth/snapshot-prompt/confirm',
+      {},
+      cfg(hid),
+    ),
+  snoozeSnapshotPrompt: (hid: string) =>
+    api.post<SnapshotPromptState>(
+      '/reports/net-worth/snapshot-prompt/snooze',
+      {},
       cfg(hid),
     ),
 

@@ -9,6 +9,9 @@ import { Modal } from '../components/ui/Modal';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { Section } from '../components/dashboard/Section';
 import { NetWorthTrendChart } from '../components/reports/NetWorthTrendChart';
+import { SnapshotPromptBar } from '../components/reports/SnapshotPromptBar';
+import { computeSnapshotChanges } from '../lib/net-worth-change';
+import { storage } from '../lib/storage';
 import { formatMoney } from '../lib/money';
 import {
   buildTrendSeries,
@@ -16,9 +19,12 @@ import {
 } from '../lib/net-worth-trend';
 import { useRatesState, convert } from '../hooks/useRates';
 import type { RateMap } from '../lib/currency';
+import type { SnapshotChange } from '../lib/net-worth-change';
 import type { NetWorthSnapshot, Transaction } from '../types/api';
 
 const CURRENCIES = ['UAH', 'USD', 'EUR'];
+const VIEW_KEY = 'netWorthChartView';
+const TOTAL_VIEW = 'total';
 const TOTAL_CURRENCY = 'USD';
 const NO_RATES_NEEDED: RateMap = {};
 const EMPTY: NetWorthSnapshot[] = [];
@@ -195,6 +201,59 @@ export function NetWorthHistoryPage() {
     ],
   );
 
+  // Single chart + view switcher (#406). Options: Total (multi-currency
+  // households only) plus every currency the household holds — UAH included,
+  // since hiding a currency the user actually has would hide their data. The
+  // choice is a per-viewer convenience kept in localStorage.
+  const [savedView, setSavedView] = useState<string | null>(() =>
+    storage.get(VIEW_KEY),
+  );
+  const viewOptions = useMemo(
+    () => [...(showTotal ? [TOTAL_VIEW] : []), ...currencies],
+    [showTotal, currencies],
+  );
+  const view =
+    savedView && viewOptions.includes(savedView)
+      ? savedView
+      : (viewOptions[0] ?? TOTAL_VIEW);
+  const chooseView = (v: string) => {
+    setSavedView(v);
+    storage.set(VIEW_KEY, v);
+  };
+
+  // Month-over-month change (#406) — computed on the Total (USD) for
+  // multi-currency households, else in the single currency held. Unlike
+  // totalsByRow, a USD-only row still gets a number here (it is only the
+  // *badge* that is redundant). Missing rates -> null -> placeholder.
+  const changeCurrency = showTotal
+    ? TOTAL_CURRENCY
+    : (currencies[0] ?? TOTAL_CURRENCY);
+  const changes = useMemo(() => {
+    const values = new Map<string, number | null>();
+    for (const s of sortedForList) {
+      if (!showTotal) {
+        values.set(s.id, s.byCurrency[changeCurrency] ?? null);
+        continue;
+      }
+      if (!canShowTotal) {
+        values.set(s.id, null);
+        continue;
+      }
+      let total = 0;
+      let ok = true;
+      for (const [ccy, v] of Object.entries(s.byCurrency)) {
+        const converted = convert(v, ccy, TOTAL_CURRENCY, ratesForTotal);
+        if (converted === null) {
+          ok = false;
+          break;
+        }
+        total += converted;
+      }
+      values.set(s.id, ok ? total : null);
+    }
+    return computeSnapshotChanges(sortedForList, values);
+  }, [sortedForList, showTotal, canShowTotal, ratesForTotal, changeCurrency]);
+
   if (!hid) {
     return (
       <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -205,6 +264,7 @@ export function NetWorthHistoryPage() {
 
   return (
     <div className="max-w-3xl space-y-8">
+      <SnapshotPromptBar hid={hid} />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
           {t('netWorthHistory.title')}
@@ -248,45 +308,74 @@ export function NetWorthHistoryPage() {
                   {t('netWorthHistory.rates.unavailable')}
                 </p>
               )}
-              {canShowTotal && totalSeries.length > 0 && (
-                <div>
-                  <p className="mb-1 flex items-center gap-2 text-xs font-medium text-gray-500 dark:text-gray-400">
-                    {t('netWorthHistory.totalUsd')}
-                    {ratesState.status === 'ready' &&
-                      ratesState.source === 'cache' && (
-                        <span className="text-amber-500 dark:text-amber-400">
-                          ({t('netWorthHistory.rates.cached')})
-                        </span>
-                      )}
-                  </p>
-                  <NetWorthTrendChart
-                    data={totalSeries}
-                    formatValue={(n) => formatMoney(n, TOTAL_CURRENCY)}
-                  />
+              {viewOptions.length > 1 && (
+                <div
+                  role="tablist"
+                  aria-label={t('netWorthHistory.viewLabel')}
+                  className="inline-flex flex-wrap gap-1 rounded-lg bg-gray-100 p-1 dark:bg-gray-800"
+                >
+                  {viewOptions.map((opt) => (
+                    <button
+                      key={opt}
+                      type="button"
+                      role="tab"
+                      aria-selected={view === opt}
+                      onClick={() => chooseView(opt)}
+                      className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
+                        view === opt
+                          ? 'bg-white text-gray-900 shadow-sm dark:bg-gray-700 dark:text-gray-100'
+                          : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+                      }`}
+                    >
+                      {opt === TOTAL_VIEW
+                        ? t('netWorthHistory.viewTotal')
+                        : opt}
+                    </button>
+                  ))}
                 </div>
               )}
-              {currencies.map((ccy) => {
-                const todayAnchor =
-                  netWorth?.byCurrency[ccy] !== undefined
-                    ? { date: todayStr(), value: netWorth.byCurrency[ccy] }
-                    : null;
-                return (
-                  <div key={ccy}>
-                    <p className="mb-1 text-xs font-medium text-gray-500 dark:text-gray-400">
-                      {ccy}
-                    </p>
-                    <NetWorthTrendChart
-                      data={buildTrendSeries(
-                        ccy,
-                        snapshots,
-                        trendTransactions,
-                        todayAnchor,
-                      )}
-                      formatValue={(n) => formatMoney(n, ccy)}
-                    />
-                  </div>
-                );
-              })}
+              {view === TOTAL_VIEW
+                ? canShowTotal &&
+                  totalSeries.length > 0 && (
+                    <div>
+                      <p className="mb-1 flex items-center gap-2 text-xs font-medium text-gray-500 dark:text-gray-400">
+                        {t('netWorthHistory.totalUsd')}
+                        {ratesState.status === 'ready' &&
+                          ratesState.source === 'cache' && (
+                            <span className="text-amber-500 dark:text-amber-400">
+                              ({t('netWorthHistory.rates.cached')})
+                            </span>
+                          )}
+                      </p>
+                      <NetWorthTrendChart
+                        data={totalSeries}
+                        formatValue={(n) => formatMoney(n, TOTAL_CURRENCY)}
+                      />
+                    </div>
+                  )
+                : (() => {
+                    const ccy = view;
+                    const todayAnchor =
+                      netWorth?.byCurrency[ccy] !== undefined
+                        ? { date: todayStr(), value: netWorth.byCurrency[ccy] }
+                        : null;
+                    return (
+                      <div>
+                        <p className="mb-1 text-xs font-medium text-gray-500 dark:text-gray-400">
+                          {ccy}
+                        </p>
+                        <NetWorthTrendChart
+                          data={buildTrendSeries(
+                            ccy,
+                            snapshots,
+                            trendTransactions,
+                            todayAnchor,
+                          )}
+                          formatValue={(n) => formatMoney(n, ccy)}
+                        />
+                      </div>
+                    );
+                  })()}
             </div>
           </Section>
 
@@ -300,7 +389,7 @@ export function NetWorthHistoryPage() {
                   <button
                     type="button"
                     onClick={() => setEditTarget(s)}
-                    className="flex flex-1 items-center justify-between gap-3 px-4 py-2.5 text-left"
+                    className="flex flex-1 flex-wrap items-center justify-between gap-x-3 gap-y-1 px-4 py-2.5 text-left"
                   >
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
@@ -308,14 +397,12 @@ export function NetWorthHistoryPage() {
                       </span>
                       <span
                         className={`rounded-full px-2 py-0.5 text-xs ${
-                          s.source === 'auto'
+                          s.source === 'auto' || s.source === 'confirmed'
                             ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-300'
                             : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300'
                         }`}
                       >
-                        {s.source === 'auto'
-                          ? t('netWorthHistory.auto')
-                          : t('netWorthHistory.manual')}
+                        {t(`netWorthHistory.${s.source}`)}
                       </span>
                     </div>
                     <div className="flex items-center gap-3 font-mono text-sm text-gray-700 dark:text-gray-300">
@@ -329,8 +416,12 @@ export function NetWorthHistoryPage() {
                         </span>
                       )}
                     </div>
+                    <ChangeCell
+                      change={changes.get(s.id) ?? null}
+                      currency={changeCurrency}
+                    />
                   </button>
-                  {s.source === 'manual' && (
+                  {s.source !== 'auto' && (
                     <button
                       type="button"
                       onClick={() => setDeleteTarget(s)}
@@ -401,6 +492,52 @@ export function NetWorthHistoryPage() {
         />
       )}
     </div>
+  );
+}
+
+// ──────────────────────────────────────────────
+// Month-over-month change cell (#406). Colour is never the only signal: an
+// arrow and an explicit +/- sign are always rendered too.
+// ──────────────────────────────────────────────
+function ChangeCell({
+  change,
+  currency,
+}: {
+  change: SnapshotChange | null;
+  currency: string;
+}) {
+  const { t } = useTranslation();
+  if (!change) {
+    return (
+      <span
+        className="w-full text-right text-xs text-gray-400 sm:w-40"
+        aria-label={t('netWorthHistory.changeNone')}
+      >
+        -
+      </span>
+    );
+  }
+  const { diff, pct, direction } = change;
+  const tone =
+    direction === 'up'
+      ? 'text-green-600 dark:text-green-400'
+      : direction === 'down'
+        ? 'text-red-600 dark:text-red-400'
+        : 'text-gray-500 dark:text-gray-400';
+  const arrow = direction === 'up' ? '▲' : direction === 'down' ? '▼' : '–';
+  const sign = direction === 'up' ? '+' : direction === 'down' ? '-' : '';
+  const pctText = pct === null ? '' : ` (${sign}${Math.abs(pct).toFixed(1)}%)`;
+  return (
+    <span
+      data-testid="snapshot-change"
+      data-direction={direction}
+      className={`w-full text-right font-mono text-xs font-medium sm:w-40 ${tone}`}
+    >
+      <span aria-hidden="true">{arrow} </span>
+      {sign}
+      {formatMoney(Math.abs(diff), currency)}
+      {pctText}
+    </span>
   );
 }
 

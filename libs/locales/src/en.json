@@ -548,7 +548,7 @@
     "history": "History",
     "auto": "Auto",
     "manual": "Manual",
-    "empty": "No net-worth history yet. Add an entry, or wait for the automatic snapshot on the 1st of next month.",
+    "empty": "No net-worth history yet. Add an entry, or confirm month-end when the prompt appears 5 days before the end of the month.",
     "entryHint": "Leave a currency blank to omit it. Saving an entry for a date that already has one replaces it.",
     "needOneCurrency": "Enter at least one currency amount.",
     "needOneRow": "Enter at least one row with a date and an amount.",
@@ -565,6 +565,16 @@
       "unavailable": "Rates unavailable",
       "unavailableDesc": "PrivatBank rates couldn't be fetched — the USD total is hidden to avoid showing a wrong number.",
       "cached": "cached"
+    },
+    "confirmed": "Confirmed",
+    "viewLabel": "Chart view",
+    "viewTotal": "Total",
+    "changeNone": "No change available",
+    "prompt": {
+      "label": "Month-end check",
+      "question": "Have all incomes for {{month}} been entered?",
+      "yes": "Yes",
+      "postpone": "Postpone"
     }
   },
   "invites": {

@@ -14,6 +14,7 @@ import {
 import { formatMoney } from '../lib/money';
 import { useRatesState, convert, BASE_CURRENCY_KEY } from '../hooks/useRates';
 import type { AccountSummary } from '../types/api';
+import { SnapshotPromptBar } from '../components/reports/SnapshotPromptBar';
 import { accountTypeLabel } from '../lib/account-type-label';
 import { useEnabledAccountTypes } from '../hooks/useEnabledAccountTypes';
 
@@ -245,6 +246,7 @@ export function DashboardPage() {
 
   return (
     <div className="space-y-6">
+      {hid && <SnapshotPromptBar hid={hid} />}
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
           {activeHousehold?.name ?? t('tour.demo.householdName')}

@@ -2220,6 +2220,140 @@
       ]
     },
     {
+      "name": "Finance — Net worth snapshot prompt",
+      "description": "Month-end \"have all incomes been entered?\" prompt (#406): visible by date, snooze hides it, confirm resolves it for the household.",
+      "item": [
+        {
+          "name": "Prompt is due and names a month",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const b = pm.response.json();",
+                  "pm.test('Shown with a YYYY-MM month', () => { pm.expect(b.show).to.eql(true); pm.expect(b.month).to.match(/^\\d{4}-\\d{2}$/); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Household-Id",
+                "value": "{{householdId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/reports/net-worth/snapshot-prompt"
+          }
+        },
+        {
+          "name": "Postpone hides the prompt until tomorrow",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const b = pm.response.json();",
+                  "pm.test('Hidden, snoozed', () => { pm.expect(b.show).to.eql(false); pm.expect(b.snoozedUntil).to.be.a('string'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Household-Id",
+                "value": "{{householdId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/reports/net-worth/snapshot-prompt/snooze",
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          }
+        },
+        {
+          "name": "Yes resolves the prompt for the month",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const b = pm.response.json();",
+                  "pm.test('Resolved', () => { pm.expect(b.show).to.eql(false); pm.expect(b.month).to.eql(null); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Household-Id",
+                "value": "{{householdId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/reports/net-worth/snapshot-prompt/confirm",
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          }
+        },
+        {
+          "name": "Prompt stays gone after confirm",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const b = pm.response.json();",
+                  "pm.test('Still hidden', () => pm.expect(b.show).to.eql(false));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Household-Id",
+                "value": "{{householdId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/reports/net-worth/snapshot-prompt"
+          }
+        }
+      ]
+    },
+    {
       "name": "Finance — Recurring Payments",
       "item": [
         {
