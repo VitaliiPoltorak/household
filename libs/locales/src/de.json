@@ -548,7 +548,7 @@
     "history": "Historie",
     "auto": "Automatisch",
     "manual": "Manuell",
-    "empty": "Noch kein Vermögensverlauf. Fügen Sie einen Eintrag hinzu oder warten Sie auf den automatischen Schnappschuss am 1. des nächsten Monats.",
+    "empty": "Noch kein Vermögensverlauf. Fügen Sie einen Eintrag hinzu oder bestätigen Sie den Monatsabschluss, sobald die Abfrage 5 Tage vor Monatsende erscheint.",
     "entryHint": "Lassen Sie eine Währung leer, um sie auszulassen. Ein Eintrag für ein bereits vorhandenes Datum ersetzt den vorherigen.",
     "needOneCurrency": "Geben Sie mindestens einen Währungsbetrag ein.",
     "needOneRow": "Geben Sie mindestens eine Zeile mit Datum und Betrag ein.",
@@ -565,6 +565,16 @@
       "unavailable": "Kurse nicht verfügbar",
       "unavailableDesc": "PrivatBank-Kurse konnten nicht abgerufen werden — die USD-Summe wird ausgeblendet, um keine falsche Zahl anzuzeigen.",
       "cached": "zwischengespeichert"
+    },
+    "confirmed": "Bestätigt",
+    "viewLabel": "Diagrammansicht",
+    "viewTotal": "Gesamt",
+    "changeNone": "Keine Änderung verfügbar",
+    "prompt": {
+      "label": "Monatsabschluss-Prüfung",
+      "question": "Wurden alle Einnahmen für {{month}} erfasst?",
+      "yes": "Ja",
+      "postpone": "Später"
     }
   },
   "invites": {

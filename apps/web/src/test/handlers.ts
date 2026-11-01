@@ -404,6 +404,11 @@ export const handlers = [
     }),
   ),
 
+  // Month-end snapshot prompt (#406) — hidden by default.
+  http.get(`${BASE}/reports/net-worth/snapshot-prompt`, () =>
+    HttpResponse.json({ show: false, month: null, snoozedUntil: null }),
+  ),
+
   // Shopping
   http.get(`${BASE}/stores`, () => HttpResponse.json([])),
   http.get(`${BASE}/products`, () => HttpResponse.json([])),

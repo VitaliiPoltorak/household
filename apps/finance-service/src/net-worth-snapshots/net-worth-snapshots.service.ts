@@ -75,11 +75,12 @@ export class NetWorthSnapshotsService {
     );
   }
 
-  /** Scheduler entry point (#379) — takes the already-computed byCurrency
+  /** Scheduler entry point (#406) — takes the already-computed byCurrency
    *  from ReportsService.getNetWorth rather than duplicating the
-   *  balance-aggregation SQL here. A household with no active accounts
-   *  produces an empty byCurrency, which is skipped rather than stored. */
-  async captureAuto(
+   *  balance-aggregation SQL here. Tagged `confirmed` so history can tell it
+   *  from a legacy 1st-of-month `auto` row. A household with no active
+   *  accounts produces an empty byCurrency, which is skipped, not stored. */
+  async captureConfirmed(
     householdId: string,
     date: string,
     byCurrency: Record<string, number>,
@@ -90,21 +91,21 @@ export class NetWorthSnapshotsService {
         householdId,
         snapshotDate: date,
         byCurrency,
-        source: NetWorthSnapshotSource.AUTO,
+        source: NetWorthSnapshotSource.CONFIRMED,
       },
     ]);
   }
 
-  /** Delete a snapshot (#379 follow-up). Manual entries only — an auto
-   *  snapshot is system-managed (the scheduler recreates it next month, and
-   *  deleting it wouldn't stick), so it's rejected with a clear reason
-   *  rather than silently deleting the wrong kind of row. */
+  /** Delete a snapshot (#379 follow-up). Manual and confirmed entries only.
+   *  A legacy `auto` row stays protected as before. A confirmed row can be
+   *  deleted safely: the prompt records `captured_at`, so the catch-up job
+   *  never recreates it. */
   async deleteManual(householdId: string, id: string): Promise<void> {
     const snapshot = await this.repo.findOneBy({ id, householdId });
     if (!snapshot) throw new NotFoundException('Snapshot not found');
-    if (snapshot.source !== NetWorthSnapshotSource.MANUAL) {
+    if (snapshot.source === NetWorthSnapshotSource.AUTO) {
       throw new BadRequestException(
-        'Only manual snapshots can be deleted — an auto snapshot is recreated by the scheduler',
+        'Only manual or confirmed snapshots can be deleted — a legacy auto snapshot is system-managed',
       );
     }
     await this.repo.remove(snapshot);

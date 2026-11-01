@@ -21,6 +21,8 @@ const ENTITY_KEYS: Record<string, string[]> = {
   shoppingItem: ['shopping-list'],
   member:       ['members'],
   household:    ['households'],
+  snapshotPrompt:    ['net-worth-snapshot-prompt'],
+  netWorthSnapshot:  ['net-worth-snapshots'],
 };
 
 interface SocketContextValue {

@@ -254,7 +254,15 @@ export interface NetWorthReport {
 }
 
 // #379 — persisted net-worth history (monthly auto-capture + manual backfill).
-export type NetWorthSnapshotSource = 'auto' | 'manual';
+export type NetWorthSnapshotSource = 'auto' | 'manual' | 'confirmed';
+
+// #406 — month-end "have all incomes been entered?" prompt state.
+export interface SnapshotPromptState {
+  show: boolean;
+  /** Month (YYYY-MM) being asked about; null when nothing is due. */
+  month: string | null;
+  snoozedUntil: string | null;
+}
 
 export interface NetWorthSnapshot {
   id: string;

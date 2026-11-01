@@ -658,4 +658,326 @@ describe('NetWorthHistoryPage (#379)', () => {
       expect(screen.queryByText(/≈ \$100\.00/)).not.toBeInTheDocument();
     });
   });
+
+  // ── #406: single chart + switcher, change column, month-end bar ──────────
+  describe('single chart + switcher (#406)', () => {
+    const MULTI: NetWorthSnapshot[] = [
+      {
+        id: 's1',
+        householdId: 'hh-1',
+        snapshotDate: '2026-05-31',
+        byCurrency: { UAH: 4000, USD: 100 },
+        source: 'confirmed',
+        createdAt: '2026-06-01T00:00:00Z',
+        updatedAt: '2026-06-01T00:00:00Z',
+      },
+    ];
+    const useMulti = () =>
+      server.use(
+        http.get('/api/v1/reports/net-worth/snapshots', () =>
+          HttpResponse.json(MULTI),
+        ),
+        http.get('/api/v1/transactions', () => HttpResponse.json([])),
+        http.get('/api/v1/reports/net-worth', () =>
+          HttpResponse.json({
+            totalBalance: 4100,
+            byCurrency: { UAH: 4000, USD: 100 },
+            accounts: [],
+          }),
+        ),
+        http.get('/api/v1/rates/latest', () =>
+          HttpResponse.json([
+            { ccy: 'USD', base_ccy: 'UAH', buy: '40.00', sale: '40.50' },
+          ]),
+        ),
+      );
+    beforeEach(() => {
+      localStorage.removeItem('accounts:ratesCache');
+      localStorage.removeItem('netWorthChartView');
+    });
+
+    it('renders one chart, defaults to Total, and switches per currency (remembered)', async () => {
+      useMulti();
+      const user = userEvent.setup();
+      renderWithProviders(<NetWorthHistoryPage />);
+      await waitFor(() => screen.getByText('2026-05-31'), { timeout: 3000 });
+
+      const tabs = screen.getByRole('tablist');
+      expect(
+        within(tabs)
+          .getAllByRole('tab')
+          .map((t) => t.textContent),
+      ).toEqual(['Total', 'UAH', 'USD']);
+      expect(within(tabs).getByRole('tab', { name: 'Total' })).toHaveAttribute(
+        'aria-selected',
+        'true',
+      );
+      await waitFor(() =>
+        expect(screen.getByText('Total (USD)')).toBeInTheDocument(),
+      );
+      // Only the combined chart is on screen, not one per currency.
+      expect(screen.queryByText(/^UAH$/, { selector: 'p' })).toBeNull();
+
+      await user.click(within(tabs).getByRole('tab', { name: 'USD' }));
+      expect(screen.queryByText('Total (USD)')).toBeNull();
+      expect(screen.getByText('USD', { selector: 'p' })).toBeInTheDocument();
+      expect(localStorage.getItem('netWorthChartView')).toBe('USD');
+    });
+
+    it('restores the remembered view on mount', async () => {
+      localStorage.setItem('netWorthChartView', 'UAH');
+      useMulti();
+      renderWithProviders(<NetWorthHistoryPage />);
+      await waitFor(() => screen.getByText('2026-05-31'), { timeout: 3000 });
+      expect(screen.getByRole('tab', { name: 'UAH' })).toHaveAttribute(
+        'aria-selected',
+        'true',
+      );
+    });
+
+    it('shows no switcher for a single-currency household', async () => {
+      server.use(
+        http.get('/api/v1/reports/net-worth/snapshots', () =>
+          HttpResponse.json(MOCK_SNAPSHOTS),
+        ),
+      );
+      renderWithProviders(<NetWorthHistoryPage />);
+      await waitFor(() => screen.getByText('2026-07-01'), { timeout: 3000 });
+      expect(screen.queryByRole('tablist')).toBeNull();
+    });
+  });
+
+  describe('month-over-month change column (#406)', () => {
+    const snap = (
+      id: string,
+      date: string,
+      byCurrency: Record<string, number>,
+    ): NetWorthSnapshot => ({
+      id,
+      householdId: 'hh-1',
+      snapshotDate: date,
+      byCurrency,
+      source: 'manual',
+      createdAt: date,
+      updatedAt: date,
+    });
+    beforeEach(() => localStorage.removeItem('accounts:ratesCache'));
+
+    it('single currency: green +/up for increase, red -/down for decrease, neutral for zero, placeholder for the oldest', async () => {
+      server.use(
+        http.get('/api/v1/reports/net-worth/snapshots', () =>
+          HttpResponse.json([
+            snap('a', '2026-01-10', { UAH: 1000 }),
+            snap('b', '2026-02-10', { UAH: 1500 }), // +500 (+50%)
+            snap('c', '2026-03-10', { UAH: 1500 }), // 0
+            snap('d', '2026-04-10', { UAH: 1200 }), // -300 (-20%)
+          ]),
+        ),
+      );
+      renderWithProviders(<NetWorthHistoryPage />);
+      await waitFor(() => screen.getByText('2026-04-10'), { timeout: 3000 });
+
+      const cells = screen.getAllByTestId('snapshot-change');
+      // Newest first: Apr (down), Mar (flat), Feb (up); Jan is a placeholder.
+      expect(cells.map((c) => c.getAttribute('data-direction'))).toEqual([
+        'down',
+        'flat',
+        'up',
+      ]);
+      expect(cells[0].textContent).toMatch(/▼ -.*300.*\(-20\.0%\)/);
+      expect(cells[0].className).toMatch(/text-red/);
+      expect(cells[2].textContent).toMatch(/▲ \+.*500.*\(\+50\.0%\)/);
+      expect(cells[2].className).toMatch(/text-green/);
+      expect(cells[1].className).toMatch(/text-gray/);
+      expect(screen.getAllByLabelText('No change available')).toHaveLength(1);
+    });
+
+    it('multi-currency: difference is computed on the converted USD total', async () => {
+      server.use(
+        http.get('/api/v1/reports/net-worth/snapshots', () =>
+          HttpResponse.json([
+            snap('a', '2026-05-01', { UAH: 4000, USD: 100 }), // 200 USD
+            snap('b', '2026-06-01', { UAH: 8000, USD: 100 }), // 300 USD
+          ]),
+        ),
+        http.get('/api/v1/transactions', () => HttpResponse.json([])),
+        http.get('/api/v1/reports/net-worth', () =>
+          HttpResponse.json({
+            totalBalance: 0,
+            byCurrency: { UAH: 8000, USD: 100 },
+            accounts: [],
+          }),
+        ),
+        http.get('/api/v1/rates/latest', () =>
+          HttpResponse.json([
+            { ccy: 'USD', base_ccy: 'UAH', buy: '40.00', sale: '40.50' },
+          ]),
+        ),
+      );
+      renderWithProviders(<NetWorthHistoryPage />);
+      const cell = await screen.findByTestId('snapshot-change', undefined, {
+        timeout: 3000,
+      });
+      expect(cell.textContent).toMatch(/\+.*100.*\(\+50\.0%\)/);
+    });
+
+    it('multi-currency with missing rates: placeholder instead of a partial number', async () => {
+      server.use(
+        http.get('/api/v1/reports/net-worth/snapshots', () =>
+          HttpResponse.json([
+            snap('a', '2026-05-01', { UAH: 4000, USD: 100 }),
+            snap('b', '2026-06-01', { UAH: 8000, USD: 100 }),
+          ]),
+        ),
+        http.get('/api/v1/transactions', () => HttpResponse.json([])),
+        http.get('/api/v1/reports/net-worth', () =>
+          HttpResponse.json({
+            totalBalance: 0,
+            byCurrency: { UAH: 8000, USD: 100 },
+            accounts: [],
+          }),
+        ),
+        http.get(
+          '/api/v1/rates/latest',
+          () => new HttpResponse(null, { status: 503 }),
+        ),
+      );
+      renderWithProviders(<NetWorthHistoryPage />);
+      await waitFor(() => screen.getByText('2026-06-01'), { timeout: 3000 });
+      await waitFor(
+        () => expect(screen.getByText('Rates unavailable')).toBeInTheDocument(),
+        { timeout: 3000 },
+      );
+      expect(screen.queryByTestId('snapshot-change')).toBeNull();
+    });
+
+    it('updates the neighbour row immediately when a snapshot is deleted', async () => {
+      let rows = [
+        snap('a', '2026-01-10', { UAH: 1000 }),
+        snap('b', '2026-02-10', { UAH: 1500 }),
+        snap('c', '2026-03-10', { UAH: 1800 }),
+      ];
+      server.use(
+        http.get('/api/v1/reports/net-worth/snapshots', () =>
+          HttpResponse.json(rows),
+        ),
+        http.delete('/api/v1/reports/net-worth/snapshots/:id', ({ params }) => {
+          rows = rows.filter((r) => r.id !== params.id);
+          return new HttpResponse(null, { status: 204 });
+        }),
+      );
+      const user = userEvent.setup();
+      renderWithProviders(<NetWorthHistoryPage />);
+      await waitFor(() => screen.getByText('2026-03-10'), { timeout: 3000 });
+      // Mar vs Feb = +300 before the delete.
+      expect(screen.getAllByTestId('snapshot-change')[0].textContent).toMatch(
+        /300/,
+      );
+
+      const febRow = screen.getByText('2026-02-10').closest('li')!;
+      await user.click(within(febRow).getByTitle('Delete'));
+      await user.click(await screen.findByRole('button', { name: 'Delete' }));
+
+      // Mar now compares with Jan: +800.
+      await waitFor(() =>
+        expect(screen.getAllByTestId('snapshot-change')[0].textContent).toMatch(
+          /800/,
+        ),
+      );
+    });
+  });
+
+  describe('month-end confirmation bar (#406)', () => {
+    const PROMPT = { show: true, month: '2026-11', snoozedUntil: null };
+    const withMembers = (role: string) =>
+      http.get('/api/v1/households/:id/members', () =>
+        HttpResponse.json([
+          {
+            id: 'm-1',
+            householdId: 'hh-1',
+            userId: 'user-1',
+            role,
+            createdAt: '2026-01-01T00:00:00Z',
+          },
+        ]),
+      );
+    const noHistory = http.get('/api/v1/reports/net-worth/snapshots', () =>
+      HttpResponse.json([]),
+    );
+
+    it('asks about the named month and hides after Yes', async () => {
+      let confirmed = false;
+      server.use(
+        noHistory,
+        withMembers('member'),
+        http.get('/api/v1/reports/net-worth/snapshot-prompt', () =>
+          HttpResponse.json(PROMPT),
+        ),
+        http.post('/api/v1/reports/net-worth/snapshot-prompt/confirm', () => {
+          confirmed = true;
+          return HttpResponse.json({
+            show: false,
+            month: null,
+            snoozedUntil: null,
+          });
+        }),
+      );
+      const user = userEvent.setup();
+      renderWithProviders(<NetWorthHistoryPage />);
+      expect(
+        await screen.findByText('Have all incomes for November been entered?'),
+      ).toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: 'Yes' }));
+      await waitFor(() => expect(confirmed).toBe(true));
+      await waitFor(() =>
+        expect(screen.queryByText(/Have all incomes for/)).toBeNull(),
+      );
+    });
+
+    it('Postpone hides the bar', async () => {
+      let snoozed = false;
+      server.use(
+        noHistory,
+        withMembers('owner'),
+        http.get('/api/v1/reports/net-worth/snapshot-prompt', () =>
+          HttpResponse.json(PROMPT),
+        ),
+        http.post('/api/v1/reports/net-worth/snapshot-prompt/snooze', () => {
+          snoozed = true;
+          return HttpResponse.json({
+            show: false,
+            month: '2026-11',
+            snoozedUntil: '2026-11-27',
+          });
+        }),
+      );
+      const user = userEvent.setup();
+      renderWithProviders(<NetWorthHistoryPage />);
+      await user.click(await screen.findByRole('button', { name: 'Postpone' }));
+      await waitFor(() => expect(snoozed).toBe(true));
+      await waitFor(() =>
+        expect(screen.queryByText(/Have all incomes for/)).toBeNull(),
+      );
+    });
+
+    it('is not shown to a viewer', async () => {
+      let asked = false;
+      server.use(
+        noHistory,
+        withMembers('viewer'),
+        http.get('/api/v1/reports/net-worth/snapshot-prompt', () => {
+          asked = true;
+          return HttpResponse.json(PROMPT);
+        }),
+      );
+      renderWithProviders(<NetWorthHistoryPage />);
+      await waitFor(() =>
+        expect(
+          screen.getByText(/No net-worth history yet/),
+        ).toBeInTheDocument(),
+      );
+      expect(screen.queryByText(/Have all incomes for/)).toBeNull();
+      expect(asked).toBe(false);
+    });
+  });
 });
