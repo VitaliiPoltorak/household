@@ -59,3 +59,12 @@ jobs:
         # --wait-timeout so a service that never turns healthy fails the job
         # instead of hanging the runner until the 6h Actions limit.
         run: docker compose up -d --wait --wait-timeout 300
+      # Every rebuild leaves BuildKit layers behind and nothing else removes
+      # them (#409: 66 GB of build cache on a 125 GB disk). Runs last, after the
+      # stack is confirmed healthy, so a prune problem can never mask a deploy
+      # result; continue-on-error because a failed cleanup must not turn a good
+      # deploy red. The weekly household-docker-prune.timer is the safety net.
+      - name: Prune Docker build cache
+        working-directory: /opt/household
+        continue-on-error: true
+        run: scripts/prune-docker.sh

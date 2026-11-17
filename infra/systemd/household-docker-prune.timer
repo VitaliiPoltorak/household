@@ -1,0 +1,13 @@
+# Installed alongside household-docker-prune.service — see
+# infra/systemd/README.md. Sundays 04:30 server time: after the 03:15 nightly
+# backup (household-backup.timer) has finished, and in the quietest hours.
+[Unit]
+Description=Run household Docker cleanup weekly
+
+[Timer]
+OnCalendar=Sun *-*-* 04:30:00
+RandomizedDelaySec=300
+Persistent=true
+
+[Install]
+WantedBy=timers.target

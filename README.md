@@ -483,6 +483,11 @@ and `.github/workflows/deploy.yml` runs on it:
    docs-only push therefore restarts nothing.
 3. `docker compose up -d --wait` — confirms the whole stack is healthy, and brings back anything
    that was down before the deploy.
+4. `scripts/prune-docker.sh` — caps the BuildKit build cache (10GB) and removes dangling images
+   older than 7 days, best-effort (a failed cleanup never turns a good deploy red). Without it the
+   cache grew to 66 GB on the 125 GB disk ([#409](https://github.com/VitaliiPoltorak/household/issues/409)).
+   It never touches containers, volumes or tagged images, so `household/<svc>:previous` survives.
+   `household-docker-prune.timer` runs it weekly as a safety net (`infra/systemd/README.md`).
 
 The pull runs with hooks disabled (`-c core.hooksPath=/dev/null`) and calls the rebuild script
 explicitly instead. Otherwise `post-merge` would run it in its best-effort mode, which always exits
