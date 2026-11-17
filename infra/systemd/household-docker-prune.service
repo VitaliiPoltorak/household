@@ -1,0 +1,20 @@
+# Installed on the production VPS (not by any automated deploy step — see
+# infra/systemd/README.md). Runs scripts/prune-docker.sh once, triggered by
+# household-docker-prune.timer. Safety net for the per-deploy prune in
+# .github/workflows/deploy.yml: it also covers weeks with no deploys, and the
+# case where a deploy's prune step failed (that step is best-effort).
+#
+# Type=oneshot + no Restart=: a failed run should surface as a failed unit
+# (`systemctl --failed`, `journalctl -u household-docker-prune`), not retry.
+[Unit]
+Description=household Docker build cache and image cleanup (#409)
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+# Same user that owns /opt/household and is in the docker group — see
+# household-backup.service.
+User=vitaliy
+WorkingDirectory=/opt/household
+ExecStart=/opt/household/scripts/prune-docker.sh

@@ -1137,6 +1137,11 @@ pnpm test:postman                                            # API scenario coll
       so a failed build turns the Actions job red instead of deploying green over a stale image.
       One-time VPS setup (runner registration + `COMPOSE_FILE` so bare `docker compose` calls there
       keep applying the prod overlay): `infra/github-runner/README.md`.
+    ✔ Docker disk hygiene (#409) — nothing ever pruned BuildKit layers on the VPS, so the build cache
+      reached 66 GB of a 125 GB disk. `scripts/prune-docker.sh` (build cache capped at 10GB, dangling
+      images older than 7 days; never `image prune -a`, which would delete the `:previous` rollback
+      tags) runs as the last step of `deploy.yml` and weekly via `household-docker-prune.timer`.
+      Narrowing the "libs/* change rebuilds all 7 services" mapping is tracked in #410.
     ✔ Prod overlay under version control (#317) — `docker-compose.prod.yml` used to exist only as
       `/opt/household/docker-compose.prod.yml` on the VPS: not in the repo, not in the nightly
       backup (#306 dumps Postgres only), and its only written record was a hand-copied YAML block
